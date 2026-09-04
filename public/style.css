@@ -1,0 +1,998 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --sidebar-bg: #f3f5f9;
+  --sidebar-border: #dfe4ec;
+  --card-bg: #ffffff;
+  --card-border: #e3e7ee;
+  --input-bg: #ffffff;
+  --input-border: #cfd6e0;
+  --text-main: #222b38;
+  --text-muted: #6b7684;
+  --text-faint: #93a0af;
+  --accent: #2f6fed;
+  --accent-hover: #2158c9;
+}
+
+body {
+  font-family: "Microsoft JhengHei", "Segoe UI", sans-serif;
+  background: linear-gradient(160deg, #eef2f8, #eef2f8);
+  color: var(--text-main);
+  overflow: hidden;
+  transition: background 1.4s ease;
+}
+
+body.weather-sunny-day    { background: linear-gradient(160deg, #cfe4ff 0%, #a9c9f2 45%, #ffd28a 100%); }
+body.weather-sunny-night  { background: linear-gradient(160deg, #6c7a9a 0%, #8996b4 55%, #a9b4cc 100%); }
+body.weather-cloudy-day   { background: linear-gradient(160deg, #dbe3ee 0%, #c3ccdb 55%, #aeb9cb 100%); }
+body.weather-cloudy-night { background: linear-gradient(160deg, #8b93a5 0%, #a3aabb 55%, #b8bfce 100%); }
+body.weather-overcast     { background: linear-gradient(160deg, #dfe2e6 0%, #cbcfd6 60%, #b9bec7 100%); }
+body.weather-rain         { background: linear-gradient(160deg, #c6d7e6 0%, #a9c3d9 55%, #8fb0cc 100%); }
+body.weather-thunder      { background: linear-gradient(160deg, #9aa0b5 0%, #7f86a0 45%, #6b7292 100%); }
+body.weather-fog          { background: linear-gradient(160deg, #e2e4e7 0%, #cfd2d6 55%, #babec4 100%); }
+body.weather-snow         { background: linear-gradient(160deg, #e4edf6 0%, #cfe0ee 55%, #b7d0e4 100%); }
+
+.app {
+  display: flex;
+  height: 100vh;
+}
+
+/* 未登入前，主畫面完全不渲染／不可互動，避免功能被繞過 */
+body:not(.auth-ok) .app {
+  display: none;
+}
+
+/* ---------------- 網頁版：登入畫面 (login-gate) ---------------- */
+.login-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #eef2f8 0%, #dbe6fb 55%, #cddcf7 100%);
+  padding: 20px;
+}
+body.auth-ok .login-gate {
+  display: none;
+}
+.login-gate-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 36px 28px 28px;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(30, 45, 80, 0.14);
+}
+.login-gate-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  margin-bottom: 10px;
+}
+.login-gate-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.login-gate-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 18px;
+}
+.login-gate-status {
+  font-size: 13px;
+  color: var(--text-faint);
+  margin-bottom: 12px;
+}
+.login-gate-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.login-gate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text-main);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+.login-gate-btn:hover {
+  border-color: var(--accent);
+  background: #eef3ff;
+  transform: translateY(-1px);
+}
+.login-gate-btn[disabled] {
+  pointer-events: none;
+  opacity: 0.4;
+}
+.login-gate-btn img, .login-gate-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+.login-gate-error {
+  margin-top: 14px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fdecec;
+  border: 1px solid #f3b9b9;
+  color: #b3261e;
+  font-size: 12px;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 270px;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  padding: 22px 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.brand-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.brand-name {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--accent);
+}
+
+.key-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  color: var(--text-main);
+}
+.key-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e; /* 綠色 = 已連線 */
+  flex-shrink: 0;
+}
+.key-status.disconnected .key-status-dot { background: #ef4444; /* 紅色 = 尚未連線 */ }
+.key-status-text { font-weight: 600; }
+
+.search-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+input[type="text"], input[type="password"], select {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text-main);
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+}
+input[type="text"]:focus, input[type="password"]:focus, select:focus { border-color: var(--accent); }
+select { cursor: pointer; }
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  background: var(--accent);
+  transition: background 0.15s ease;
+}
+button:hover { background: var(--accent-hover); }
+
+.locate-btn {
+  background: #2f8f5f;
+  margin-bottom: 18px;
+}
+.locate-btn:hover { background: #257249; }
+
+.fav-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.fav-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-bottom: 8px;
+}
+
+.fav-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fav-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fav-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.compare-btn {
+  background: #7a4fd9;
+  margin-top: 10px;
+  width: 100%;
+}
+.compare-btn:hover { background: #663fc0; }
+.compare-btn.hidden { display: none; }
+
+.fav-item button.fav-select {
+  flex: 1;
+  text-align: left;
+  background: var(--card-bg);
+  color: var(--text-main);
+  border: 1px solid var(--card-border);
+}
+.fav-item button.fav-select:hover { background: #eef1f6; }
+.fav-item button.fav-select.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+.fav-item button.fav-remove {
+  width: 30px;
+  background: #d9605f;
+  padding: 9px 0;
+}
+.fav-item button.fav-remove:hover { background: #c24443; }
+
+.status-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 10px;
+  min-height: 32px;
+}
+
+/* Main */
+.main {
+  flex: 1;
+  padding: 26px 32px;
+  overflow-y: auto;
+}
+
+.main-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.main-header h2 { font-size: 24px; color: var(--text-main); }
+
+.update-time {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 4px 0 16px;
+}
+
+.current-card {
+  background: linear-gradient(135deg, #ffffff, #f2f5fa);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 22px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(30, 42, 60, 0.06);
+}
+
+.current-card-top {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+}
+
+.current-icon { font-size: 56px; display: flex; align-items: center; justify-content: center; }
+.wx-icon-img { width: 56px; height: 56px; object-fit: contain; display: block; }
+.current-mid { display: flex; flex-direction: column; }
+.current-temp { font-size: 42px; font-weight: 800; color: var(--text-main); }
+.current-desc { font-size: 15px; color: var(--text-muted); }
+.current-detail {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.7;
+  white-space: pre-line;
+}
+
+.current-forecast-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+  align-self: center;
+}
+#currentViewForecastBtn.hidden { display: none; }
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.tab-btn {
+  background: var(--card-bg);
+  color: var(--text-muted);
+  border: 1px solid var(--card-border);
+}
+.tab-btn.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.forecast-row {
+  display: flex;
+  gap: 12px;
+}
+
+.forecast-card {
+  flex: 1;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 16px 10px;
+  text-align: center;
+  box-shadow: 0 1px 6px rgba(30, 42, 60, 0.05);
+}
+.forecast-card .fdate { font-size: 13px; font-weight: 700; margin-bottom: 6px; color: var(--text-main); }
+.forecast-card .ficon { font-size: 30px; margin: 4px 0; display: flex; align-items: center; justify-content: center; }
+.forecast-card .ficon .wx-icon-img { width: 30px; height: 30px; }
+.forecast-card .fdesc { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+.forecast-card .ftemp { font-size: 15px; font-weight: 700; margin-bottom: 4px; color: var(--text-main); }
+.forecast-card .fpop { font-size: 11px; color: var(--accent); }
+
+#tempChart {
+  width: 100%;
+  max-width: 100%;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+}
+
+.compare-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 20px 0;
+}
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.compare-card {
+  background: var(--card-bg);
+  border-radius: 14px;
+  padding: 16px;
+  border: 1px solid var(--card-border);
+  box-shadow: 0 1px 6px rgba(30, 42, 60, 0.05);
+}
+.compare-card .ccity { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text-main); }
+.compare-card .cicon { font-size: 32px; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; }
+.compare-card .cicon .wx-icon-img { width: 32px; height: 32px; }
+.compare-card .cdesc { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+.compare-card .ctemp { font-size: 20px; font-weight: 800; margin-bottom: 4px; color: var(--text-main); }
+.compare-card .cpop { font-size: 11px; color: var(--accent); }
+.compare-card .cerr { font-size: 12px; color: #c0392b; }
+
+#compareChart {
+  width: 100%;
+  max-width: 100%;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+}
+#compareChart.hidden { display: none; }
+
+.map-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.map-wrap {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.map-svg-holder {
+  width: 460px;
+  max-width: 100%;
+}
+.map-svg-holder svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.inset-frame {
+  fill: rgba(255, 255, 255, 0.35);
+  stroke: var(--card-border);
+  stroke-width: 1.5;
+}
+.inset-title {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.inset-label {
+  fill: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.inset-divider {
+  stroke: var(--card-border);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.county {
+  fill: #e4e9f1;
+  stroke: #a9b4c4;
+  stroke-width: 1.2;
+  cursor: pointer;
+  transition: fill 0.15s ease;
+}
+.county:hover { fill: #a9c3f2; }
+.county.selected { fill: var(--accent); stroke: #1c4fb8; }
+
+/* Modal */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(30, 38, 50, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal.hidden { display: none; }
+
+.modal-box {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 20px;
+  width: 340px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.modal-box h3 { font-size: 15px; margin-bottom: 4px; color: var(--text-main); }
+
+.city-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+.city-choices button {
+  background: #eef1f6;
+  color: var(--text-main);
+  text-align: left;
+}
+.city-choices button:hover { background: #e2e7ef; }
+
+.modal-close {
+  background: #dde3ea;
+  color: var(--text-main);
+  align-self: flex-end;
+}
+
+/* ---------------- 警特報（颱風警報／豪雨特報） ---------------- */
+.alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: #fff4e5;
+  border: 1px solid #f3b45f;
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9a5b13;
+  cursor: pointer;
+  text-align: left;
+}
+.alert-banner:hover { background: #fdebcf; }
+.alert-banner.hidden { display: none; }
+.alert-banner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e67e22;
+  flex-shrink: 0;
+  animation: alert-pulse 1.6s ease-in-out infinite;
+}
+@keyframes alert-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.alert-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: #e74c3c;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+}
+.alert-tab-badge.hidden { display: none; }
+
+.alerts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.alerts-update-time { font-size: 12px; color: var(--text-muted); }
+.alerts-refresh-btn {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-main);
+  font-size: 12px;
+  padding: 6px 10px;
+}
+.alerts-refresh-btn:hover { background: #eef1f6; }
+.alerts-refresh-btn:disabled { opacity: 0.6; cursor: default; }
+
+.alerts-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 20px 0;
+}
+.alerts-empty.hidden { display: none; }
+
+.alerts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.alert-card {
+  --alert-color: #e67e22;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-left: 5px solid var(--alert-color);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 6px rgba(30, 42, 60, 0.05);
+}
+.alert-card-cancelled { opacity: 0.6; }
+.alert-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.alert-card-source {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--alert-color);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.alert-card-status {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.alert-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+.alert-card-desc {
+  font-size: 12px;
+  color: var(--text-main);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+.alert-card-areas {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.alert-card-time {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.rain-area-group {
+  margin: 8px 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--card-border);
+}
+.rain-area-group-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+.rain-level-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.rain-level-row:last-child { margin-bottom: 0; }
+.rain-level-chip {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.rain-level-areas {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.alert-map-section {
+  border-top: 1px solid var(--card-border);
+  border-bottom: 1px solid var(--card-border);
+  padding: 4px 0 18px;
+  margin-bottom: 18px;
+}
+.alert-map-section.hidden { display: none; }
+.alert-map-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+.alert-map-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.alert-map-wrap {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 16px;
+}
+.alert-map-holder {
+  width: 494px;
+  max-width: 100%;
+}
+.alert-zone { cursor: pointer; }
+.alert-zone:hover { filter: brightness(0.94); }
+.alert-zone.selected { filter: brightness(0.9); }
+/* 颱風地圖專屬：陸地色塊只有「這個縣市真的有陸上颱風警報」時，滑鼠碰到
+   才要變暗（見 renderer.js renderTyphoonMap() 加的 .has-land-alert class）；
+   沒有陸上警報的陸地（不管有沒有海上警報）滑鼠碰到要完全沒反應，變暗的
+   回饋只留給沿海那條海上警報線自己（見下面 .alert-sea-outline:hover）。*/
+#typhoonMapWrap .alert-zone:hover { filter: none; }
+#typhoonMapWrap .alert-zone.has-land-alert:hover { filter: brightness(0.94); }
+#typhoonMapWrap .alert-zone.selected { filter: brightness(0.9); }
+
+.alert-map-tooltip {
+  position: absolute;
+  /* left/top 現在是「滑鼠位置 + 一點偏移」，代表小視窗左上角要擺在哪，
+     不是縣市外框的中心點，所以不用再置中/往上平移；positionTooltipNearCursor()
+     裡會用小視窗實際寬高做邊界夾擠，避免超出地圖區塊。 */
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(30, 42, 60, 0.18);
+  padding: 12px 18px;
+  z-index: 5;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.alert-map-tooltip.hidden { display: none; }
+.alert-map-tooltip-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+.alert-map-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  color: var(--text-main);
+  margin-top: 4px;
+}
+.alert-map-tooltip-row img { width: 26px; height: 26px; }
+.alert-map-tooltip-empty {
+  font-size: 15px;
+  color: var(--text-muted);
+}
+.alert-map-tooltip-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  max-width: 260px;
+  white-space: normal;
+  line-height: 1.4;
+}
+.alert-zone {
+  fill: #ffffff;
+  stroke: #ffffff;
+  stroke-width: 1;
+  stroke-linejoin: round;
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+/* 蓋在最上面、只畫邊框的縣市界線層，確保分區色塊不會蓋住縣市分界線；
+   hover / 選取狀態由 JS 同步切換 class（見 renderer.js 的 syncBoundaryState） */
+.alert-county-outline {
+  fill: none;
+  stroke: #a9b4c4;
+  stroke-width: 1.2;
+}
+.alert-county-outline.hover { stroke: #4a5568; stroke-width: 2; }
+.alert-county-outline.selected { stroke: #1c4fb8; stroke-width: 2.5; }
+.alert-map-insets {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 12px;
+}
+.alert-inset-box {
+  border: 1px solid var(--card-border);
+  padding: 8px;
+  width: 190px;
+}
+.alert-inset-box--emphasis {
+  width: 230px;
+}
+/* 澎湖、馬祖（連江）比照使用者要求再放大一輪，比金門那個 --emphasis
+   卡片再大一些；金門本身維持原本的 230px 不受影響。 */
+.alert-inset-box--emphasis-lg {
+  width: 270px;
+}
+.alert-inset-holder {
+  width: 100%;
+}
+/* 離島卡片（澎湖/金門/連江）沒有自己的縣市外框圖層可用（不像本島有獨立的
+   .alert-county-outline），鄉鎮之間的線又被 renderer.js 用同色蓋掉了，
+   所以整座島沒警報時會是一塊白色貼在白色卡片背景上、完全看不出島的形狀。
+   這裡用 drop-shadow 沿著整個 <svg>（所有鄉鎮色塊合成後的透明度輪廓）
+   描一圈淡灰色陰影：因為鄉鎮之間已經同色蓋平、沒有內部縫隙，陰影只會
+   沿著「島的最外緣」出現，不會變成一條一條的鄉鎮市區分界線。 */
+.alert-inset-holder svg {
+  overflow: visible;
+}
+/* 離島卡片（澎湖/金門/連江）的島嶼外框：scripts/build-insets.js 把同縣市
+   所有鄉鎮色塊做幾何聯集，事先算好一條只描外緣、不含鄉鎮市區界線的
+   <path class="alert-inset-outline">，疊在色塊最上層。線寬/顏色/hover/
+   selected 三個狀態直接比照本島的 .alert-county-outline，兩邊效果才會一致
+   （之前用 svg 整體 drop-shadow 做外框是模糊光暈，滑鼠碰到跟本島的
+   清晰描邊變粗不一樣，所以改成跟本島同一種真正的向量描邊）。 */
+.alert-inset-outline {
+  fill: none;
+  stroke: #a9b4c4;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.alert-inset-outline.hover { stroke: #4a5568; stroke-width: 2; }
+.alert-inset-outline.selected { stroke: #1c4fb8; stroke-width: 2.5; }
+.alert-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 16px;
+  margin-top: 10px;
+}
+.alert-map-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.alert-map-legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid #a9b4c4;
+  flex-shrink: 0;
+}
+/* 海上颱風警報改成畫在縣市邊界外圍的粗線，圖例的色塊也跟著換成一條線，
+   跟地圖上實際呈現的樣子對應。 */
+.alert-map-legend-swatch--line {
+  width: 18px;
+  height: 4px;
+  border: none;
+  border-radius: 2px;
+  align-self: center;
+}
+
+/* 海上颱風警報：畫在受影響縣市朝海那一側的台灣邊界外圍，不是整個縣市
+   塗色。gen_sea_outline2.py 事先用 shapely 算出「全國聯集後的外緣線」跟
+   「該縣市範圍」的交集，只留下這個縣市真正臨海的那一段邊界（跟其他縣市
+   共用的內陸界線不會被畫出來）。每個縣市疊兩條線：先畫一條較粗的深色
+   casing 墊底，再疊一條較細的亮黃色線在上面，纯黃色線在白色地圖背景上
+   太細會看不清楚，用深色 casing 加一圈輪廓對比會清楚很多，效果比照道路
+   地圖常見的「路肩＋路面」畫法。預設不顯示，renderTyphoonMap() 依目前
+   海上警報涵蓋的縣市切換 .active 才會顯示、加粗。 */
+.alert-sea-outline-casing,
+.alert-sea-outline {
+  fill: none;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.alert-sea-outline-casing {
+  stroke: #7a6400;
+  stroke-width: 16;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.alert-sea-outline {
+  stroke: #faff00;
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.alert-sea-outline-casing.active,
+.alert-sea-outline.active {
+  opacity: 1;
+  /* 平常沒有海上警報時整條線是隱形的 (pointer-events: none)，滑鼠/手指
+     完全穿透到底下的地圖；只有變成 .active（真的畫出黃線）之後，才把
+     這條線自己也變成可以被碰到/hover 的目標，滑到或點到線上會跳出跟碰
+     到縣市一樣的小視窗（見 renderer.js buildTyphoonMap()）。 */
+  pointer-events: stroke;
+}
+/* 滑鼠碰到線本身：把「目前所有生效中的海上警報線」一起塗深當作回饋，
+   不是只有滑鼠正上方那個縣市自己的線變深——因為整條海岸線其實是很多個
+   縣市各自一段 <path> 接起來的，只讓被碰到的那一段變深，看起來會像是
+   「一整條線裡挑一小段反應」，跟使用者想要的「整條線一起亮」不符。改成
+   由 renderer.js 在 mouseenter/mouseleave 時，把 .line-hover 這個 class
+   同時加到/移除所有目前 .active 的線段上，靠 class 而不是 CSS :hover
+   偽類，才能讓不同 <path>（不同縣市）一起變深。*/
+.alert-sea-outline.active.line-hover { stroke: #c9b400; }
+.alert-sea-outline-casing.active.line-hover { stroke: #4d3f00; }
+
+.typhoon-prob-section {
+  border-top: 1px solid var(--card-border);
+  padding-top: 16px;
+}
+.typhoon-prob-section.hidden { display: none; }
+.typhoon-prob-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+.typhoon-prob-issued {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.typhoon-prob-bands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.typhoon-prob-chip {
+  background: #fdecea;
+  border: 1px solid #f5b7b1;
+  color: #c0392b;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+
+/* ---------------- 網頁版：登入列 (auth-bar) ---------------- */
+.auth-bar {
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--sidebar-border);
+}
+.auth-login-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.auth-login-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  width: 100%;
+  margin-bottom: 2px;
+}
+.auth-login-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-main);
+  text-decoration: none;
+  font-size: 12px;
+  line-height: 1;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.auth-login-btn:hover { border-color: var(--accent); background: #eef3ff; }
+.auth-login-btn[disabled] {
+  pointer-events: none;
+  opacity: 0.45;
+}
+.auth-login-btn img, .auth-login-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+.auth-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.auth-user-name { font-weight: 700; color: var(--text-main); }
+.auth-user-provider { color: var(--text-faint); font-size: 11px; }
+.auth-logout-btn {
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--input-border);
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.auth-logout-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }

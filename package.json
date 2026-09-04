@@ -1,0 +1,16 @@
+{
+  "name": "nexora-weather-web",
+  "version": "1.0.0",
+  "description": "SkyPulse (晴雨情報 WeatherPro) 網頁版 —— 靜態前端 + Vercel Serverless Functions，含 OAuth 登入",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "adm-zip": "^0.6.0"
+  },
+  "devDependencies": {
+    "vercel": "^37.0.0"
+  }
+}
