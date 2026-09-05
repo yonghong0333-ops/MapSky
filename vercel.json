@@ -1,5 +1,8 @@
 {
   "version": 2,
+  "rewrites": [
+    { "source": "/api/auth/callback/microsoft", "destination": "/api/auth/callback?provider=microsoft" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

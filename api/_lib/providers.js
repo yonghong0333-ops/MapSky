@@ -14,6 +14,12 @@ function baseUrl(req) {
 }
 
 function redirectUriFor(req, providerId) {
+  const provider = PROVIDERS[providerId];
+  if (provider && provider.redirectPath) {
+    // 某些 IdP（例如 Azure AD）不允許 redirect_uri 帶查詢字串，
+    // 所以改用乾淨路徑，由 vercel.json 的 rewrites 轉回同一支 callback.js。
+    return `${baseUrl(req)}${provider.redirectPath}`;
+  }
   return `${baseUrl(req)}/api/auth/callback?provider=${providerId}`;
 }
 
@@ -51,6 +57,7 @@ const PROVIDERS = {
     label: "Microsoft",
     clientId: process.env.MICROSOFT_CLIENT_ID,
     clientSecret: process.env.MICROSOFT_CLIENT_SECRET, // 網頁版走 Authorization Code，需要 secret
+    redirectPath: "/api/auth/callback/microsoft", // Azure AD 不允許 redirect_uri 帶查詢字串
     scope: "openid profile User.Read",
     authorizeUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
     tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
