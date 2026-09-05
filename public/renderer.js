@@ -371,6 +371,7 @@ function renderWeather(location) {
   el("currentDesc").textContent = wxNow;
   el("currentDetail").textContent =
     `舒適度 ${ciNow}\n降雨機率 ${popNow}%\n資料來源：中央氣象署`;
+  el("statPop").textContent = `${popNow}%`;
 
   el("currentViewForecastBtn").classList.remove("hidden");
 
@@ -701,6 +702,8 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
       loadAlerts();
       loadTyphoonProbability();
     }
+    const bottomMap = { forecast: "home", typhoon: "typhoon" };
+    setBottomNavActive(bottomMap[btn.dataset.tab] || "tools");
   });
 });
 
@@ -1452,3 +1455,31 @@ window.weatherAPI.onUpdated(() => {
     setTimeout(autoLocate, 300);
   }
 })();
+
+// ---------------- 底部導覽列 ----------------
+// 對應參考設計的手機底部導覽列（拿掉「地震」，目前沒有這個功能）。
+// 「首頁」「颱風」直接對應原本就有的分頁按鈕；「工具」先捲動到分頁列讓使用者
+// 自己挑（溫度趨勢圖／多城市比較／地圖選點）；「設定」目前還沒有實際設定頁，
+// 先提示開發中，避免點了沒反應。
+function setBottomNavActive(key) {
+  document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.bottom === key);
+  });
+}
+
+document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const key = btn.dataset.bottom;
+    setBottomNavActive(key);
+    if (key === "home") {
+      document.querySelector('.tab-btn[data-tab="forecast"]').click();
+      document.querySelector(".main").scrollTo({ top: 0, behavior: "smooth" });
+    } else if (key === "typhoon") {
+      document.querySelector('.tab-btn[data-tab="typhoon"]').click();
+    } else if (key === "tools") {
+      document.querySelector(".tabs").scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (key === "settings") {
+      setStatus("設定頁面開發中，敬請期待");
+    }
+  });
+});

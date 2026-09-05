@@ -61,15 +61,36 @@
 
       <section class="current-card">
         <div class="current-card-top">
-          <div id="currentIcon" class="current-icon">—</div>
           <div class="current-mid">
             <div id="currentTemp" class="current-temp">--°C</div>
-            <div id="currentDesc" class="current-desc">—</div>
-          </div>
-          <div id="currentDetail" class="current-detail">
-            舒適度 --　降雨機率 --%
+            <div class="current-desc-row">
+              <span id="currentIcon" class="current-icon">—</span>
+              <span id="currentDesc" class="current-desc">—</span>
+            </div>
+            <div id="currentDetail" class="current-detail">
+              舒適度 --　降雨機率 --%
+            </div>
           </div>
         </div>
+
+        <div class="current-stat-row">
+          <div class="current-stat-chip">
+            <span class="current-stat-icon">💧</span>
+            <span class="current-stat-label">降雨機率</span>
+            <span id="statPop" class="current-stat-value">--%</span>
+          </div>
+          <div class="current-stat-chip">
+            <span class="current-stat-icon">🌬️</span>
+            <span class="current-stat-label">風速</span>
+            <span id="statWind" class="current-stat-value current-stat-empty">暫無資料</span>
+          </div>
+          <div class="current-stat-chip">
+            <span class="current-stat-icon">🍃</span>
+            <span class="current-stat-label">空氣品質</span>
+            <span id="statAir" class="current-stat-value current-stat-empty">暫無資料</span>
+          </div>
+        </div>
+
         <button id="currentViewForecastBtn" class="current-forecast-btn hidden">查看完整預報 →</button>
       </section>
 
@@ -84,6 +105,59 @@
 
       <section id="forecastPanel" class="tab-panel active">
         <div id="forecastRow" class="forecast-row"></div>
+
+        <div class="seven-day-section">
+          <div class="section-title-row">
+            <h3 class="section-title">未來 7 天預報</h3>
+            <span class="section-title-hint">需另接長期預報 API，先留位置</span>
+          </div>
+          <div class="seven-day-list">
+            <div class="seven-day-row seven-day-empty">
+              <span class="sd-day">－</span>
+              <span class="sd-icon">－</span>
+              <span class="sd-pop">－</span>
+              <span class="sd-low">－</span>
+              <span class="sd-bar"><span class="sd-bar-fill"></span></span>
+              <span class="sd-high">－</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="extra-info-section">
+          <h3 class="section-title">其他資訊</h3>
+          <div class="extra-info-grid">
+            <div class="extra-info-card">
+              <span class="extra-info-icon">🌅</span>
+              <span class="extra-info-label">日出／日落</span>
+              <span class="extra-info-value current-stat-empty">暫無資料</span>
+            </div>
+            <div class="extra-info-card">
+              <span class="extra-info-icon">🌙</span>
+              <span class="extra-info-label">月出／月落</span>
+              <span class="extra-info-value current-stat-empty">暫無資料</span>
+            </div>
+            <div class="extra-info-card">
+              <span class="extra-info-icon">☀️</span>
+              <span class="extra-info-label">紫外線指數</span>
+              <span class="extra-info-value current-stat-empty">暫無資料</span>
+            </div>
+            <div class="extra-info-card">
+              <span class="extra-info-icon">🌗</span>
+              <span class="extra-info-label">月相</span>
+              <span class="extra-info-value current-stat-empty">暫無資料</span>
+            </div>
+            <div class="extra-info-card">
+              <span class="extra-info-icon">🌑</span>
+              <span class="extra-info-label">日食</span>
+              <span class="extra-info-value current-stat-empty">暫無資料</span>
+            </div>
+            <div class="extra-info-card">
+              <span class="extra-info-icon">🌒</span>
+              <span class="extra-info-label">月食</span>
+              <span class="extra-info-value current-stat-empty">暫無資料</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section id="chartPanel" class="tab-panel">
@@ -653,6 +727,25 @@
         </div>
       </section>
     </main>
+
+    <nav class="bottom-nav" id="bottomNav">
+      <button class="bottom-nav-btn active" data-bottom="home" type="button">
+        <span class="bottom-nav-icon">🏠</span>
+        <span class="bottom-nav-label">首頁</span>
+      </button>
+      <button class="bottom-nav-btn" data-bottom="typhoon" type="button">
+        <span class="bottom-nav-icon">🌀</span>
+        <span class="bottom-nav-label">颱風</span>
+      </button>
+      <button class="bottom-nav-btn" data-bottom="tools" type="button">
+        <span class="bottom-nav-icon">🧰</span>
+        <span class="bottom-nav-label">工具</span>
+      </button>
+      <button class="bottom-nav-btn" data-bottom="settings" type="button">
+        <span class="bottom-nav-icon">⚙️</span>
+        <span class="bottom-nav-label">設定</span>
+      </button>
+    </nav>
   </div>
 
   <script src="web-shim.js"></script>
