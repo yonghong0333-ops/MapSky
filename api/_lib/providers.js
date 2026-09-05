@@ -7,7 +7,14 @@
 // 而不是留在這個檔案裡。
 
 function baseUrl(req) {
-  // Vercel 會自動帶 x-forwarded-host / x-forwarded-proto，本機開發則退回 host header。
+  // 優先使用固定的 SITE_URL 環境變數（例如 https://map-sky.vercel.app）。
+  // 這樣不管使用者是從 production 網域還是 Vercel 自動產生的 preview 網域
+  // （例如 map-4ypnia5ub-xxx.vercel.app）進來，組出來的 redirect_uri 永遠是
+  // 同一個固定值，才會跟各家 OAuth 供應商後台登記的網址完全相符。
+  // 沒有設定 SITE_URL 時（例如本機開發），才退回動態抓當下 host 的舊行為。
+  if (process.env.SITE_URL) {
+    return process.env.SITE_URL.replace(/\/$/, "");
+  }
   const proto = req.headers["x-forwarded-proto"] || "https";
   const host = req.headers["x-forwarded-host"] || req.headers.host;
   return `${proto}://${host}`;
