@@ -545,11 +545,19 @@ button:hover { background: var(--accent-hover); }
   transition: color 0.25s ease, transform 0.15s ease;
   -webkit-tap-highlight-color: transparent; /* 關掉手機瀏覽器按下去時自動蓋的那層藍色反白 */
   -webkit-touch-callout: none;
+  -webkit-appearance: none;
+  appearance: none;
   outline: none;
 }
+.bottom-nav-btn,
 .bottom-nav-btn:focus,
-.bottom-nav-btn:focus-visible {
-  outline: none;
+.bottom-nav-btn:focus-visible,
+.bottom-nav-btn:active,
+.bottom-nav-btn:hover {
+  background: transparent !important;
+  background-color: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 .bottom-nav-btn:active { transform: scale(0.92); }
 .bottom-nav-btn .bottom-nav-icon {
