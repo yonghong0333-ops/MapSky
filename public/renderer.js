@@ -1492,7 +1492,87 @@ function setBottomNavActive(key) {
   document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.bottom === key);
   });
+  if (window.moveBottomNavIndicator) window.moveBottomNavIndicator(key);
 }
+
+// ---------------- 底部導覽列：會滑動變形的液態玻璃指示器 ----------------
+// 只有一顆指示器（.bottom-nav-indicator），切換分頁時用兩段式動畫移動它：
+// 第一段先「拉長」成同時蓋住舊位置跟新位置的長條（看起來像液態被拉伸跨過中間
+// 的按鈕），第二段再彈性收縮回新按鈕的大小，模擬液態玻璃流動、Q 彈的質感。
+(function setupBottomNavIndicator() {
+  const nav = el("bottomNav");
+  const indicator = el("bottomNavIndicator");
+  if (!nav || !indicator) return;
+
+  function rectFor(btn) {
+    const icon = btn.querySelector(".bottom-nav-icon");
+    if (!icon) return null;
+    const iconRect = icon.getBoundingClientRect();
+    const navRect = nav.getBoundingClientRect();
+    return {
+      left: iconRect.left - navRect.left - 14,
+      top: iconRect.top - navRect.top - 4,
+      width: iconRect.width + 28,
+      height: iconRect.height + 8,
+    };
+  }
+
+  function place(rect) {
+    indicator.style.left = rect.left + "px";
+    indicator.style.top = rect.top + "px";
+    indicator.style.width = rect.width + "px";
+    indicator.style.height = rect.height + "px";
+  }
+
+  function moveTo(key, animate) {
+    const btn = nav.querySelector('.bottom-nav-btn[data-bottom="' + key + '"]');
+    if (!btn) return;
+    const target = rectFor(btn);
+    if (!target) return;
+
+    if (!animate) {
+      indicator.style.transition = "none";
+      place(target);
+      void indicator.offsetWidth; // 強制 reflow，讓下一次移動能重新套用 transition
+      indicator.style.transition = "";
+      indicator.classList.add("ready");
+      return;
+    }
+
+    const prevLeft = parseFloat(indicator.style.left || target.left);
+    const prevWidth = parseFloat(indicator.style.width || target.width);
+    const bridgeLeft = Math.min(prevLeft, target.left);
+    const bridgeRight = Math.max(prevLeft + prevWidth, target.left + target.width);
+
+    // 第一段：拉長，同時涵蓋起點與終點
+    indicator.style.transition =
+      "left 0.16s cubic-bezier(.22,.7,.2,1), width 0.16s cubic-bezier(.22,.7,.2,1), top 0.2s ease, height 0.2s ease";
+    indicator.style.left = bridgeLeft + "px";
+    indicator.style.width = bridgeRight - bridgeLeft + "px";
+    indicator.style.top = target.top + "px";
+    indicator.style.height = target.height + "px";
+
+    window.setTimeout(() => {
+      // 第二段：彈性收縮回新按鈕的實際大小
+      indicator.style.transition =
+        "left 0.24s cubic-bezier(.34,1.56,.64,1), width 0.24s cubic-bezier(.34,1.56,.64,1)";
+      indicator.style.left = target.left + "px";
+      indicator.style.width = target.width + "px";
+    }, 150);
+  }
+
+  window.moveBottomNavIndicator = function (key) {
+    moveTo(key, true);
+  };
+
+  function currentActiveKey() {
+    const activeBtn = nav.querySelector(".bottom-nav-btn.active");
+    return activeBtn ? activeBtn.dataset.bottom : "home";
+  }
+
+  window.addEventListener("load", () => moveTo(currentActiveKey(), false));
+  window.addEventListener("resize", () => moveTo(currentActiveKey(), false));
+})();
 
 // 偵測瀏覽器是否真的支援「SVG filter 當 backdrop-filter 用」（目前主要是
 // Chromium 系）。有支援才加上折射效果的 class；Safari 等不支援的瀏覽器

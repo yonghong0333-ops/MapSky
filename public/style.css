@@ -554,16 +554,30 @@ button:hover { background: var(--accent-hover); }
 }
 .bottom-nav-btn.active { color: var(--accent); }
 .bottom-nav-btn.active .bottom-nav-label { font-weight: 700; }
-.bottom-nav-btn.active .bottom-nav-icon {
-  /* 選中項目：一顆獨立的小玻璃藥丸，帶內側高光 + 外側淡淡的品牌色光暈 */
+
+/* 選中項目的玻璃藥丸改成「共用一顆、會滑動變形」的指示器，而不是每顆
+   按鈕各自的固定背景——這樣切換分頁時，藥丸會像液態玻璃一樣被拉長、
+   跨過中間的按鈕，再彈回收縮成新按鈕的形狀（IG／iOS 26 液態玻璃常見的
+   那種「跟著手指流動」效果），是用 JS 動態算位置 + 兩段式過場做出來的。 */
+.bottom-nav-indicator {
+  position: absolute;
+  z-index: 0;
+  border-radius: 14px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.35));
   border: 1px solid rgba(255, 255, 255, 0.6);
   box-shadow:
     inset 0 1px 1px rgba(255, 255, 255, 0.95),
     inset 0 -1px 2px rgba(20, 26, 40, 0.06),
     0 3px 8px rgba(47, 111, 237, 0.28);
-  border-radius: 14px;
-  padding: 4px 14px;
+  pointer-events: none;
+  opacity: 0;
+}
+.bottom-nav-indicator.ready { opacity: 1; }
+.bottom-nav-btn,
+.bottom-nav-btn .bottom-nav-icon,
+.bottom-nav-btn .bottom-nav-label {
+  position: relative;
+  z-index: 1; /* 蓋在指示器上面，不然圖示文字會被藥丸擋住 */
 }
 
 #tempChart {
