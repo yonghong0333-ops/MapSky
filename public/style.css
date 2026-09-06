@@ -1263,6 +1263,19 @@ button:hover { background: var(--accent-hover); }
       background: rgba(250, 251, 253, 0.96);
     }
   }
+  /* 真正的玻璃折射：由 renderer.js 偵測到瀏覽器支援後才會加上這個 class
+     （目前主要是 Chrome/Edge 等 Chromium 系）。用 SVG feDisplacementMap
+     讓導覽列「背後」的畫面透過玻璃扭曲，模擬 iOS 26 Liquid Glass 的質感；
+     沒被加上這個 class 的瀏覽器（如 Safari）就維持上面純模糊的霧面玻璃版本。 */
+  .bottom-nav.liquid-glass-refraction {
+    background: linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.4),
+      rgba(255, 255, 255, 0.14) 60%,
+      rgba(255, 255, 255, 0.28)
+    );
+    backdrop-filter: blur(6px) saturate(200%) url(#liquidGlassNav);
+  }
 
   .current-card {
     padding: 18px 16px;

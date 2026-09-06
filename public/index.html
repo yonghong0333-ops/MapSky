@@ -9,6 +9,18 @@
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- 底部導覽列的「液態玻璃」折射濾鏡（SVG feDisplacementMap）。
+       只有背景（backdrop）會被折射扭曲，導覽列自己的圖示/文字不受影響。
+       目前僅 Chromium 系瀏覽器支援把 SVG filter 用在 backdrop-filter 上，
+       Safari 會被 renderer.js 偵測到並自動退回純模糊玻璃樣式，不會壞版面。 -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <filter id="liquidGlassNav" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.01 0.045" numOctaves="2" seed="11" result="noise" />
+      <feGaussianBlur in="noise" stdDeviation="3" result="softNoise" />
+      <feDisplacementMap in="SourceGraphic" in2="softNoise" scale="16" xChannelSelector="R" yChannelSelector="G" />
+    </filter>
+  </svg>
+
   <div id="loginGate" class="login-gate">
     <div class="login-gate-card">
       <img class="login-gate-logo" src="icons/logo-dark.png" alt="SkyPulse" />

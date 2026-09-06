@@ -1494,6 +1494,29 @@ function setBottomNavActive(key) {
   });
 }
 
+// 偵測瀏覽器是否真的支援「SVG filter 當 backdrop-filter 用」（目前主要是
+// Chromium 系）。有支援才加上折射效果的 class；Safari 等不支援的瀏覽器
+// 偵測不到就維持原本的霧面玻璃樣式，不會整條導覽列跑掉或消失。
+(function detectLiquidGlassRefractionSupport() {
+  try {
+    const probe = document.createElement("div");
+    probe.style.position = "absolute";
+    probe.style.width = "0";
+    probe.style.height = "0";
+    probe.style.pointerEvents = "none";
+    probe.style.backdropFilter = "blur(0px) url(#liquidGlassNav)";
+    document.body.appendChild(probe);
+    const applied = getComputedStyle(probe).backdropFilter || "";
+    document.body.removeChild(probe);
+    if (applied.indexOf("url") !== -1) {
+      const nav = el("bottomNav");
+      if (nav) nav.classList.add("liquid-glass-refraction");
+    }
+  } catch (e) {
+    /* 偵測失敗就當作不支援，安全退回霧面玻璃 */
+  }
+})();
+
 document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     const key = btn.dataset.bottom;
