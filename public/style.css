@@ -530,15 +530,22 @@ button:hover { background: var(--accent-hover); }
   pointer-events: none;
 }
 .bottom-nav::after {
-  /* 頂部一道極細的反光，維持玻璃感但不像淺色版那麼搶眼 */
+  /* 頂部一道極細的反光，維持玻璃感但不像淺色版那麼搶眼；
+     加上緩慢左右飄移的動畫，模擬水面光影晃動的感覺，
+     所有瀏覽器都看得到（不像折射效果只有 Chrome 系支援）。 */
   content: "";
   position: absolute;
   top: 0;
-  left: 14%;
-  right: 14%;
+  left: -20%;
+  right: -20%;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
   pointer-events: none;
+  animation: bottomNavSheen 5s ease-in-out infinite;
+}
+@keyframes bottomNavSheen {
+  0%, 100% { transform: translateX(-8%); }
+  50% { transform: translateX(8%); }
 }
 .bottom-nav-btn {
   background: none;
@@ -1329,7 +1336,7 @@ button:hover { background: var(--accent-hover); }
       rgba(10, 10, 13, 0.6) 60%,
       rgba(20, 20, 24, 0.7)
     );
-    backdrop-filter: blur(6px) saturate(160%) url(#liquidGlassNav);
+    backdrop-filter: blur(9px) saturate(190%) url(#liquidGlassNav);
   }
 
   .current-card {
