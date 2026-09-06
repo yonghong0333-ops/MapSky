@@ -1495,6 +1495,26 @@ function setBottomNavActive(key) {
   if (window.moveBottomNavIndicator) window.moveBottomNavIndicator(key);
 }
 
+// 真正「切換分頁」該做的事（更新樣式 + 換內容），跟純視覺預覽分開，
+// 這樣手指滑過中間按鈕時可以只換外觀預覽，放開才真正觸發換頁，
+// 不會滑過去時每顆分頁的內容都被觸發一次。
+function activateBottomNavKey(key) {
+  if (key === "tools") {
+    toggleToolsMenu();
+    return;
+  }
+  closeToolsMenu();
+  setBottomNavActive(key);
+  if (key === "home") {
+    document.querySelector('.tab-btn[data-tab="forecast"]').click();
+    document.querySelector(".main").scrollTo({ top: 0, behavior: "smooth" });
+  } else if (key === "typhoon") {
+    document.querySelector('.tab-btn[data-tab="typhoon"]').click();
+  } else if (key === "settings") {
+    if (window.openSettingsMenu) window.openSettingsMenu();
+  }
+}
+
 // ---------------- 底部導覽列：會滑動變形的液態玻璃指示器 ----------------
 // 只有一顆指示器（.bottom-nav-indicator），切換分頁時用兩段式動畫移動它：
 // 第一段先「拉長」成同時蓋住舊位置跟新位置的長條（看起來像液態被拉伸跨過中間
@@ -1597,17 +1617,19 @@ function setBottomNavActive(key) {
   }
 })();
 
-// ---------------- 底部導覽列：可拖曳移動 ----------------
-// 讓整條液態玻璃導覽列可以用手指（或滑鼠）拖曳到畫面任何位置；
-// 用移動距離門檻分辨「點按鈕」跟「拖曳」，放開後記住位置（localStorage），
-// 下次打開時直接回到使用者上次擺放的地方；找不到記錄或位置存取失敗
-// 就用原本貼底部的預設位置，不影響其他功能。
-(function makeBottomNavDraggable() {
+// ---------------- 底部導覽列：手勢整合 ----------------
+// 同一條導覽列上有兩種手勢，用「有沒有長按」來分開，避免互相干擾：
+//   1) 按著圖示，馬上左右滑過去 → 直接切換分頁（滑到哪顆，指示器跟著
+//      預覽到哪顆；放開手指才真的觸發換頁內容，不會滑過去沿路每顆都觸發）
+//   2) 按著不放（約 0.35 秒）不太移動 → 進入「整條移動」模式，這時候
+//      再滑動是把整條液態玻璃列拖去畫面別的位置，放開後記住位置
+const STORAGE_KEY = "bottomNavPosition";
+const SCRUB_THRESHOLD = 6; // 超過這個位移就判定使用者要滑動，而不是單純點一下
+const LONG_PRESS_MS = 350; // 按著不太動多久之後，才切換成「整條移動」模式
+
+(function setupBottomNavGestures() {
   const nav = el("bottomNav");
   if (!nav) return;
-
-  const STORAGE_KEY = "bottomNavPosition";
-  const DRAG_THRESHOLD = 6;
 
   function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
@@ -1623,7 +1645,6 @@ function setBottomNavActive(key) {
     nav.style.top = clampedTop + "px";
     nav.style.right = "auto";
     nav.style.bottom = "auto";
-    return { left: clampedLeft, top: clampedTop };
   }
 
   function restorePosition() {
@@ -1634,7 +1655,7 @@ function setBottomNavActive(key) {
         applyPosition(saved.left, saved.top);
       }
     } catch (e) {
-      /* 存的資料壞了就用預設位置，不影響其他功能 */
+      /* 存的資料壞了就用預設位置 */
     }
   }
 
@@ -1647,96 +1668,160 @@ function setBottomNavActive(key) {
   }
 
   window.addEventListener("load", restorePosition);
-
-  let dragging = false;
-  let moved = false;
-  let startX = 0;
-  let startY = 0;
-  let originLeft = 0;
-  let originTop = 0;
-  let activePointerId = null;
-
-  nav.addEventListener("pointerdown", (event) => {
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-    const rect = nav.getBoundingClientRect();
-    originLeft = rect.left;
-    originTop = rect.top;
-    nav.style.width = rect.width + "px"; // 先鎖住寬度，避免一放開右邊定位就縮成內容寬度造成跳動
-    startX = event.clientX;
-    startY = event.clientY;
-    moved = false;
-    dragging = true;
-    activePointerId = event.pointerId;
-    nav.setPointerCapture(event.pointerId);
-  });
-
-  nav.addEventListener("pointermove", (event) => {
-    if (!dragging || event.pointerId !== activePointerId) return;
-    const dx = event.clientX - startX;
-    const dy = event.clientY - startY;
-    if (!moved && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
-      moved = true;
-      nav.classList.add("bottom-nav-dragging");
-    }
-    if (moved) {
-      event.preventDefault();
-      applyPosition(originLeft + dx, originTop + dy);
-    }
-  });
-
-  function endDrag(event) {
-    if (!dragging || (activePointerId !== null && event.pointerId !== activePointerId)) return;
-    dragging = false;
-    nav.classList.remove("bottom-nav-dragging");
-    if (moved) {
-      const rect = nav.getBoundingClientRect();
-      savePosition(rect.left, rect.top);
-    }
-    activePointerId = null;
-  }
-
-  nav.addEventListener("pointerup", endDrag);
-  nav.addEventListener("pointercancel", endDrag);
-
-  // 拖曳放開那一下瀏覽器還是會補發一個 click，這裡擋掉避免誤觸按鈕
-  nav.addEventListener(
-    "click",
-    (event) => {
-      if (moved) {
-        event.stopPropagation();
-        event.preventDefault();
-      }
-    },
-    true
-  );
-
-  // 轉螢幕方向或視窗大小改變時，確保導覽列還在畫面範圍內
   window.addEventListener("resize", () => {
     if (nav.style.left && nav.style.left !== "auto") {
       const rect = nav.getBoundingClientRect();
       applyPosition(rect.left, rect.top);
     }
   });
+
+  // mode: null（還沒判斷）、"scrub"（滑動切換分頁）、"move"（整條移動）
+  let mode = null;
+  let startX = 0;
+  let startY = 0;
+  let originLeft = 0;
+  let originTop = 0;
+  let activePointerId = null;
+  let longPressTimer = null;
+  let previewKey = null;
+  let startKey = null;
+
+  function keyAtPoint(clientX) {
+    const buttons = nav.querySelectorAll(".bottom-nav-btn");
+    let hit = null;
+    let nearest = null;
+    let nearestDist = Infinity;
+    buttons.forEach((btn) => {
+      const rect = btn.getBoundingClientRect();
+      if (clientX >= rect.left && clientX <= rect.right) {
+        hit = btn.dataset.bottom;
+      }
+      const dist = Math.abs(clientX - (rect.left + rect.width / 2));
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = btn.dataset.bottom;
+      }
+    });
+    return hit || nearest;
+  }
+
+  function clearLongPressTimer() {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  }
+
+  nav.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const btn = event.target.closest(".bottom-nav-btn");
+    const rect = nav.getBoundingClientRect();
+    originLeft = rect.left;
+    originTop = rect.top;
+    startX = event.clientX;
+    startY = event.clientY;
+    startKey = btn ? btn.dataset.bottom : null;
+    previewKey = startKey;
+    mode = null;
+    activePointerId = event.pointerId;
+    nav.setPointerCapture(event.pointerId);
+
+    clearLongPressTimer();
+    longPressTimer = setTimeout(() => {
+      if (mode === null) {
+        mode = "move";
+        nav.style.width = rect.width + "px"; // 鎖住寬度，避免切換定位方式時跳動
+        nav.classList.add("bottom-nav-dragging");
+      }
+    }, LONG_PRESS_MS);
+  });
+
+  nav.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== activePointerId) return;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+
+    if (mode === null && Math.hypot(dx, dy) > SCRUB_THRESHOLD) {
+      mode = "scrub";
+      clearLongPressTimer();
+    }
+
+    if (mode === "scrub") {
+      event.preventDefault();
+      const key = keyAtPoint(event.clientX);
+      if (key && key !== previewKey) {
+        previewKey = key;
+        document.querySelectorAll(".bottom-nav-btn").forEach((b) => {
+          b.classList.toggle("active", b.dataset.bottom === key);
+        });
+        if (window.moveBottomNavIndicator) window.moveBottomNavIndicator(key);
+      }
+    } else if (mode === "move") {
+      event.preventDefault();
+      applyPosition(originLeft + dx, originTop + dy);
+    }
+  });
+
+  function endGesture(event) {
+    if (event.pointerId !== activePointerId) return;
+    clearLongPressTimer();
+
+    if (mode === "scrub") {
+      nav.classList.remove("bottom-nav-dragging");
+      if (previewKey) activateBottomNavKey(previewKey);
+    } else if (mode === "move") {
+      nav.classList.remove("bottom-nav-dragging");
+      const rect = nav.getBoundingClientRect();
+      savePosition(rect.left, rect.top);
+    }
+    // mode 是 null 代表整段幾乎沒移動、也沒被長按計時器判定成 move，
+    // 純粹是一次點按，交給按鈕自己的 click 事件處理，這裡不用做任何事。
+
+    mode = null;
+    previewKey = null;
+    startKey = null;
+    activePointerId = null;
+  }
+
+  nav.addEventListener("pointerup", endGesture);
+  nav.addEventListener("pointercancel", (event) => {
+    // 手勢被系統打斷（例如被切走）：滑動中的預覽要復原成原本真正選到的分頁，
+    // 不要誤觸發換頁；整條移動則保留目前位置。
+    if (event.pointerId !== activePointerId) return;
+    clearLongPressTimer();
+    if (mode === "scrub") {
+      const activeBtn = nav.querySelector(".bottom-nav-btn.active");
+      const revertKey = startKey || (activeBtn ? activeBtn.dataset.bottom : "home");
+      document.querySelectorAll(".bottom-nav-btn").forEach((b) => {
+        b.classList.toggle("active", b.dataset.bottom === revertKey);
+      });
+      if (window.moveBottomNavIndicator) window.moveBottomNavIndicator(revertKey);
+    } else if (mode === "move") {
+      const rect = nav.getBoundingClientRect();
+      savePosition(rect.left, rect.top);
+    }
+    nav.classList.remove("bottom-nav-dragging");
+    mode = null;
+    previewKey = null;
+    startKey = null;
+    activePointerId = null;
+  });
+
+  // 滑動/整條移動放開那一下瀏覽器還是會補發 click，這裡擋掉避免誤觸按鈕
+  nav.addEventListener(
+    "click",
+    (event) => {
+      if (mode !== null) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+    },
+    true
+  );
 })();
 
 document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const key = btn.dataset.bottom;
-    if (key === "tools") {
-      toggleToolsMenu();
-      return;
-    }
-    closeToolsMenu();
-    setBottomNavActive(key);
-    if (key === "home") {
-      document.querySelector('.tab-btn[data-tab="forecast"]').click();
-      document.querySelector(".main").scrollTo({ top: 0, behavior: "smooth" });
-    } else if (key === "typhoon") {
-      document.querySelector('.tab-btn[data-tab="typhoon"]').click();
-    } else if (key === "settings") {
-      if (window.openSettingsMenu) window.openSettingsMenu();
-    }
-  });
+  btn.addEventListener("click", () => activateBottomNavKey(btn.dataset.bottom));
 });
 
 function toggleToolsMenu() {
