@@ -592,12 +592,32 @@ button:hover { background: var(--accent-hover); }
   width: 24px;
   height: 24px;
   display: block;
+  transition: width 0.25s ease, height 0.25s ease;
 }
 /* 按下去的回饋：淡淡一層白色，取代瀏覽器預設那個藍色方塊 */
 .bottom-nav-btn:active .bottom-nav-icon {
   background: rgba(255, 255, 255, 0.14);
 }
 .bottom-nav-btn.active { color: #ffffff; }
+
+/* 往下捲動內容時，導覽列自動縮小（少佔畫面）；往上捲或點按它馬上恢復，
+   由 renderer.js 依捲動方向切換這個 class，這裡只負責過場動畫。 */
+.bottom-nav {
+  transition: padding 0.28s ease;
+}
+.bottom-nav-btn {
+  transition: color 0.25s ease, transform 0.15s ease, padding 0.28s ease;
+}
+.bottom-nav.bottom-nav-collapsed {
+  padding: 4px 6px;
+}
+.bottom-nav.bottom-nav-collapsed .bottom-nav-btn {
+  padding: 4px 0;
+}
+.bottom-nav.bottom-nav-collapsed .bottom-nav-icon svg {
+  width: 18px;
+  height: 18px;
+}
 
 /* 選中項目的玻璃藥丸改成「共用一顆、會滑動變形」的指示器，而不是每顆
    按鈕各自的固定背景——這樣切換分頁時，藥丸會像液態玻璃一樣被拉長、

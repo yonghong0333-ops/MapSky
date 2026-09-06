@@ -1735,6 +1735,50 @@ try {
   );
 })();
 
+// ---------------- 底部導覽列：往下捲自動縮小、往上捲或點按恢復 ----------------
+(function setupBottomNavAutoCollapse() {
+  const nav = el("bottomNav");
+  if (!nav) return;
+
+  const DELTA_THRESHOLD = 6; // 累積捲動超過這個距離才判定方向，避免手抖誤判
+  const MIN_SCROLL_TOP = 40; // 太靠頁面頂端就不縮，避免一開始滑一點點就縮起來
+
+  function getScrollTop() {
+    // 手機版是整個網頁在捲（.main 在手機版是 overflow-y: visible），
+    // 桌面版才是 .main 自己捲動，兩種都兼顧。
+    const mainEl = document.querySelector(".main");
+    const mainScroll = mainEl ? mainEl.scrollTop : 0;
+    const pageScroll = window.scrollY || document.documentElement.scrollTop || 0;
+    return Math.max(mainScroll, pageScroll);
+  }
+
+  let lastScrollTop = getScrollTop();
+
+  function handleScroll() {
+    const current = getScrollTop();
+    const delta = current - lastScrollTop;
+
+    if (current <= MIN_SCROLL_TOP) {
+      nav.classList.remove("bottom-nav-collapsed");
+    } else if (delta > DELTA_THRESHOLD) {
+      nav.classList.add("bottom-nav-collapsed"); // 往下捲：縮小
+    } else if (delta < -DELTA_THRESHOLD) {
+      nav.classList.remove("bottom-nav-collapsed"); // 往上捲：恢復
+    }
+
+    lastScrollTop = current;
+  }
+
+  window.addEventListener("scroll", handleScroll, { passive: true });
+  const mainEl = document.querySelector(".main");
+  if (mainEl) mainEl.addEventListener("scroll", handleScroll, { passive: true });
+
+  // 點按導覽列本身：不用等使用者往上滑，馬上恢復正常大小
+  nav.addEventListener("pointerdown", () => {
+    nav.classList.remove("bottom-nav-collapsed");
+  });
+})();
+
 document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => activateBottomNavKey(btn.dataset.bottom));
 });
