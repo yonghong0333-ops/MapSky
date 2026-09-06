@@ -1242,6 +1242,54 @@ button:hover { background: var(--accent-hover); }
      手機版只留底部那一顆，側欄這顆隱藏；桌面版沒有底部導覽列，
      所以桌面版繼續保留側欄這顆當作唯一入口。 */
   .sidebar-settings-btn { display: none; }
+
+  /* 整個側欄（logo／已連線／城市選擇／查詢天氣／自動定位／收藏城市）
+     手機版預設收起來，變成從左邊滑出的抽屜，點主畫面左上角的
+     漢堡選單（☰）才打開，不再一直佔掉畫面最上面一大塊。 */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 82vw;
+    max-width: 320px;
+    z-index: 55;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    overflow-y: auto;
+    box-shadow: 4px 0 20px rgba(20, 26, 40, 0.18);
+  }
+  .sidebar.drawer-open {
+    transform: translateX(0);
+  }
+  .sidebar-drawer-overlay.open {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 26, 40, 0.32);
+    z-index: 50;
+  }
+}
+
+.sidebar-drawer-btn {
+  display: none;
+}
+.sidebar-drawer-overlay { display: none; }
+@media (max-width: 900px) {
+  .sidebar-drawer-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+    font-size: 17px;
+    color: var(--text-main);
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
 }
 
 .tools-menu-overlay {

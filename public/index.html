@@ -21,7 +21,8 @@
   </div>
 
   <div class="app">
-    <aside class="sidebar">
+    <div id="sidebarDrawerOverlay" class="sidebar-drawer-overlay hidden"></div>
+    <aside class="sidebar" id="sidebar">
       <button id="sidebarSettingsBtn" class="sidebar-settings-btn" type="button">⚙️ 帳號 / 設定</button>
 
       <h1 class="brand">
@@ -56,6 +57,7 @@
 
     <main class="main">
       <header class="main-header">
+        <button id="sidebarDrawerBtn" class="sidebar-drawer-btn" type="button" aria-label="開啟選單">☰</button>
         <h2 id="cityName">尚未選擇城市</h2>
         <button id="addFavBtn">＋ 加入收藏</button>
       </header>

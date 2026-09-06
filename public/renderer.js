@@ -1462,6 +1462,27 @@ window.weatherAPI.onUpdated(() => {
   }
 })();
 
+// ---------------- 手機版側欄抽屜 ----------------
+// 整個側欄（城市選擇／收藏城市等）手機版預設收起來，點主畫面左上角
+// 的漢堡選單才滑出來，點遮罩或選了城市之後自動收回去。
+function openSidebarDrawer() {
+  el("sidebar").classList.add("drawer-open");
+  el("sidebarDrawerOverlay").classList.add("open");
+}
+function closeSidebarDrawer() {
+  el("sidebar").classList.remove("drawer-open");
+  el("sidebarDrawerOverlay").classList.remove("open");
+}
+const drawerBtn = el("sidebarDrawerBtn");
+if (drawerBtn) drawerBtn.addEventListener("click", openSidebarDrawer);
+const drawerOverlay = el("sidebarDrawerOverlay");
+if (drawerOverlay) drawerOverlay.addEventListener("click", closeSidebarDrawer);
+// 查詢天氣／自動定位按下去之後，手機版順手把抽屜收起來，直接看結果
+const searchBtnEl = el("searchBtn");
+if (searchBtnEl) searchBtnEl.addEventListener("click", closeSidebarDrawer);
+const locateBtnEl = el("locateBtn");
+if (locateBtnEl) locateBtnEl.addEventListener("click", closeSidebarDrawer);
+
 // ---------------- 底部導覽列 ----------------
 // 對應參考設計的手機底部導覽列（拿掉「地震」，目前沒有這個功能）。
 // 「首頁」「颱風」直接對應原本就有的分頁按鈕；「工具」先捲動到分頁列讓使用者
