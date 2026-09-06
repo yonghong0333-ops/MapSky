@@ -1517,6 +1517,128 @@ function setBottomNavActive(key) {
   }
 })();
 
+// ---------------- 底部導覽列：可拖曳移動 ----------------
+// 讓整條液態玻璃導覽列可以用手指（或滑鼠）拖曳到畫面任何位置；
+// 用移動距離門檻分辨「點按鈕」跟「拖曳」，放開後記住位置（localStorage），
+// 下次打開時直接回到使用者上次擺放的地方；找不到記錄或位置存取失敗
+// 就用原本貼底部的預設位置，不影響其他功能。
+(function makeBottomNavDraggable() {
+  const nav = el("bottomNav");
+  if (!nav) return;
+
+  const STORAGE_KEY = "bottomNavPosition";
+  const DRAG_THRESHOLD = 6;
+
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+  }
+
+  function applyPosition(left, top) {
+    const rect = nav.getBoundingClientRect();
+    const maxLeft = Math.max(4, window.innerWidth - rect.width - 4);
+    const maxTop = Math.max(4, window.innerHeight - rect.height - 4);
+    const clampedLeft = clamp(left, 4, maxLeft);
+    const clampedTop = clamp(top, 4, maxTop);
+    nav.style.left = clampedLeft + "px";
+    nav.style.top = clampedTop + "px";
+    nav.style.right = "auto";
+    nav.style.bottom = "auto";
+    return { left: clampedLeft, top: clampedTop };
+  }
+
+  function restorePosition() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+      if (saved && typeof saved.left === "number" && typeof saved.top === "number") {
+        nav.style.width = nav.getBoundingClientRect().width + "px";
+        applyPosition(saved.left, saved.top);
+      }
+    } catch (e) {
+      /* 存的資料壞了就用預設位置，不影響其他功能 */
+    }
+  }
+
+  function savePosition(left, top) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ left, top }));
+    } catch (e) {
+      /* 存不了就算了 */
+    }
+  }
+
+  window.addEventListener("load", restorePosition);
+
+  let dragging = false;
+  let moved = false;
+  let startX = 0;
+  let startY = 0;
+  let originLeft = 0;
+  let originTop = 0;
+  let activePointerId = null;
+
+  nav.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const rect = nav.getBoundingClientRect();
+    originLeft = rect.left;
+    originTop = rect.top;
+    nav.style.width = rect.width + "px"; // 先鎖住寬度，避免一放開右邊定位就縮成內容寬度造成跳動
+    startX = event.clientX;
+    startY = event.clientY;
+    moved = false;
+    dragging = true;
+    activePointerId = event.pointerId;
+    nav.setPointerCapture(event.pointerId);
+  });
+
+  nav.addEventListener("pointermove", (event) => {
+    if (!dragging || event.pointerId !== activePointerId) return;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    if (!moved && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+      moved = true;
+      nav.classList.add("bottom-nav-dragging");
+    }
+    if (moved) {
+      event.preventDefault();
+      applyPosition(originLeft + dx, originTop + dy);
+    }
+  });
+
+  function endDrag(event) {
+    if (!dragging || (activePointerId !== null && event.pointerId !== activePointerId)) return;
+    dragging = false;
+    nav.classList.remove("bottom-nav-dragging");
+    if (moved) {
+      const rect = nav.getBoundingClientRect();
+      savePosition(rect.left, rect.top);
+    }
+    activePointerId = null;
+  }
+
+  nav.addEventListener("pointerup", endDrag);
+  nav.addEventListener("pointercancel", endDrag);
+
+  // 拖曳放開那一下瀏覽器還是會補發一個 click，這裡擋掉避免誤觸按鈕
+  nav.addEventListener(
+    "click",
+    (event) => {
+      if (moved) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+    },
+    true
+  );
+
+  // 轉螢幕方向或視窗大小改變時，確保導覽列還在畫面範圍內
+  window.addEventListener("resize", () => {
+    if (nav.style.left && nav.style.left !== "auto") {
+      const rect = nav.getBoundingClientRect();
+      applyPosition(rect.left, rect.top);
+    }
+  });
+})();
+
 document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     const key = btn.dataset.bottom;

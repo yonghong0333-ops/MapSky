@@ -1255,6 +1255,17 @@ button:hover { background: var(--accent-hover); }
       0 8px 24px rgba(20, 26, 40, 0.16),
       0 1px 0 rgba(255, 255, 255, 0.6) inset;
     z-index: 40;
+    touch-action: none; /* 讓拖曳手勢不會連動整頁捲動 */
+    cursor: grab;
+  }
+  /* 拖曳中：放大一點、陰影加深，給使用者「拿起來」的回饋；
+     拖曳時關掉 backdrop-filter 過渡動畫感（本來就沒有 transition，這裡只加視覺回饋）。 */
+  .bottom-nav.bottom-nav-dragging {
+    cursor: grabbing;
+    transform: scale(1.03);
+    box-shadow:
+      0 14px 32px rgba(20, 26, 40, 0.28),
+      0 1px 0 rgba(255, 255, 255, 0.6) inset;
   }
   /* 不支援 backdrop-filter 的瀏覽器（少數舊版 in-app webview）退回不透明底色，
      避免變成完全看不出邊界、貼齊畫面的實色長條 */
