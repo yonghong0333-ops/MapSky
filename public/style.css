@@ -610,19 +610,17 @@ button:hover { background: var(--accent-hover); }
 
 /* 往下捲動內容時，導覽列自動縮小（少佔畫面）；往上捲或點按它馬上恢復，
    由 renderer.js 依捲動方向切換這個 class，這裡只負責過場動畫。
-   這次用 clip-path 做寬度的視覺裁切，而不是真的改變盒子的寬度——
-   backdrop-filter 的模糊範圍是照「盒子本身的尺寸」算的，盒子尺寸完全不變，
-   只是用 clip-path 裁掉兩側看起來變窄，理論上能避開 Safari 那個
-   「寬度連續變化時毛玻璃裁切跟不上、殘留矩形霧影」的問題。 */
+   結論：寬度維持不變，只縮小高度/圖示——試過改變寬度（Safari 殘留矩形霧影）、
+   transform: scale()（Safari 讓 backdrop-filter 直接失效）、
+   clip-path 裁切（兩側圖示會被裁掉消失，不是縮小）都有各自的副作用，
+   這個版本是唯一沒有破圖、四顆圖示又都還在的做法。 */
 .bottom-nav {
-  clip-path: inset(0% 0% round 24px);
-  transition: padding 0.28s ease, clip-path 0.32s ease;
+  transition: padding 0.28s ease;
 }
 .bottom-nav-btn {
   transition: color 0.25s ease, transform 0.15s ease, padding 0.28s ease;
 }
 .bottom-nav.bottom-nav-collapsed {
-  clip-path: inset(0% 30% round 20px);
   padding: 2px 4px;
 }
 .bottom-nav.bottom-nav-collapsed .bottom-nav-btn {
