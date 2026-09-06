@@ -600,8 +600,8 @@ button:hover { background: var(--accent-hover); }
   position: absolute;
   z-index: 0;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   box-shadow: none;
   pointer-events: none;
   opacity: 0;
