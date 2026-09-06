@@ -490,7 +490,44 @@ button:hover { background: var(--accent-hover); }
 .extra-info-value { font-size: 13px; font-weight: 600; color: var(--text-main); }
 
 /* ---- 底部圖示導覽列（僅手機版顯示，桌面版維持左側欄導覽）---- */
-.bottom-nav { display: none; }
+/* 液態玻璃（Liquid Glass）風格：浮動圓角膠囊 + 多層毛玻璃模糊 +
+   頂部高光邊框，模擬光線在玻璃表面折射、反光的質感。 */
+.bottom-nav {
+  display: none;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.bottom-nav::before {
+  /* 玻璃邊緣的漸層高光框：上緣亮、下緣暗，做出立體折射感 */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.15) 35%,
+    rgba(255, 255, 255, 0.05) 55%,
+    rgba(255, 255, 255, 0.5) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.bottom-nav::after {
+  /* 頂部一道細細的光線反射，加強「玻璃」而不是「霧面塑膠」的感覺 */
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14%;
+  right: 14%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+  pointer-events: none;
+}
 .bottom-nav-btn {
   background: none;
   border: none;
@@ -503,13 +540,30 @@ button:hover { background: var(--accent-hover); }
   padding: 6px 0;
   flex: 1;
   cursor: pointer;
+  position: relative;
+  transition: color 0.25s ease, transform 0.15s ease;
 }
-.bottom-nav-btn .bottom-nav-icon { font-size: 20px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+.bottom-nav-btn:active { transform: scale(0.92); }
+.bottom-nav-btn .bottom-nav-icon {
+  font-size: 20px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+}
 .bottom-nav-btn.active { color: var(--accent); }
+.bottom-nav-btn.active .bottom-nav-label { font-weight: 700; }
 .bottom-nav-btn.active .bottom-nav-icon {
-  background: rgba(120, 130, 150, 0.18);
-  border-radius: 12px;
-  padding: 2px 12px;
+  /* 選中項目：一顆獨立的小玻璃藥丸，帶內側高光 + 外側淡淡的品牌色光暈 */
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.35));
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 2px rgba(20, 26, 40, 0.06),
+    0 3px 8px rgba(47, 111, 237, 0.28);
+  border-radius: 14px;
+  padding: 4px 14px;
 }
 
 #tempChart {
@@ -1186,14 +1240,28 @@ button:hover { background: var(--accent-hover); }
     left: 12px;
     right: 12px;
     bottom: calc(10px + env(safe-area-inset-bottom));
-    background: rgba(255, 255, 255, 0.32);
+    background: linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.5),
+      rgba(255, 255, 255, 0.22) 60%,
+      rgba(255, 255, 255, 0.35)
+    );
     backdrop-filter: blur(30px) saturate(200%);
     -webkit-backdrop-filter: blur(30px) saturate(200%);
-    border: 1px solid rgba(255, 255, 255, 0.45);
+    border: none;
     border-radius: 24px;
     padding: 8px 6px;
-    box-shadow: 0 8px 24px rgba(20, 26, 40, 0.16);
+    box-shadow:
+      0 8px 24px rgba(20, 26, 40, 0.16),
+      0 1px 0 rgba(255, 255, 255, 0.6) inset;
     z-index: 40;
+  }
+  /* 不支援 backdrop-filter 的瀏覽器（少數舊版 in-app webview）退回不透明底色，
+     避免變成完全看不出邊界、貼齊畫面的實色長條 */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .bottom-nav {
+      background: rgba(250, 251, 253, 0.96);
+    }
   }
 
   .current-card {
