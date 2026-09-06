@@ -378,7 +378,7 @@ function renderWeather(location) {
   applyWeatherBackground(wxNow, wx.time[0].startTime);
 
   const now = new Date();
-  el("updateTime").textContent = `最後更新：${now.toLocaleString("zh-TW", { hour12: false })}`;
+  // 「最後更新」文字已依需求移除，不再更新這個欄位
 
   renderForecast(wx, pop, minT, maxT);
   renderChart(wx, minT, maxT);
