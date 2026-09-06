@@ -1320,6 +1320,10 @@ function renderRainAlertCard(alert) {
     <p class="alert-card-desc">${alert.description || ""}</p>
     <p class="alert-card-time">發布 ${formatAlertTime(alert.sent)}　　有效至 ${formatAlertTime(alert.expires)}</p>
   `;
+  card.style.cursor = "pointer";
+  card.addEventListener("click", () => {
+    document.querySelector('.tab-btn[data-tab="typhoon"]').click();
+  });
   return card;
 }
 
@@ -1348,6 +1352,10 @@ function renderAlertCard(alert) {
     <p class="alert-card-areas">影響地區：${areasPreview}</p>
     <p class="alert-card-time">發布 ${formatAlertTime(alert.sent)}　　有效至 ${formatAlertTime(alert.expires)}</p>
   `;
+  card.style.cursor = "pointer";
+  card.addEventListener("click", () => {
+    document.querySelector('.tab-btn[data-tab="typhoon"]').click();
+  });
   return card;
 }
 
@@ -1509,7 +1517,8 @@ function activateBottomNavKey(key) {
     document.querySelector('.tab-btn[data-tab="forecast"]').click();
     document.querySelector(".main").scrollTo({ top: 0, behavior: "smooth" });
   } else if (key === "typhoon") {
-    document.querySelector('.tab-btn[data-tab="typhoon"]').click();
+    // 先看已發佈的警特報清單，想看颱風地圖詳情的話從清單裡點進去
+    document.querySelector('.tab-btn[data-tab="alerts"]').click();
   } else if (key === "settings") {
     if (window.openSettingsMenu) window.openSettingsMenu();
   }
