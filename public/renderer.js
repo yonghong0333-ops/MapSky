@@ -1534,10 +1534,12 @@ function setBottomNavActive(key) {
 // 不會滑過去時每顆分頁的內容都被觸發一次。
 function activateBottomNavKey(key) {
   if (key === "tools") {
+    if (window.closeSettingsMenu) window.closeSettingsMenu();
     toggleToolsMenu();
     return;
   }
   closeToolsMenu();
+  if (key !== "settings" && window.closeSettingsMenu) window.closeSettingsMenu();
   setBottomNavActive(key);
   if (key === "home") {
     document.querySelector('.tab-btn[data-tab="forecast"]').click();

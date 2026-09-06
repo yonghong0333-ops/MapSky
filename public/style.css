@@ -1363,7 +1363,7 @@ button:hover { background: var(--accent-hover); }
     border-radius: 24px;
     padding: 8px 6px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-    z-index: 40;
+    z-index: 50; /* 要比工具/設定的滿版面板（46）還高，開著面板時底部導覽列還是能點 */
     touch-action: none; /* 讓左右滑動切換分頁的手勢不會連動整頁捲動 */
     cursor: pointer;
   }
@@ -1526,15 +1526,19 @@ button:hover { background: var(--accent-hover); }
   display: flex;
   flex-direction: column;
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* 留出底部導覽列的空間，讓面板開著的時候還是能直接點下面的其他分頁，
+     不用先關掉這個面板；90px 大概是導覽列高度加一點呼吸空間。 */
+  bottom: calc(90px + env(safe-area-inset-bottom));
   background: var(--card-bg);
   border: none;
-  border-radius: 0;
+  border-radius: 0 0 20px 20px;
   overflow-y: auto;
   z-index: 46;
   box-shadow: none;
   padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
 }
 .tools-menu-header {
   display: flex;
