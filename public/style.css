@@ -1531,7 +1531,7 @@ button:hover { background: var(--accent-hover); }
   right: 0;
   /* 留出底部導覽列的空間，讓面板開著的時候還是能直接點下面的其他分頁，
      不用先關掉這個面板；90px 大概是導覽列高度加一點呼吸空間。 */
-  bottom: calc(90px + env(safe-area-inset-bottom));
+  bottom: calc(100px + env(safe-area-inset-bottom));
   background: var(--card-bg);
   border: none;
   border-radius: 0 0 20px 20px;
