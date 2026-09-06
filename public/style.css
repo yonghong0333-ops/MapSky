@@ -1325,12 +1325,12 @@ button:hover { background: var(--accent-hover); }
   }
 
   .main {
-    padding: 28px 16px 96px;
+    padding: 40px 16px 96px;
     overflow-y: visible;
   }
 
   .main-header {
-    padding-bottom: 4px;
+    padding-bottom: 16px;
   }
   .main-header h2 {
     flex: 1;
