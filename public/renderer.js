@@ -1488,7 +1488,7 @@ document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
     } else if (key === "typhoon") {
       document.querySelector('.tab-btn[data-tab="typhoon"]').click();
     } else if (key === "settings") {
-      setStatus("設定頁面開發中，敬請期待");
+      if (window.openSettingsMenu) window.openSettingsMenu();
     }
   });
 });

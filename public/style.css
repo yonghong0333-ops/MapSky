@@ -1245,42 +1245,73 @@ button:hover { background: var(--accent-hover); }
 .tools-menu {
   display: none;
 }
-@media (max-width: 900px) {
-  .tools-menu-overlay.open {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background: rgba(20, 26, 40, 0.32);
-    z-index: 45;
-  }
+.tools-menu-overlay.open {
+  display: block;
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 26, 40, 0.32);
+  z-index: 45;
+}
+.tools-menu.open {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(70px + env(safe-area-inset-bottom));
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  overflow: hidden;
+  z-index: 46;
+  box-shadow: 0 8px 24px rgba(20, 26, 40, 0.18);
+}
+.tools-menu-item {
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 14px 16px;
+  font-size: 15px;
+  color: var(--text-main);
+  border-bottom: 1px solid var(--card-border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.tools-menu-item:last-child { border-bottom: none; }
+.tools-menu-item:active { background: var(--sidebar-hover, rgba(0,0,0,0.04)); }
+
+/* 桌面版寬螢幕時，彈出面板改成貼齊側欄下方，比貼齊整個螢幕底部更自然 */
+@media (min-width: 901px) {
   .tools-menu.open {
-    display: flex;
-    flex-direction: column;
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: calc(70px + env(safe-area-inset-bottom));
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 14px;
-    overflow: hidden;
-    z-index: 46;
-    box-shadow: 0 8px 24px rgba(20, 26, 40, 0.18);
+    left: 16px;
+    right: auto;
+    width: 240px;
+    bottom: 24px;
   }
-  .tools-menu-item {
-    background: none;
-    border: none;
-    text-align: left;
-    padding: 14px 16px;
-    font-size: 15px;
-    color: var(--text-main);
-    border-bottom: 1px solid var(--card-border);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .tools-menu-item:last-child { border-bottom: none; }
-  .tools-menu-item:active { background: var(--sidebar-hover, rgba(0,0,0,0.04)); }
+}
+
+.sidebar-settings-btn {
+  align-self: flex-start;
+  margin-bottom: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-main);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.sidebar-settings-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.settings-menu .auth-bar { padding: 0; }
+.settings-menu .auth-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  flex-wrap: wrap;
 }
 
 /* 更小的手機（如 iPhone SE）再收斂一次間距與字級 */

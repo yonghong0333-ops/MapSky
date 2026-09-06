@@ -22,6 +22,8 @@
 
   <div class="app">
     <aside class="sidebar">
+      <button id="sidebarSettingsBtn" class="sidebar-settings-btn" type="button">⚙️ 帳號 / 設定</button>
+
       <h1 class="brand">
         <img class="brand-logo" src="icons/logo-dark.png" alt="SkyPulse" />
         <span class="brand-name">SkyPulse</span>
@@ -753,6 +755,11 @@
       <button class="tools-menu-item" data-tab="compare">🏙️ 多城市比較</button>
       <button class="tools-menu-item" data-tab="map">🗺️ 地圖選點</button>
       <button class="tools-menu-item" data-tab="alerts">⚠️ 警特報<span id="toolsAlertBadge" class="alert-tab-badge hidden">0</span></button>
+    </div>
+
+    <div id="settingsMenuOverlay" class="tools-menu-overlay hidden"></div>
+    <div id="settingsMenu" class="tools-menu settings-menu hidden">
+      <div id="settingsAccountSlot"></div>
     </div>
   </div>
 

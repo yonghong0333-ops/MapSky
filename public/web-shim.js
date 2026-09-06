@@ -106,6 +106,27 @@
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  // ---------------- 設定面板（帳號資訊 + 登出）----------------
+  // 側欄的「⚙️ 帳號 / 設定」按鈕跟手機底部導覽列的「設定」按鈕，
+  // 共用同一個面板；renderer.js 載入後會透過 window.openSettingsMenu 呼叫。
+  function openSettingsMenu() {
+    el("settingsMenu").classList.add("open");
+    el("settingsMenuOverlay").classList.add("open");
+  }
+  function closeSettingsMenu() {
+    el("settingsMenu").classList.remove("open");
+    el("settingsMenuOverlay").classList.remove("open");
+  }
+  window.openSettingsMenu = openSettingsMenu;
+  window.closeSettingsMenu = closeSettingsMenu;
+
+  function initSettingsMenu() {
+    const btn = el("sidebarSettingsBtn");
+    if (btn) btn.addEventListener("click", openSettingsMenu);
+    const overlay = el("settingsMenuOverlay");
+    if (overlay) overlay.addEventListener("click", closeSettingsMenu);
+  }
+
   const LOGIN_ERROR_LABEL = {
     access_denied: "已取消登入",
   };
@@ -140,9 +161,10 @@
 
     if (session.loggedIn) {
       document.body.classList.add("auth-ok");
-      const sidebar = document.querySelector(".sidebar");
-      if (sidebar) {
-        sidebar.insertBefore(buildUserBar(session), sidebar.firstChild);
+      const slot = el("settingsAccountSlot");
+      if (slot) {
+        slot.innerHTML = "";
+        slot.appendChild(buildUserBar(session));
         const logoutBtn = el("authLogoutBtn");
         if (logoutBtn) {
           logoutBtn.addEventListener("click", async () => {
@@ -151,6 +173,7 @@
           });
         }
       }
+      initSettingsMenu();
       startAppAfterLogin();
       return;
     }
