@@ -1308,17 +1308,8 @@ button:hover { background: var(--accent-hover); }
     padding: 8px 6px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
     z-index: 40;
-    touch-action: none; /* 讓拖曳手勢不會連動整頁捲動 */
-    cursor: grab;
-  }
-  /* 拖曳中：放大一點、陰影加深，給使用者「拿起來」的回饋；
-     拖曳時關掉 backdrop-filter 過渡動畫感（本來就沒有 transition，這裡只加視覺回饋）。 */
-  .bottom-nav.bottom-nav-dragging {
-    cursor: grabbing;
-    /* 故意不用 transform：Safari 對「有 transform + backdrop-filter」的元素
-       常會讓毛玻璃直接失效變成一片死色，拖曳中維持原本大小只加深陰影，
-       玻璃感才不會在移動時消失。 */
-    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.5);
+    touch-action: none; /* 讓左右滑動切換分頁的手勢不會連動整頁捲動 */
+    cursor: pointer;
   }
   /* 不支援 backdrop-filter 的瀏覽器（少數舊版 in-app webview）退回不透明深色底，
      避免變成完全看不出邊界、貼齊畫面的實色長條 */

@@ -1617,72 +1617,28 @@ function activateBottomNavKey(key) {
   }
 })();
 
-// ---------------- 底部導覽列：手勢整合 ----------------
-// 同一條導覽列上有兩種手勢，用「有沒有長按」來分開，避免互相干擾：
-//   1) 按著圖示，馬上左右滑過去 → 直接切換分頁（滑到哪顆，指示器跟著
-//      預覽到哪顆；放開手指才真的觸發換頁內容，不會滑過去沿路每顆都觸發）
-//   2) 按著不放（約 0.35 秒）不太移動 → 進入「整條移動」模式，這時候
-//      再滑動是把整條液態玻璃列拖去畫面別的位置，放開後記住位置
-const STORAGE_KEY = "bottomNavPosition";
+// ---------------- 底部導覽列：手勢 ----------------
+// 導覽列固定貼在畫面底部，不能再拖著移動位置；保留「按著滑過去」
+// 直接切換分頁的手勢（滑到哪顆，指示器跟著預覽到哪顆；放開手指才
+// 真的觸發換頁內容，不會滑過去沿路每顆都觸發）。
 const SCRUB_THRESHOLD = 6; // 超過這個位移就判定使用者要滑動，而不是單純點一下
-const LONG_PRESS_MS = 350; // 按著不太動多久之後，才切換成「整條移動」模式
+
+// 清掉之前「可拖曳移動」時代留下的位置記錄，讓它固定回底部
+try {
+  localStorage.removeItem("bottomNavPosition");
+} catch (e) {
+  /* 存取失敗就算了 */
+}
 
 (function setupBottomNavGestures() {
   const nav = el("bottomNav");
   if (!nav) return;
 
-  function clamp(value, min, max) {
-    return Math.min(Math.max(value, min), max);
-  }
-
-  function applyPosition(left, top) {
-    const rect = nav.getBoundingClientRect();
-    const maxLeft = Math.max(4, window.innerWidth - rect.width - 4);
-    const maxTop = Math.max(4, window.innerHeight - rect.height - 4);
-    const clampedLeft = clamp(left, 4, maxLeft);
-    const clampedTop = clamp(top, 4, maxTop);
-    nav.style.left = clampedLeft + "px";
-    nav.style.top = clampedTop + "px";
-    nav.style.right = "auto";
-    nav.style.bottom = "auto";
-  }
-
-  function restorePosition() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-      if (saved && typeof saved.left === "number" && typeof saved.top === "number") {
-        nav.style.width = nav.getBoundingClientRect().width + "px";
-        applyPosition(saved.left, saved.top);
-      }
-    } catch (e) {
-      /* 存的資料壞了就用預設位置 */
-    }
-  }
-
-  function savePosition(left, top) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ left, top }));
-    } catch (e) {
-      /* 存不了就算了 */
-    }
-  }
-
-  window.addEventListener("load", restorePosition);
-  window.addEventListener("resize", () => {
-    if (nav.style.left && nav.style.left !== "auto") {
-      const rect = nav.getBoundingClientRect();
-      applyPosition(rect.left, rect.top);
-    }
-  });
-
-  // mode: null（還沒判斷）、"scrub"（滑動切換分頁）、"move"（整條移動）
+  // mode: null（還沒判斷）、"scrub"（滑動切換分頁）
   let mode = null;
   let startX = 0;
   let startY = 0;
-  let originLeft = 0;
-  let originTop = 0;
   let activePointerId = null;
-  let longPressTimer = null;
   let previewKey = null;
   let startKey = null;
 
@@ -1705,19 +1661,9 @@ const LONG_PRESS_MS = 350; // 按著不太動多久之後，才切換成「整�
     return hit || nearest;
   }
 
-  function clearLongPressTimer() {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
-  }
-
   nav.addEventListener("pointerdown", (event) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     const btn = event.target.closest(".bottom-nav-btn");
-    const rect = nav.getBoundingClientRect();
-    originLeft = rect.left;
-    originTop = rect.top;
     startX = event.clientX;
     startY = event.clientY;
     startKey = btn ? btn.dataset.bottom : null;
@@ -1725,15 +1671,6 @@ const LONG_PRESS_MS = 350; // 按著不太動多久之後，才切換成「整�
     mode = null;
     activePointerId = event.pointerId;
     nav.setPointerCapture(event.pointerId);
-
-    clearLongPressTimer();
-    longPressTimer = setTimeout(() => {
-      if (mode === null) {
-        mode = "move";
-        nav.style.width = rect.width + "px"; // 鎖住寬度，避免切換定位方式時跳動
-        nav.classList.add("bottom-nav-dragging");
-      }
-    }, LONG_PRESS_MS);
   });
 
   nav.addEventListener("pointermove", (event) => {
@@ -1743,7 +1680,6 @@ const LONG_PRESS_MS = 350; // 按著不太動多久之後，才切換成「整�
 
     if (mode === null && Math.hypot(dx, dy) > SCRUB_THRESHOLD) {
       mode = "scrub";
-      clearLongPressTimer();
     }
 
     if (mode === "scrub") {
@@ -1756,27 +1692,12 @@ const LONG_PRESS_MS = 350; // 按著不太動多久之後，才切換成「整�
         });
         if (window.moveBottomNavIndicator) window.moveBottomNavIndicator(key);
       }
-    } else if (mode === "move") {
-      event.preventDefault();
-      applyPosition(originLeft + dx, originTop + dy);
     }
   });
 
   function endGesture(event) {
     if (event.pointerId !== activePointerId) return;
-    clearLongPressTimer();
-
-    if (mode === "scrub") {
-      nav.classList.remove("bottom-nav-dragging");
-      if (previewKey) activateBottomNavKey(previewKey);
-    } else if (mode === "move") {
-      nav.classList.remove("bottom-nav-dragging");
-      const rect = nav.getBoundingClientRect();
-      savePosition(rect.left, rect.top);
-    }
-    // mode 是 null 代表整段幾乎沒移動、也沒被長按計時器判定成 move，
-    // 純粹是一次點按，交給按鈕自己的 click 事件處理，這裡不用做任何事。
-
+    if (mode === "scrub" && previewKey) activateBottomNavKey(previewKey);
     mode = null;
     previewKey = null;
     startKey = null;
@@ -1785,10 +1706,8 @@ const LONG_PRESS_MS = 350; // 按著不太動多久之後，才切換成「整�
 
   nav.addEventListener("pointerup", endGesture);
   nav.addEventListener("pointercancel", (event) => {
-    // 手勢被系統打斷（例如被切走）：滑動中的預覽要復原成原本真正選到的分頁，
-    // 不要誤觸發換頁；整條移動則保留目前位置。
+    // 手勢被系統打斷：預覽要復原成原本真正選到的分頁，不要誤觸發換頁
     if (event.pointerId !== activePointerId) return;
-    clearLongPressTimer();
     if (mode === "scrub") {
       const activeBtn = nav.querySelector(".bottom-nav-btn.active");
       const revertKey = startKey || (activeBtn ? activeBtn.dataset.bottom : "home");
@@ -1796,18 +1715,14 @@ const LONG_PRESS_MS = 350; // 按著不太動多久之後，才切換成「整�
         b.classList.toggle("active", b.dataset.bottom === revertKey);
       });
       if (window.moveBottomNavIndicator) window.moveBottomNavIndicator(revertKey);
-    } else if (mode === "move") {
-      const rect = nav.getBoundingClientRect();
-      savePosition(rect.left, rect.top);
     }
-    nav.classList.remove("bottom-nav-dragging");
     mode = null;
     previewKey = null;
     startKey = null;
     activePointerId = null;
   });
 
-  // 滑動/整條移動放開那一下瀏覽器還是會補發 click，這裡擋掉避免誤觸按鈕
+  // 滑動放開那一下瀏覽器還是會補發 click，這裡擋掉避免誤觸按鈕
   nav.addEventListener(
     "click",
     (event) => {
