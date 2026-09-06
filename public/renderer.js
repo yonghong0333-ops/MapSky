@@ -762,6 +762,8 @@ function zoneRank(zone) {
 
 let alertMapBuilt = false;
 let latestMapAlerts = [];
+let alertMapHasData = false; // 大雨(豪雨)特報縣市分布圖有沒有資料可以顯示；
+                              // 有資料時也不自動打開，要點警特報卡片的「詳細資訊」按鈕才顯示。
 
 // 「警特報」分頁的地圖，改成 clone index.html 裡 <template id="twZoneMapTemplate">
 // 內建好的分區地圖（見 scripts/build-zone-map.js），每個縣市依「山區/平地/
@@ -996,8 +998,12 @@ function renderAlertMap(alerts) {
   latestMapAlerts = alerts || [];
   const zoneLevels = computeZoneLevels(alerts);
   const hasAny = Object.keys(zoneLevels).length > 0;
+  alertMapHasData = hasAny;
 
-  section.classList.toggle("hidden", !hasAny);
+  // 不自動打開：一律先收起來，要點警特報卡片上的「詳細資訊」按鈕才顯示，
+  // 這裡只負責在有資料時把地圖內容準備好，資料變動時（例如警報解除）
+  // 也順便把已經展開的地圖收回去，避免顯示過期內容。
+  section.classList.add("hidden");
   if (!hasAny) {
     hideAlertMapTooltip();
     return;
@@ -1312,18 +1318,18 @@ function renderRainAlertCard(alert) {
   item.style.setProperty("--alert-color", barColor);
 
   item.innerHTML = `
-    <button class="alert-row" type="button">
+    <div class="alert-row">
       <span class="alert-row-dot"></span>
       <span class="alert-row-title">${alert.alertTitle || "大雨(豪雨)特報"}</span>
       <span class="alert-row-status">${alert.isActive ? "生效中" : "已解除"}</span>
-      <span class="alert-row-chevron">›</span>
-    </button>
+      <button class="alert-detail-btn" type="button">詳細資訊</button>
+    </div>
     <div class="alert-detail hidden">
       <p class="alert-detail-desc">${alert.description || "（沒有更多說明）"}</p>
       <p class="alert-detail-time">發布 ${formatAlertTime(alert.sent)}　　有效至 ${formatAlertTime(alert.expires)}</p>
     </div>
   `;
-  wireAlertItemToggle(item);
+  wireAlertItemToggle(item, { showMap: true });
   return item;
 }
 
@@ -1343,31 +1349,39 @@ function renderAlertCard(alert) {
       : "全國";
 
   item.innerHTML = `
-    <button class="alert-row" type="button">
+    <div class="alert-row">
       <span class="alert-row-dot"></span>
       <span class="alert-row-title">${alert.alertTitle || alert.headline || alert.event || "警特報"}</span>
       <span class="alert-row-status">${alert.isActive ? "生效中" : "已解除"}</span>
-      <span class="alert-row-chevron">›</span>
-    </button>
+      <button class="alert-detail-btn" type="button">詳細資訊</button>
+    </div>
     <div class="alert-detail hidden">
       <p class="alert-detail-desc">${alert.description || "（沒有更多說明）"}</p>
       <p class="alert-detail-areas">影響地區：${areasPreview}</p>
       <p class="alert-detail-time">發布 ${formatAlertTime(alert.sent)}　　有效至 ${formatAlertTime(alert.expires)}</p>
     </div>
   `;
-  wireAlertItemToggle(item);
+  wireAlertItemToggle(item, { showMap: false });
   return item;
 }
 
-// 點一行警特報：原地展開/收合顯示那則自己的完整內容（不跳去別的分頁）
-function wireAlertItemToggle(item) {
-  const rowBtn = item.querySelector(".alert-row");
+// 點「詳細資訊」按鈕：原地展開/收合顯示那則自己的完整內容（文字），
+// 大雨特報還會多帶出「大雨(豪雨)特報縣市分布圖」（圖表），收合時一起收起來；
+// 卡片本身只是靜態顯示標題跟狀態，不會整排都可以點。
+function wireAlertItemToggle(item, options) {
+  const opts = options || {};
+  const btn = item.querySelector(".alert-detail-btn");
   const detail = item.querySelector(".alert-detail");
-  const chevron = item.querySelector(".alert-row-chevron");
-  rowBtn.addEventListener("click", () => {
+  btn.addEventListener("click", () => {
     const isOpen = item.classList.toggle("alert-item-open");
     detail.classList.toggle("hidden", !isOpen);
-    chevron.textContent = isOpen ? "⌄" : "›";
+    btn.textContent = isOpen ? "收起" : "詳細資訊";
+    if (opts.showMap) {
+      const mapSection = el("alertMapSection");
+      if (mapSection && alertMapHasData) {
+        mapSection.classList.toggle("hidden", !isOpen);
+      }
+    }
   });
 }
 
