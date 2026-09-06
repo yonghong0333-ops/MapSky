@@ -1752,21 +1752,22 @@ try {
     return Math.max(mainScroll, pageScroll);
   }
 
-  let lastScrollTop = getScrollTop();
+  let anchorScrollTop = getScrollTop();
 
   function handleScroll() {
     const current = getScrollTop();
-    const delta = current - lastScrollTop;
+    const diff = current - anchorScrollTop;
 
     if (current <= MIN_SCROLL_TOP) {
       nav.classList.remove("bottom-nav-collapsed");
-    } else if (delta > DELTA_THRESHOLD) {
-      nav.classList.add("bottom-nav-collapsed"); // 往下捲：縮小
-    } else if (delta < -DELTA_THRESHOLD) {
-      nav.classList.remove("bottom-nav-collapsed"); // 往上捲：恢復
+      anchorScrollTop = current;
+    } else if (diff > DELTA_THRESHOLD) {
+      nav.classList.add("bottom-nav-collapsed"); // 累積往下捲夠多：縮小
+      anchorScrollTop = current; // 觸發後重設基準點，才能偵測下一次方向改變
+    } else if (diff < -DELTA_THRESHOLD) {
+      nav.classList.remove("bottom-nav-collapsed"); // 累積往上捲夠多：恢復
+      anchorScrollTop = current;
     }
-
-    lastScrollTop = current;
   }
 
   window.addEventListener("scroll", handleScroll, { passive: true });

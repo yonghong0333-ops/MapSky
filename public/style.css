@@ -611,19 +611,19 @@ button:hover { background: var(--accent-hover); }
   transition: color 0.25s ease, transform 0.15s ease, padding 0.28s ease;
 }
 .bottom-nav.bottom-nav-collapsed {
-  left: 30%;
-  right: 30%;
-  padding: 3px 4px;
+  left: 34%;
+  right: 34%;
+  padding: 2px 3px;
 }
 .bottom-nav.bottom-nav-collapsed .bottom-nav-btn {
-  padding: 3px 0;
+  padding: 2px 0;
 }
 .bottom-nav.bottom-nav-collapsed .bottom-nav-icon {
-  padding: 4px 10px;
+  padding: 3px 8px;
 }
 .bottom-nav.bottom-nav-collapsed .bottom-nav-icon svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 
 /* 選中項目的玻璃藥丸改成「共用一顆、會滑動變形」的指示器，而不是每顆
