@@ -1354,16 +1354,22 @@ function renderAlertCard(alert) {
 function renderAlertsBadge(alerts) {
   const activeCount = (alerts || []).filter((a) => a.isActive).length;
   const badge = el("alertTabBadge");
+  const toolsBadge = el("toolsAlertBadge");
   const banner = el("alertBanner");
   const bannerText = el("alertBannerText");
 
   if (activeCount > 0) {
     badge.textContent = String(activeCount);
     badge.classList.remove("hidden");
+    if (toolsBadge) {
+      toolsBadge.textContent = String(activeCount);
+      toolsBadge.classList.remove("hidden");
+    }
     banner.classList.remove("hidden");
     bannerText.textContent = `目前有 ${activeCount} 則警特報生效中`;
   } else {
     badge.classList.add("hidden");
+    if (toolsBadge) toolsBadge.classList.add("hidden");
     banner.classList.add("hidden");
   }
 }
@@ -1470,16 +1476,42 @@ function setBottomNavActive(key) {
 document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     const key = btn.dataset.bottom;
+    if (key === "tools") {
+      toggleToolsMenu();
+      return;
+    }
+    closeToolsMenu();
     setBottomNavActive(key);
     if (key === "home") {
       document.querySelector('.tab-btn[data-tab="forecast"]').click();
       document.querySelector(".main").scrollTo({ top: 0, behavior: "smooth" });
     } else if (key === "typhoon") {
       document.querySelector('.tab-btn[data-tab="typhoon"]').click();
-    } else if (key === "tools") {
-      document.querySelector(".tabs").scrollIntoView({ behavior: "smooth", block: "start" });
     } else if (key === "settings") {
       setStatus("設定頁面開發中，敬請期待");
     }
+  });
+});
+
+function toggleToolsMenu() {
+  const isOpen = el("toolsMenu").classList.contains("open");
+  if (isOpen) closeToolsMenu();
+  else openToolsMenu();
+}
+function openToolsMenu() {
+  el("toolsMenu").classList.add("open");
+  el("toolsMenuOverlay").classList.add("open");
+  setBottomNavActive("tools");
+}
+function closeToolsMenu() {
+  el("toolsMenu").classList.remove("open");
+  el("toolsMenuOverlay").classList.remove("open");
+}
+el("toolsMenuOverlay").addEventListener("click", closeToolsMenu);
+document.querySelectorAll(".tools-menu-item").forEach((item) => {
+  item.addEventListener("click", () => {
+    document.querySelector(`.tab-btn[data-tab="${item.dataset.tab}"]`).click();
+    closeToolsMenu();
+    document.querySelector(".main").scrollTo({ top: 0, behavior: "smooth" });
   });
 });

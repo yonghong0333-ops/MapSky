@@ -1231,6 +1231,56 @@ button:hover { background: var(--accent-hover); }
     font-size: 12px;
     padding: 10px 12px;
   }
+
+  /* 手機版改用底部導覽列當主要操作方式，原本橫排的 6 個分類按鈕
+     跟底部導覽列功能重疊（尤其颱風重複出現兩次），先整排隱藏，
+     其餘 4 個（溫度趨勢圖／多城市比較／地圖選點／警特報）收進
+     「工具」彈出選單裡。 */
+  .tabs { display: none; }
+}
+
+.tools-menu-overlay {
+  display: none;
+}
+.tools-menu {
+  display: none;
+}
+@media (max-width: 900px) {
+  .tools-menu-overlay.open {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 26, 40, 0.32);
+    z-index: 45;
+  }
+  .tools-menu.open {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(70px + env(safe-area-inset-bottom));
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    overflow: hidden;
+    z-index: 46;
+    box-shadow: 0 8px 24px rgba(20, 26, 40, 0.18);
+  }
+  .tools-menu-item {
+    background: none;
+    border: none;
+    text-align: left;
+    padding: 14px 16px;
+    font-size: 15px;
+    color: var(--text-main);
+    border-bottom: 1px solid var(--card-border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tools-menu-item:last-child { border-bottom: none; }
+  .tools-menu-item:active { background: var(--sidebar-hover, rgba(0,0,0,0.04)); }
 }
 
 /* 更小的手機（如 iPhone SE）再收斂一次間距與字級 */
