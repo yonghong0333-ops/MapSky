@@ -1808,6 +1808,7 @@ function closeToolsMenu() {
   el("toolsMenuOverlay").classList.remove("open");
 }
 el("toolsMenuOverlay").addEventListener("click", closeToolsMenu);
+el("toolsMenuCloseBtn").addEventListener("click", closeToolsMenu);
 document.querySelectorAll(".tools-menu-item").forEach((item) => {
   item.addEventListener("click", () => {
     document.querySelector(`.tab-btn[data-tab="${item.dataset.tab}"]`).click();

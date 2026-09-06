@@ -125,6 +125,8 @@
     if (btn) btn.addEventListener("click", openSettingsMenu);
     const overlay = el("settingsMenuOverlay");
     if (overlay) overlay.addEventListener("click", closeSettingsMenu);
+    const closeBtn = el("settingsMenuCloseBtn");
+    if (closeBtn) closeBtn.addEventListener("click", closeSettingsMenu);
   }
 
   const LOGIN_ERROR_LABEL = {

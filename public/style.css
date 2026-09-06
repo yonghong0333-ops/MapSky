@@ -1505,39 +1505,70 @@ button:hover { background: var(--accent-hover); }
   display: flex;
   flex-direction: column;
   position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: calc(70px + env(safe-area-inset-bottom));
+  inset: 0;
   background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 14px;
-  overflow: hidden;
+  border: none;
+  border-radius: 0;
+  overflow-y: auto;
   z-index: 46;
-  box-shadow: 0 8px 24px rgba(20, 26, 40, 0.18);
+  box-shadow: none;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tools-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--card-border);
+  flex-shrink: 0;
+}
+.tools-menu-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+.tools-menu-close {
+  background: var(--sidebar-bg, rgba(0, 0, 0, 0.06));
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
 }
 .tools-menu-item {
   background: none;
   border: none;
   text-align: left;
-  padding: 14px 16px;
-  font-size: 15px;
+  padding: 16px;
+  font-size: 16px;
   color: var(--text-main);
   border-bottom: 1px solid var(--card-border);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
 }
 .tools-menu-item:last-child { border-bottom: none; }
 .tools-menu-item:active { background: var(--sidebar-hover, rgba(0,0,0,0.04)); }
 
-/* 桌面版寬螢幕時，彈出面板改成貼齊側欄下方，比貼齊整個螢幕底部更自然 */
+/* 桌面版寬螢幕時，彈出面板改成貼齊側欄下方的小卡片，不用佔滿整個螢幕
+   （滿版全螢幕是給手機用的，桌面版視窗夠大，用小面板比較自然） */
 @media (min-width: 901px) {
   .tools-menu.open {
+    inset: auto;
     left: 16px;
     right: auto;
+    top: auto;
     width: 240px;
     bottom: 24px;
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(20, 26, 40, 0.18);
   }
 }
 
