@@ -880,19 +880,26 @@ button:hover { background: var(--accent-hover); }
   background: var(--card-bg);
 }
 
-/* 每則警特報縮成一條列，只顯示標題跟狀態，點進去才看颱風地圖詳情 */
+/* 每則警特報縮成一條列，點下去原地展開顯示自己的完整內容
+   （標題、描述、影響地區、時間），不會跳去別的分頁。 */
+.alert-item { border-bottom: 1px solid var(--card-border); }
+.alert-item:last-child { border-bottom: none; }
+.alert-item-cancelled { opacity: 0.55; }
 .alert-row {
   --alert-color: #e67e22;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 14px 16px;
-  border-bottom: 1px solid var(--card-border);
   cursor: pointer;
 }
-.alert-row:last-child { border-bottom: none; }
 .alert-row:active { background: var(--sidebar-hover, rgba(0, 0, 0, 0.04)); }
-.alert-row-cancelled { opacity: 0.55; }
 .alert-row-dot {
   width: 8px;
   height: 8px;
@@ -918,6 +925,27 @@ button:hover { background: var(--accent-hover); }
   font-size: 18px;
   color: var(--text-faint);
   flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+.alert-item-open .alert-row-chevron { color: var(--accent); }
+.alert-detail {
+  padding: 0 16px 14px 34px;
+}
+.alert-detail.hidden { display: none; }
+.alert-detail-desc {
+  font-size: 13px;
+  color: var(--text-main);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+.alert-detail-areas {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.alert-detail-time {
+  font-size: 11px;
+  color: var(--text-faint);
 }
 
 .rain-area-group {

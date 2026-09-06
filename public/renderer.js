@@ -1306,41 +1306,69 @@ function renderAreaGroup(label, areas) {
 }
 
 function renderRainAlertCard(alert) {
-  const row = document.createElement("div");
-  row.className = "alert-row" + (alert.isActive ? "" : " alert-row-cancelled");
+  const item = document.createElement("div");
+  item.className = "alert-item" + (alert.isActive ? "" : " alert-item-cancelled");
   const barColor = alert.color || RAIN_LEVEL_FALLBACK_COLOR[alert.severityLevel] || "#7f8c9a";
-  row.style.setProperty("--alert-color", barColor);
+  item.style.setProperty("--alert-color", barColor);
 
-  row.innerHTML = `
-    <span class="alert-row-dot"></span>
-    <span class="alert-row-title">${alert.alertTitle || "大雨(豪雨)特報"}</span>
-    <span class="alert-row-status">${alert.isActive ? "生效中" : "已解除"}</span>
-    <span class="alert-row-chevron">›</span>
+  item.innerHTML = `
+    <button class="alert-row" type="button">
+      <span class="alert-row-dot"></span>
+      <span class="alert-row-title">${alert.alertTitle || "大雨(豪雨)特報"}</span>
+      <span class="alert-row-status">${alert.isActive ? "生效中" : "已解除"}</span>
+      <span class="alert-row-chevron">›</span>
+    </button>
+    <div class="alert-detail hidden">
+      <p class="alert-detail-desc">${alert.description || "（沒有更多說明）"}</p>
+      <p class="alert-detail-time">發布 ${formatAlertTime(alert.sent)}　　有效至 ${formatAlertTime(alert.expires)}</p>
+    </div>
   `;
-  row.addEventListener("click", () => {
-    document.querySelector('.tab-btn[data-tab="typhoon"]').click();
-  });
-  return row;
+  wireAlertItemToggle(item);
+  return item;
 }
 
 function renderAlertCard(alert) {
   if (alert.source === "rain") return renderRainAlertCard(alert);
 
-  const row = document.createElement("div");
-  row.className = "alert-row" + (alert.isActive ? "" : " alert-row-cancelled");
+  const item = document.createElement("div");
+  item.className = "alert-item" + (alert.isActive ? "" : " alert-item-cancelled");
   const barColor = alert.color || ALERT_SEVERITY_FALLBACK_COLOR[alert.severity] || "#7f8c9a";
-  row.style.setProperty("--alert-color", barColor);
+  item.style.setProperty("--alert-color", barColor);
 
-  row.innerHTML = `
-    <span class="alert-row-dot"></span>
-    <span class="alert-row-title">${alert.alertTitle || alert.headline || alert.event || "警特報"}</span>
-    <span class="alert-row-status">${alert.isActive ? "生效中" : "已解除"}</span>
-    <span class="alert-row-chevron">›</span>
+  const areasPreview =
+    alert.areas && alert.areas.length
+      ? alert.areas.length > 6
+        ? alert.areas.slice(0, 6).join("、") + ` 等 ${alert.areas.length} 個地區`
+        : alert.areas.join("、")
+      : "全國";
+
+  item.innerHTML = `
+    <button class="alert-row" type="button">
+      <span class="alert-row-dot"></span>
+      <span class="alert-row-title">${alert.alertTitle || alert.headline || alert.event || "警特報"}</span>
+      <span class="alert-row-status">${alert.isActive ? "生效中" : "已解除"}</span>
+      <span class="alert-row-chevron">›</span>
+    </button>
+    <div class="alert-detail hidden">
+      <p class="alert-detail-desc">${alert.description || "（沒有更多說明）"}</p>
+      <p class="alert-detail-areas">影響地區：${areasPreview}</p>
+      <p class="alert-detail-time">發布 ${formatAlertTime(alert.sent)}　　有效至 ${formatAlertTime(alert.expires)}</p>
+    </div>
   `;
-  row.addEventListener("click", () => {
-    document.querySelector('.tab-btn[data-tab="typhoon"]').click();
+  wireAlertItemToggle(item);
+  return item;
+}
+
+// 點一行警特報：原地展開/收合顯示那則自己的完整內容（不跳去別的分頁）
+function wireAlertItemToggle(item) {
+  const rowBtn = item.querySelector(".alert-row");
+  const detail = item.querySelector(".alert-detail");
+  const chevron = item.querySelector(".alert-row-chevron");
+  rowBtn.addEventListener("click", () => {
+    const isOpen = item.classList.toggle("alert-item-open");
+    detail.classList.toggle("hidden", !isOpen);
+    chevron.textContent = isOpen ? "⌄" : "›";
   });
-  return row;
 }
 
 function renderAlertsBadge(alerts) {
