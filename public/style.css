@@ -1297,12 +1297,12 @@ button:hover { background: var(--accent-hover); }
     bottom: calc(10px + env(safe-area-inset-bottom));
     background: linear-gradient(
       165deg,
-      rgba(20, 20, 24, 0.82),
-      rgba(10, 10, 13, 0.78) 60%,
-      rgba(20, 20, 24, 0.82)
+      rgba(30, 30, 36, 0.42),
+      rgba(14, 14, 18, 0.34) 60%,
+      rgba(30, 30, 36, 0.42)
     );
-    backdrop-filter: blur(24px) saturate(160%);
-    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(200%);
+    -webkit-backdrop-filter: blur(20px) saturate(200%);
     border: none;
     border-radius: 24px;
     padding: 8px 6px;
