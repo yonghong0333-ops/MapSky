@@ -296,8 +296,15 @@ button:hover { background: var(--accent-hover); }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
 }
-.main-header h2 { font-size: 24px; color: var(--text-main); }
+.main-header h2 {
+  font-size: 24px;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .update-time {
   font-size: 12px;
@@ -1148,8 +1155,21 @@ button:hover { background: var(--accent-hover); }
   }
 
   .main {
-    padding: 18px 16px 96px;
+    padding: 28px 16px 96px;
     overflow-y: visible;
+  }
+
+  .main-header {
+    padding-bottom: 4px;
+  }
+  .main-header h2 {
+    flex: 1;
+    text-align: center;
+    font-size: 20px;
+  }
+  .sidebar-drawer-btn,
+  #addFavBtn {
+    flex-shrink: 0;
   }
 
   /* 底部固定的圖示導覽列，只在手機版顯示；桌面版維持用左側欄操作。 */
@@ -1164,12 +1184,6 @@ button:hover { background: var(--accent-hover); }
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
     z-index: 40;
   }
-
-  .main-header {
-    flex-wrap: wrap;
-    row-gap: 6px;
-  }
-  .main-header h2 { font-size: 20px; }
 
   .current-card {
     padding: 18px 16px;
