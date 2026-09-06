@@ -528,6 +528,7 @@ button:hover { background: var(--accent-hover); }
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
+  transition: opacity 0.15s ease;
 }
 .bottom-nav::after {
   /* 頂部一道極細的反光，維持玻璃感但不像淺色版那麼搶眼；
@@ -542,6 +543,13 @@ button:hover { background: var(--accent-hover); }
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
   pointer-events: none;
   animation: bottomNavSheen 5s ease-in-out infinite;
+  transition: opacity 0.15s ease;
+}
+/* 寬度在縮小/恢復的過場中連續變化時，這兩層用遮罩做的邊框高光會閃爍、
+   看起來像破圖，縮小狀態下乾脆先淡出，尺寸穩定後再淡入，避免那個破圖感。 */
+.bottom-nav.bottom-nav-collapsed::before,
+.bottom-nav.bottom-nav-collapsed::after {
+  opacity: 0;
 }
 @keyframes bottomNavSheen {
   0%, 100% { transform: translateX(-8%); }
