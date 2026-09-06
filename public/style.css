@@ -505,7 +505,11 @@ button:hover { background: var(--accent-hover); }
   cursor: pointer;
 }
 .bottom-nav-btn .bottom-nav-icon { font-size: 20px; line-height: 1; }
-.bottom-nav-btn.active { color: var(--accent); }
+.bottom-nav-btn.active {
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 16px;
+}
 
 #tempChart {
   width: 100%;
@@ -1172,16 +1176,24 @@ button:hover { background: var(--accent-hover); }
     flex-shrink: 0;
   }
 
-  /* 底部固定的圖示導覽列，只在手機版顯示；桌面版維持用左側欄操作。 */
+  /* 底部固定的圖示導覽列，只在手機版顯示；桌面版維持用左側欄操作。
+     樣式做成 iOS 液態玻璃（Liquid Glass）風格：半透明毛玻璃背景、
+     浮動圓角膠囊，而不是貼齊螢幕邊緣的實色長條。 */
   .bottom-nav {
     display: flex;
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--card-bg);
-    border-top: 1px solid var(--card-border);
-    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    left: 12px;
+    right: 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 22px;
+    padding: 8px 6px;
+    box-shadow:
+      0 8px 24px rgba(20, 26, 40, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6);
     z-index: 40;
   }
 
