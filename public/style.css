@@ -497,6 +497,7 @@ button:hover { background: var(--accent-hover); }
   position: relative;
   isolation: isolate;
   overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
 .bottom-nav::before {
   /* 玻璃邊緣的漸層高光框：上緣亮、下緣暗，做出立體折射感 */
@@ -542,6 +543,13 @@ button:hover { background: var(--accent-hover); }
   cursor: pointer;
   position: relative;
   transition: color 0.25s ease, transform 0.15s ease;
+  -webkit-tap-highlight-color: transparent; /* 關掉手機瀏覽器按下去時自動蓋的那層藍色反白 */
+  -webkit-touch-callout: none;
+  outline: none;
+}
+.bottom-nav-btn:focus,
+.bottom-nav-btn:focus-visible {
+  outline: none;
 }
 .bottom-nav-btn:active { transform: scale(0.92); }
 .bottom-nav-btn .bottom-nav-icon {
