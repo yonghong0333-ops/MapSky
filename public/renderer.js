@@ -702,7 +702,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
       loadAlerts();
       loadTyphoonProbability();
     }
-    const bottomMap = { forecast: "home", typhoon: "typhoon" };
+    const bottomMap = { forecast: "home", typhoon: "typhoon", alerts: "typhoon" };
     setBottomNavActive(bottomMap[btn.dataset.tab] || "tools");
   });
 });
