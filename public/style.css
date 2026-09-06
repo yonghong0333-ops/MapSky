@@ -610,18 +610,17 @@ button:hover { background: var(--accent-hover); }
 
 /* 往下捲動內容時，導覽列自動縮小（少佔畫面）；往上捲或點按它馬上恢復，
    由 renderer.js 依捲動方向切換這個 class，這裡只負責過場動畫。
-   故意不用 transform: scale() 做縮小——backdrop-filter 的元素加上 transform，
-   Safari 常會直接讓毛玻璃失效，所以改成真的縮小寬度/高度（置中內縮）。 */
+   故意不改寬度、也不用 transform: scale()——backdrop-filter 加圓角的元素，
+   Safari 對「寬度連續變化」常常來不及重新裁切毛玻璃範圍，會殘留一塊矩形霧影；
+   所以縮小時寬度維持不變，只縮小高度/圖示，徹底避開這個問題。 */
 .bottom-nav {
-  transition: padding 0.28s ease, left 0.28s ease, right 0.28s ease;
+  transition: padding 0.28s ease;
 }
 .bottom-nav-btn {
   transition: color 0.25s ease, transform 0.15s ease, padding 0.28s ease;
 }
 .bottom-nav.bottom-nav-collapsed {
-  left: 34%;
-  right: 34%;
-  padding: 2px 3px;
+  padding: 2px 4px;
 }
 .bottom-nav.bottom-nav-collapsed .bottom-nav-btn {
   padding: 2px 0;
