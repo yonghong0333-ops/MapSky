@@ -74,41 +74,6 @@
         <button id="addFavBtn">＋ 加入收藏</button>
       </header>
 
-      <section class="current-card">
-        <div class="current-card-top">
-          <div class="current-mid">
-            <div id="currentTemp" class="current-temp">--°C</div>
-            <div class="current-desc-row">
-              <span id="currentIcon" class="current-icon">—</span>
-              <span id="currentDesc" class="current-desc">—</span>
-            </div>
-            <div id="currentDetail" class="current-detail">
-              舒適度 --　降雨機率 --%
-            </div>
-          </div>
-        </div>
-
-        <div class="current-stat-row">
-          <div class="current-stat-chip">
-            <span class="current-stat-icon">💧</span>
-            <span class="current-stat-label">降雨機率</span>
-            <span id="statPop" class="current-stat-value">--%</span>
-          </div>
-          <div class="current-stat-chip">
-            <span class="current-stat-icon">🌬️</span>
-            <span class="current-stat-label">風速</span>
-            <span id="statWind" class="current-stat-value current-stat-empty">暫無資料</span>
-          </div>
-          <div class="current-stat-chip">
-            <span class="current-stat-icon">🍃</span>
-            <span class="current-stat-label">空氣品質</span>
-            <span id="statAir" class="current-stat-value current-stat-empty">暫無資料</span>
-          </div>
-        </div>
-
-        <button id="currentViewForecastBtn" class="current-forecast-btn hidden">查看完整預報 →</button>
-      </section>
-
       <nav class="tabs">
         <button class="tab-btn active" data-tab="forecast">未來 36 小時預報</button>
         <button class="tab-btn" data-tab="chart">溫度趨勢圖</button>
@@ -119,6 +84,43 @@
       </nav>
 
       <section id="forecastPanel" class="tab-panel active">
+        <!-- 這張天氣卡片（溫度/降雨/風速/空氣品質）移進「首頁」分頁裡面，
+             這樣切到警特報、颱風等其他分頁時會自動跟著隱藏，只在首頁出現。 -->
+        <section class="current-card">
+          <div class="current-card-top">
+            <div class="current-mid">
+              <div id="currentTemp" class="current-temp">--°C</div>
+              <div class="current-desc-row">
+                <span id="currentIcon" class="current-icon">—</span>
+                <span id="currentDesc" class="current-desc">—</span>
+              </div>
+              <div id="currentDetail" class="current-detail">
+                舒適度 --　降雨機率 --%
+              </div>
+            </div>
+          </div>
+
+          <div class="current-stat-row">
+            <div class="current-stat-chip">
+              <span class="current-stat-icon">💧</span>
+              <span class="current-stat-label">降雨機率</span>
+              <span id="statPop" class="current-stat-value">--%</span>
+            </div>
+            <div class="current-stat-chip">
+              <span class="current-stat-icon">🌬️</span>
+              <span class="current-stat-label">風速</span>
+              <span id="statWind" class="current-stat-value current-stat-empty">暫無資料</span>
+            </div>
+            <div class="current-stat-chip">
+              <span class="current-stat-icon">🍃</span>
+              <span class="current-stat-label">空氣品質</span>
+              <span id="statAir" class="current-stat-value current-stat-empty">暫無資料</span>
+            </div>
+          </div>
+
+          <button id="currentViewForecastBtn" class="current-forecast-btn hidden">查看完整預報 →</button>
+        </section>
+
         <div id="forecastRow" class="forecast-row"></div>
 
         <div class="seven-day-section">
