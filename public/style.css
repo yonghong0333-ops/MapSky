@@ -1237,6 +1237,11 @@ button:hover { background: var(--accent-hover); }
      其餘 4 個（溫度趨勢圖／多城市比較／地圖選點／警特報）收進
      「工具」彈出選單裡。 */
   .tabs { display: none; }
+
+  /* 側欄的「設定」按鈕在手機版跟底部導覽列右邊的「設定」重複，
+     手機版只留底部那一顆，側欄這顆隱藏；桌面版沒有底部導覽列，
+     所以桌面版繼續保留側欄這顆當作唯一入口。 */
+  .sidebar-settings-btn { display: none; }
 }
 
 .tools-menu-overlay {
