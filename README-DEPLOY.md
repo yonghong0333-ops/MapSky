@@ -1,4 +1,4 @@
-# SkyPulse 網頁版 —— 部署說明
+# MapSky 網頁版 —— 部署說明
 
 這是把原本 Electron 版「晴雨情報 WeatherPro」(apps/weather) 轉成的網頁版，
 架構：**靜態前端（/public）+ Vercel Serverless Functions（/api）**，並新增 OAuth 登入
