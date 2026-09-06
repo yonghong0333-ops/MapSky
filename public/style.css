@@ -601,22 +601,29 @@ button:hover { background: var(--accent-hover); }
 .bottom-nav-btn.active { color: #ffffff; }
 
 /* 往下捲動內容時，導覽列自動縮小（少佔畫面）；往上捲或點按它馬上恢復，
-   由 renderer.js 依捲動方向切換這個 class，這裡只負責過場動畫。 */
+   由 renderer.js 依捲動方向切換這個 class，這裡只負責過場動畫。
+   故意不用 transform: scale() 做縮小——backdrop-filter 的元素加上 transform，
+   Safari 常會直接讓毛玻璃失效，所以改成真的縮小寬度/高度（置中內縮）。 */
 .bottom-nav {
-  transition: padding 0.28s ease;
+  transition: padding 0.28s ease, left 0.28s ease, right 0.28s ease;
 }
 .bottom-nav-btn {
   transition: color 0.25s ease, transform 0.15s ease, padding 0.28s ease;
 }
 .bottom-nav.bottom-nav-collapsed {
-  padding: 4px 6px;
+  left: 30%;
+  right: 30%;
+  padding: 3px 4px;
 }
 .bottom-nav.bottom-nav-collapsed .bottom-nav-btn {
-  padding: 4px 0;
+  padding: 3px 0;
+}
+.bottom-nav.bottom-nav-collapsed .bottom-nav-icon {
+  padding: 4px 10px;
 }
 .bottom-nav.bottom-nav-collapsed .bottom-nav-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 /* 選中項目的玻璃藥丸改成「共用一顆、會滑動變形」的指示器，而不是每顆
