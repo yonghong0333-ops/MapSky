@@ -1306,57 +1306,41 @@ function renderAreaGroup(label, areas) {
 }
 
 function renderRainAlertCard(alert) {
-  const card = document.createElement("div");
-  card.className = "alert-card" + (alert.isActive ? "" : " alert-card-cancelled");
+  const row = document.createElement("div");
+  row.className = "alert-row" + (alert.isActive ? "" : " alert-row-cancelled");
   const barColor = alert.color || RAIN_LEVEL_FALLBACK_COLOR[alert.severityLevel] || "#7f8c9a";
-  card.style.setProperty("--alert-color", barColor);
+  row.style.setProperty("--alert-color", barColor);
 
-  card.innerHTML = `
-    <div class="alert-card-top">
-      <span class="alert-card-source">${ALERT_SOURCE_LABEL.rain}</span>
-      <span class="alert-card-status">${alert.isActive ? "生效中" : "已解除"}</span>
-    </div>
-    <h4 class="alert-card-title">${alert.alertTitle || "大雨(豪雨)特報"}</h4>
-    <p class="alert-card-desc">${alert.description || ""}</p>
-    <p class="alert-card-time">發布 ${formatAlertTime(alert.sent)}　　有效至 ${formatAlertTime(alert.expires)}</p>
+  row.innerHTML = `
+    <span class="alert-row-dot"></span>
+    <span class="alert-row-title">${alert.alertTitle || "大雨(豪雨)特報"}</span>
+    <span class="alert-row-status">${alert.isActive ? "生效中" : "已解除"}</span>
+    <span class="alert-row-chevron">›</span>
   `;
-  card.style.cursor = "pointer";
-  card.addEventListener("click", () => {
+  row.addEventListener("click", () => {
     document.querySelector('.tab-btn[data-tab="typhoon"]').click();
   });
-  return card;
+  return row;
 }
 
 function renderAlertCard(alert) {
   if (alert.source === "rain") return renderRainAlertCard(alert);
 
-  const card = document.createElement("div");
-  card.className = "alert-card" + (alert.isActive ? "" : " alert-card-cancelled");
+  const row = document.createElement("div");
+  row.className = "alert-row" + (alert.isActive ? "" : " alert-row-cancelled");
   const barColor = alert.color || ALERT_SEVERITY_FALLBACK_COLOR[alert.severity] || "#7f8c9a";
-  card.style.setProperty("--alert-color", barColor);
+  row.style.setProperty("--alert-color", barColor);
 
-  const areasPreview =
-    alert.areas && alert.areas.length
-      ? alert.areas.length > 6
-        ? alert.areas.slice(0, 6).join("、") + ` 等 ${alert.areas.length} 個地區`
-        : alert.areas.join("、")
-      : "全國";
-
-  card.innerHTML = `
-    <div class="alert-card-top">
-      <span class="alert-card-source">${ALERT_SOURCE_LABEL[alert.source] || alert.event || ""}</span>
-      <span class="alert-card-status">${alert.isActive ? "生效中" : "已解除"}</span>
-    </div>
-    <h4 class="alert-card-title">${alert.alertTitle || alert.headline || alert.event || "警特報"}</h4>
-    <p class="alert-card-desc">${alert.description || ""}</p>
-    <p class="alert-card-areas">影響地區：${areasPreview}</p>
-    <p class="alert-card-time">發布 ${formatAlertTime(alert.sent)}　　有效至 ${formatAlertTime(alert.expires)}</p>
+  row.innerHTML = `
+    <span class="alert-row-dot"></span>
+    <span class="alert-row-title">${alert.alertTitle || alert.headline || alert.event || "警特報"}</span>
+    <span class="alert-row-status">${alert.isActive ? "生效中" : "已解除"}</span>
+    <span class="alert-row-chevron">›</span>
   `;
-  card.style.cursor = "pointer";
-  card.addEventListener("click", () => {
+  row.addEventListener("click", () => {
     document.querySelector('.tab-btn[data-tab="typhoon"]').click();
   });
-  return card;
+  return row;
 }
 
 function renderAlertsBadge(alerts) {
