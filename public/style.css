@@ -1315,7 +1315,9 @@ button:hover { background: var(--accent-hover); }
      拖曳時關掉 backdrop-filter 過渡動畫感（本來就沒有 transition，這裡只加視覺回饋）。 */
   .bottom-nav.bottom-nav-dragging {
     cursor: grabbing;
-    transform: scale(1.03);
+    /* 故意不用 transform：Safari 對「有 transform + backdrop-filter」的元素
+       常會讓毛玻璃直接失效變成一片死色，拖曳中維持原本大小只加深陰影，
+       玻璃感才不會在移動時消失。 */
     box-shadow: 0 14px 32px rgba(0, 0, 0, 0.5);
   }
   /* 不支援 backdrop-filter 的瀏覽器（少數舊版 in-app webview）退回不透明深色底，
