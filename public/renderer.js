@@ -410,16 +410,16 @@ async function loadSunTimes(label) {
     };
 
     // 標籤（原本固定顯示「日出／日落」）改成動態顯示倒數剩餘時間；
-    // 下面數值那行維持顯示實際時間，兩個資訊互相搭配看。
+    // 下面數值那行只留時間本身，不放圖示也不放「升起／落下」文字。
     if (nowMinutes < riseMinutes) {
       if (labelEl) labelEl.textContent = `還有 ${formatRemaining(riseMinutes - nowMinutes)} 日出`;
-      valueEl.innerHTML = `<img src="icons/sunrise.png" class="rise-set-icon" alt="日出">${times.SunRiseTime} 升起`;
+      valueEl.textContent = times.SunRiseTime;
     } else if (nowMinutes < setMinutes) {
       if (labelEl) labelEl.textContent = `還有 ${formatRemaining(setMinutes - nowMinutes)} 日落`;
-      valueEl.innerHTML = `<img src="icons/sunset.png" class="rise-set-icon" alt="日落">${times.SunSetTime} 落下`;
+      valueEl.textContent = times.SunSetTime;
     } else {
       if (labelEl) labelEl.textContent = "已日落";
-      valueEl.innerHTML = `<img src="icons/sunset.png" class="rise-set-icon" alt="日落">${times.SunSetTime} 落下`;
+      valueEl.textContent = times.SunSetTime;
     }
     valueEl.classList.remove("current-stat-empty");
   } catch (e) {
