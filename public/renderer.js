@@ -392,7 +392,9 @@ async function loadSunTimes(label) {
     }
     const times = sunTimesCache[label];
     if (!times || !times.SunRiseTime || !times.SunSetTime) return;
-    valueEl.textContent = `${times.SunRiseTime} 升起　${times.SunSetTime} 落下`;
+    valueEl.innerHTML =
+      `<img src="icons/sunrise.png" class="rise-set-icon" alt="日出">${times.SunRiseTime} 升起` +
+      `　<img src="icons/sunset.png" class="rise-set-icon" alt="日落">${times.SunSetTime} 落下`;
     valueEl.classList.remove("current-stat-empty");
   } catch (e) {
     /* 拿不到就維持「暫無資料」，不影響其他功能 */
