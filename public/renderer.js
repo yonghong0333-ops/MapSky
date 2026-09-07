@@ -392,9 +392,14 @@ async function loadSunTimes(label) {
     }
     const times = sunTimesCache[label];
     if (!times || !times.SunRiseTime || !times.SunSetTime) return;
-    valueEl.innerHTML =
-      `<img src="icons/sunrise.png" class="rise-set-icon" alt="日出">${times.SunRiseTime} 升起` +
-      `　<img src="icons/sunset.png" class="rise-set-icon" alt="日落">${times.SunSetTime} 落下`;
+    const now = new Date();
+    const nowStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    // 日出之前顯示日出時間；日出之後（含日落後）就顯示日落時間，不用兩個一起塞在畫面上
+    if (nowStr < times.SunRiseTime) {
+      valueEl.innerHTML = `<img src="icons/sunrise.png" class="rise-set-icon" alt="日出">${times.SunRiseTime} 升起`;
+    } else {
+      valueEl.innerHTML = `<img src="icons/sunset.png" class="rise-set-icon" alt="日落">${times.SunSetTime} 落下`;
+    }
     valueEl.classList.remove("current-stat-empty");
   } catch (e) {
     /* 拿不到就維持「暫無資料」，不影響其他功能 */
