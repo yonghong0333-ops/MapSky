@@ -1,7 +1,7 @@
 // 合併日出日落 (sun)、月出月沒 (moon)、紫外線指數 (uv) 三支 API 成同一支
 // serverless function，用 ?type=sun|moon|uv 區分——Vercel Hobby 方案對
 // Serverless Functions 數量有上限（12 個），合併能省下名額。
-const { getSunTimes, getMoonTimes, getMoonPhaseImage, getUvIndexObservation } = require("../_lib/cwa");
+const { getSunTimes, getMoonTimes, getMoonPhaseImage, getUvIndexObservation, getWeeklyForecast } = require("../_lib/cwa");
 const { requireSession } = require("../_lib/require-session");
 
 module.exports = async function handler(req, res) {
@@ -27,6 +27,8 @@ module.exports = async function handler(req, res) {
       result = await getMoonTimes({ forceRefresh: req.query.refresh === "1" });
     } else if (req.query.type === "uv") {
       result = await getUvIndexObservation({ forceRefresh: req.query.refresh === "1" });
+    } else if (req.query.type === "weekly") {
+      result = await getWeeklyForecast({ forceRefresh: req.query.refresh === "1" });
     } else {
       result = await getSunTimes({ forceRefresh: req.query.refresh === "1" });
     }
