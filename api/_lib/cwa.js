@@ -20,6 +20,7 @@ const TYPHOON_PROB_DATA_ID = "W-C0034-003";
 const SUN_TIMES_DATA_ID = "A-B0062-001"; // 全臺各縣市日出、日沒、太陽過中天時刻
 const MOON_TIMES_DATA_ID = "A-B0063-001"; // 全臺各縣市月出、月沒、月球過中天時刻
 const UV_INDEX_DATA_ID = "O-A0005-001"; // 氣象站每日紫外線指數最大值（依測站代號，需另外對照縣市）
+const WEEKLY_FORECAST_DATA_ID = "F-D0047-091"; // 全臺各縣市未來1週逐12小時天氣預報
 const OBSERVATION_DATA_ID = "O-A0003-001"; // 現在天氣觀測報告（自動氣象站，含即時風速）
 const DIALAMOON_BASE = "https://svs.gsfc.nasa.gov/api/dialamoon"; // NASA SVS 月相圖 API
 
@@ -433,7 +434,69 @@ async function getMoonTimes({ forceRefresh = false } = {}) {
   return { ok: true, ...payload, cached: false };
 }
 
-// ---------- 即時風速觀測 (O-A0003-001) ----------
+// ---------- 未來 1 週逐 12 小時天氣預報 (F-D0047-091) ----------
+// 跟日出日沒同樣邏輯，一次查全臺 22 縣市（這支資料本身就是全臺一起回傳，
+// 不用像一般天氣預報那樣一個縣市查一次）。原始回應包含很多欄位，這裡只挑
+// 前端會用到的幾樣（最高/最低溫度、天氣現象、12小時降雨機率）瘦身後再快取，
+// 不然每次都要重新傳一份 600KB 多的資料，浪費頻寬也拖慢速度。
+async function getWeeklyForecast({ forceRefresh = false } = {}) {
+  const apiKey = getApiKey();
+  if (!apiKey) return { ok: false, reason: "no-api-key" };
+  const today = new Date().toISOString().slice(0, 10);
+  const cacheKey = `weekly-${today}`;
+  if (!forceRefresh) {
+    const cached = readCache(cacheKey);
+    if (cached) return { ok: true, ...cached, cached: true };
+  }
+  const url = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/${WEEKLY_FORECAST_DATA_ID}?Authorization=${encodeURIComponent(apiKey)}&format=JSON&sort=time`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (data.success === "false" || data.success === false) {
+    throw new Error(data.message || "查詢未來一週預報失敗，請確認授權碼是否正確");
+  }
+  const locationsBlock = data.records && data.records.Locations && data.records.Locations[0];
+  const locations = (locationsBlock && locationsBlock.Location) || [];
+
+  const counties = {};
+  for (const loc of locations) {
+    const name = loc.LocationName;
+    if (!name) continue;
+    const elements = loc.WeatherElement || [];
+    const byName = {};
+    for (const we of elements) byName[we.ElementName] = we.Time || [];
+
+    const maxT = byName["最高溫度"] || [];
+    const minT = byName["最低溫度"] || [];
+    const wx = byName["天氣現象"] || [];
+    const pop = byName["12小時降雨機率"] || [];
+
+    const periods = [];
+    const count = wx.length || maxT.length;
+    for (let i = 0; i < count; i++) {
+      const wxVal = wx[i] && wx[i].ElementValue && wx[i].ElementValue[0];
+      const maxVal = maxT[i] && maxT[i].ElementValue && maxT[i].ElementValue[0];
+      const minVal = minT[i] && minT[i].ElementValue && minT[i].ElementValue[0];
+      const popVal = pop[i] && pop[i].ElementValue && pop[i].ElementValue[0];
+      periods.push({
+        startTime: (wx[i] || maxT[i] || {}).StartTime || null,
+        endTime: (wx[i] || maxT[i] || {}).EndTime || null,
+        weather: wxVal ? wxVal.Weather : null,
+        weatherCode: wxVal ? wxVal.WeatherCode : null,
+        maxTemp: maxVal ? maxVal.MaxTemperature : null,
+        minTemp: minVal ? minVal.MinTemperature : null,
+        pop: popVal ? popVal.ProbabilityOfPrecipitation : null,
+      });
+    }
+    counties[name] = periods;
+  }
+
+  const payload = { updatedAt: new Date().toISOString(), date: today, counties };
+  writeCache(cacheKey, payload);
+  return { ok: true, ...payload, cached: false };
+}
+
+
 // 蒲氏風級（Beaufort Scale）對照表，輸入風速單位為 m/s。
 const BEAUFORT_SCALE = [
   { max: 0.2, level: 0, desc: "無風" },
@@ -648,6 +711,7 @@ module.exports = {
   getTyphoonProbability,
   getSunTimes,
   getMoonTimes,
+  getWeeklyForecast,
   getWindObservation,
   windSpeedToBeaufort,
   getMoonPhaseImage,
