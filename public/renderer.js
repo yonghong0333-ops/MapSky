@@ -508,7 +508,8 @@ let windObsCache = null;
 async function loadWindObservation(label) {
   const valueEl = el("statWind");
   const humidityEl = el("humidityValue");
-  if (!valueEl && !humidityEl) return;
+  const feelsLikeEl = el("statFeelsLike");
+  if (!valueEl && !humidityEl && !feelsLikeEl) return;
   try {
     if (!windObsCache) {
       const result = await window.weatherAPI.getWindObservation();
@@ -525,6 +526,10 @@ async function loadWindObservation(label) {
     if (humidityEl && wind.relativeHumidity !== null && wind.relativeHumidity !== undefined) {
       humidityEl.textContent = `${wind.relativeHumidity}%`;
       humidityEl.classList.remove("current-stat-empty");
+    }
+    if (feelsLikeEl && wind.apparentTemperature !== null && wind.apparentTemperature !== undefined) {
+      feelsLikeEl.textContent = `${wind.apparentTemperature}°C`;
+      feelsLikeEl.classList.remove("current-stat-empty");
     }
   } catch (e) {
     /* 拿不到就維持「暫無資料」，不影響其他功能 */

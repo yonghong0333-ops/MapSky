@@ -456,6 +456,18 @@ function windSpeedToBeaufort(speedMs) {
 // 一次撈全臺自動氣象站的即時觀測資料，依縣市分組。同一縣市可能有多個測站
 // （正式站 + 農業站等），優先取「正式氣象站」（測站代號為 6 位數字，例如
 // 466920）且風速資料有效（非 -99）者，取不到就退回任何一個有效資料的測站。
+// 體感溫度：CWA 這份觀測資料沒有直接給這個欄位，用氣象單位常見的標準公式
+// （澳洲氣象局 BOM 的 Apparent Temperature 公式）自己算，同時考慮濕度悶熱感
+// 跟風速的涼感：AT = Ta + 0.33×水氣壓 − 0.70×風速 − 4.00
+function computeApparentTemperature(tempC, humidityPct, windSpeedMs) {
+  if (!Number.isFinite(tempC) || !Number.isFinite(humidityPct) || !Number.isFinite(windSpeedMs)) {
+    return null;
+  }
+  const vaporPressure = (humidityPct / 100) * 6.105 * Math.exp((17.27 * tempC) / (237.7 + tempC));
+  const at = tempC + 0.33 * vaporPressure - 0.7 * windSpeedMs - 4.0;
+  return Math.round(at * 10) / 10;
+}
+
 async function getWindObservation({ forceRefresh = false } = {}) {
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false, reason: "no-api-key" };
@@ -485,6 +497,9 @@ async function getWindObservation({ forceRefresh = false } = {}) {
     if (existing && existing.isOfficial && !isOfficial) continue; // 已有正式站資料就不覆蓋
     const beaufort = windSpeedToBeaufort(speed);
     const humidity = parseFloat(we.RelativeHumidity);
+    const airTemp = parseFloat(we.AirTemperature);
+    const validHumidity = Number.isFinite(humidity) && humidity >= 0 ? humidity : null;
+    const validTemp = Number.isFinite(airTemp) && airTemp > -90 ? airTemp : null;
     byCounty[county] = {
       stationName: s.StationName,
       stationId: s.StationId,
@@ -492,7 +507,9 @@ async function getWindObservation({ forceRefresh = false } = {}) {
       windDirection: parseFloat(we.WindDirection),
       beaufortLevel: beaufort ? beaufort.level : null,
       beaufortDesc: beaufort ? beaufort.desc : null,
-      relativeHumidity: Number.isFinite(humidity) && humidity >= 0 ? humidity : null,
+      relativeHumidity: validHumidity,
+      apparentTemperature:
+        validTemp !== null && validHumidity !== null ? computeApparentTemperature(validTemp, validHumidity, speed) : null,
       obsTime: s.ObsTime && s.ObsTime.DateTime,
       isOfficial,
     };

@@ -1336,6 +1336,15 @@ button:hover { background: var(--accent-hover); }
     overflow: visible;
   }
 
+  /* 加了體感溫度之後統計列變成 4 顆，手機版太窄擠不下，改成兩排 2x2 */
+  .current-stat-row {
+    flex-wrap: wrap;
+  }
+  .current-stat-chip {
+    flex: 1 1 calc(50% - 5px);
+    min-width: calc(50% - 5px);
+  }
+
   .app {
     flex-direction: column;
     height: auto;
