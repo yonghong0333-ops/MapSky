@@ -412,10 +412,10 @@ async function loadSunTimes(label) {
     // 標籤（原本固定顯示「日出／日落」）改成動態顯示倒數剩餘時間；
     // 下面數值那行只留時間本身，不放圖示也不放「升起／落下」文字。
     if (nowMinutes < riseMinutes) {
-      if (labelEl) labelEl.textContent = `還有 ${formatRemaining(riseMinutes - nowMinutes)} 日出`;
+      if (labelEl) labelEl.textContent = formatRemaining(riseMinutes - nowMinutes);
       valueEl.textContent = times.SunRiseTime;
     } else if (nowMinutes < setMinutes) {
-      if (labelEl) labelEl.textContent = `還有 ${formatRemaining(setMinutes - nowMinutes)} 日落`;
+      if (labelEl) labelEl.textContent = formatRemaining(setMinutes - nowMinutes);
       valueEl.textContent = times.SunSetTime;
     } else {
       if (labelEl) labelEl.textContent = "已日落";
