@@ -493,6 +493,11 @@ button:hover { background: var(--accent-hover); }
   /* NASA 圖片背景已去黑底，這裡加一點陰影讓它在深色卡片上比較看得出輪廓 */
   filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.25));
 }
+/* 月相圖單獨裁成圓形；日出/日落太陽圖示不套用，避免光芒的角被裁掉 */
+#moonPhaseImg {
+  border-radius: 50%;
+  overflow: hidden;
+}
 .extra-info-icon-img.hidden { display: none; }
 .rise-set-icon {
   width: 14px;
