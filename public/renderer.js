@@ -413,20 +413,21 @@ async function loadSunTimes(label) {
 
     // 標籤（原本固定顯示「日出／日落」）改成動態顯示倒數剩餘時間；
     // 下面數值那行只留時間本身，不放圖示也不放「升起／落下」文字。
-    // 圖示也要跟著換：日出前／日落後（接下來是日出）用向上箭頭的 sunrise.png，
-    // 白天日落前（接下來是日落）用向下箭頭的 sunset.png。
+    // 圖示方向跟時段相反：白天（還沒日落）用向上箭頭的 sunrise.png，
+    // 代表太陽正高掛；晚上／日落後（接下來是日出）用向下箭頭的
+    // sunset.png，代表太陽在地平線下。
     if (nowMinutes < riseMinutes) {
       if (labelEl) labelEl.textContent = formatRemaining(riseMinutes - nowMinutes);
       valueEl.textContent = times.SunRiseTime;
-      if (iconEl) iconEl.src = "icons/sunrise.png";
+      if (iconEl) iconEl.src = "icons/sunset.png";
     } else if (nowMinutes < setMinutes) {
       if (labelEl) labelEl.textContent = formatRemaining(setMinutes - nowMinutes);
       valueEl.textContent = times.SunSetTime;
-      if (iconEl) iconEl.src = "icons/sunset.png";
+      if (iconEl) iconEl.src = "icons/sunrise.png";
     } else {
       if (labelEl) labelEl.textContent = "已日落";
       valueEl.textContent = times.SunSetTime;
-      if (iconEl) iconEl.src = "icons/sunrise.png";
+      if (iconEl) iconEl.src = "icons/sunset.png";
     }
     valueEl.classList.remove("current-stat-empty");
   } catch (e) {
