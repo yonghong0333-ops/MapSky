@@ -33,6 +33,7 @@
     getTyphoonProbability: () => getJson("/api/weather/typhoon"),
     getSunTimes: () => getJson("/api/weather/astro?type=sun"),
     getMoonTimes: () => getJson("/api/weather/astro?type=moon"),
+    getUvIndex: () => getJson("/api/weather/astro?type=uv"),
     getWindObservation: () => getJson("/api/weather/wind"),
 
     onUpdated: (cb) => updatedListeners.push(cb),

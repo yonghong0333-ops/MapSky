@@ -19,6 +19,7 @@ const RAIN_WARNING_DATA_ID = "W-C0033-003";
 const TYPHOON_PROB_DATA_ID = "W-C0034-003";
 const SUN_TIMES_DATA_ID = "A-B0062-001"; // 全臺各縣市日出、日沒、太陽過中天時刻
 const MOON_TIMES_DATA_ID = "A-B0063-001"; // 全臺各縣市月出、月沒、月球過中天時刻
+const UV_INDEX_DATA_ID = "O-A0005-001"; // 氣象站每日紫外線指數最大值（依測站代號，需另外對照縣市）
 const OBSERVATION_DATA_ID = "O-A0003-001"; // 現在天氣觀測報告（自動氣象站，含即時風速）
 const DIALAMOON_BASE = "https://svs.gsfc.nasa.gov/api/dialamoon"; // NASA SVS 月相圖 API
 
@@ -551,6 +552,71 @@ async function getMoonPhaseImage({ forceRefresh = false } = {}) {
   return buf;
 }
 
+// ---------- 紫外線指數 (O-A0005-001) ----------
+// 這份資料是「依測站代號」給的每日最大值，沒有直接帶縣市名稱，
+// 所以要另外撈一次測站觀測資料 (O-A0003-001) 把 StationID 對照回縣市。
+// UV 指數等級參考世界衛生組織（WHO）標準。
+function uvIndexLevel(uv) {
+  if (uv >= 11) return "危險";
+  if (uv >= 8) return "過量";
+  if (uv >= 6) return "高量";
+  if (uv >= 3) return "中量";
+  return "低量";
+}
+
+async function getUvIndexObservation({ forceRefresh = false } = {}) {
+  const apiKey = getApiKey();
+  if (!apiKey) return { ok: false, reason: "no-api-key" };
+  const cacheKey = "uv-index";
+  if (!forceRefresh) {
+    const cached = readCache(cacheKey);
+    if (cached) return { ok: true, ...cached, cached: true };
+  }
+
+  const stationUrl = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/${OBSERVATION_DATA_ID}?Authorization=${encodeURIComponent(apiKey)}&format=JSON`;
+  const uvUrl = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/${UV_INDEX_DATA_ID}?Authorization=${encodeURIComponent(apiKey)}&format=JSON`;
+  const [stationResp, uvResp] = await Promise.all([fetch(stationUrl), fetch(uvUrl)]);
+  if (!stationResp.ok) throw new Error(`HTTP ${stationResp.status}`);
+  if (!uvResp.ok) throw new Error(`HTTP ${uvResp.status}`);
+  const stationData = await stationResp.json();
+  const uvData = await uvResp.json();
+  if (stationData.success === "false" || stationData.success === false) {
+    throw new Error(stationData.message || "查詢測站資料失敗，請確認授權碼是否正確");
+  }
+  if (uvData.success === "false" || uvData.success === false) {
+    throw new Error(uvData.message || "查詢紫外線指數失敗，請確認授權碼是否正確");
+  }
+
+  // StationID -> 縣市 對照表
+  const stationCounty = {};
+  const stations = (stationData.records && stationData.records.Station) || [];
+  for (const s of stations) {
+    const county = s.GeoInfo && s.GeoInfo.CountyName;
+    if (s.StationId && county) stationCounty[s.StationId] = county;
+  }
+
+  const uvRecords = (uvData.records && uvData.records.weatherElement && uvData.records.weatherElement.location) || [];
+  const obsDate = uvData.records && uvData.records.weatherElement && uvData.records.weatherElement.Date;
+  const byCounty = {};
+  for (const rec of uvRecords) {
+    const uv = parseFloat(rec.UVIndex);
+    if (!Number.isFinite(uv) || uv < 0) continue; // -99 代表暫無資料
+    const county = stationCounty[rec.StationID];
+    if (!county) continue;
+    const isOfficial = /^\d{6}$/.test(rec.StationID || "");
+    const existing = byCounty[county];
+    if (existing) {
+      const keepExisting = existing.isOfficial && !isOfficial ? true : !existing.isOfficial && isOfficial ? false : existing.uvIndex >= uv;
+      if (keepExisting) continue;
+    }
+    byCounty[county] = { uvIndex: uv, level: uvIndexLevel(uv), stationId: rec.StationID, isOfficial };
+  }
+
+  const payload = { updatedAt: new Date().toISOString(), date: obsDate, counties: byCounty };
+  writeCache(cacheKey, payload);
+  return { ok: true, ...payload, cached: false };
+}
+
 module.exports = {
   CWA_CITIES,
   getApiKey,
@@ -563,4 +629,5 @@ module.exports = {
   getWindObservation,
   windSpeedToBeaufort,
   getMoonPhaseImage,
+  getUvIndexObservation,
 };

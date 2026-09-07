@@ -374,6 +374,7 @@ async function selectCity(label) {
   loadSunTimes(label);
   loadMoonTimes(label);
   loadWindObservation(label);
+  loadUvIndex(label);
   loadMoonPhaseImage();
 }
 
@@ -517,6 +518,27 @@ async function loadWindObservation(label) {
     if (!wind || wind.beaufortLevel === null || wind.beaufortLevel === undefined) return;
     valueEl.textContent = `${wind.beaufortLevel} 級（${wind.beaufortDesc}）`;
     valueEl.title = `${wind.stationName} 測站　風速 ${wind.windSpeed} m/s`;
+    valueEl.classList.remove("current-stat-empty");
+  } catch (e) {
+    /* 拿不到就維持「暫無資料」，不影響其他功能 */
+  }
+}
+
+// ---------------- 紫外線指數 ----------------
+// 跟風速同樣邏輯：整批全臺縣市資料一次撈回來，快取在同一次網頁工作階段內。
+let uvIndexCache = null;
+async function loadUvIndex(label) {
+  const valueEl = el("uvIndexValue");
+  if (!valueEl) return;
+  try {
+    if (!uvIndexCache) {
+      const result = await window.weatherAPI.getUvIndex();
+      if (!result || !result.ok) return; // 拿不到就維持「暫無資料」，不影響其他功能
+      uvIndexCache = result.counties || {};
+    }
+    const uv = uvIndexCache[label];
+    if (!uv || uv.uvIndex === undefined || uv.uvIndex === null) return;
+    valueEl.textContent = `${uv.uvIndex}（${uv.level}）`;
     valueEl.classList.remove("current-stat-empty");
   } catch (e) {
     /* 拿不到就維持「暫無資料」，不影響其他功能 */
