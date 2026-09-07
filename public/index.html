@@ -85,7 +85,7 @@
       </nav>
 
       <section id="forecastPanel" class="tab-panel active">
-        <!-- 這張天氣卡片（溫度/降雨/風速/空氣品質）移進「首頁」分頁裡面，
+        <!-- 這張天氣卡片（體感溫度/降雨/風速）移進「首頁」分頁裡面，
              這樣切到警特報、颱風等其他分頁時會自動跟著隱藏，只在首頁出現。 -->
         <section class="current-card">
           <div class="current-card-top">
@@ -103,7 +103,7 @@
 
           <div class="current-stat-row">
             <div class="current-stat-chip">
-              <span class="current-stat-icon">🌡️</span>
+              <img src="icons/feels-like.png" class="extra-info-icon-img" alt="體感溫度" />
               <span class="current-stat-label">體感溫度</span>
               <span id="statFeelsLike" class="current-stat-value current-stat-empty">暫無資料</span>
             </div>
@@ -116,11 +116,6 @@
               <img src="icons/wind.png" class="extra-info-icon-img" alt="風速" />
               <span class="current-stat-label">風速</span>
               <span id="statWind" class="current-stat-value current-stat-empty">暫無資料</span>
-            </div>
-            <div class="current-stat-chip">
-              <span class="current-stat-icon">🍃</span>
-              <span class="current-stat-label">空氣品質</span>
-              <span id="statAir" class="current-stat-value current-stat-empty">暫無資料</span>
             </div>
           </div>
 
