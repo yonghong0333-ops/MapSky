@@ -546,10 +546,38 @@ async function loadUvIndex(label) {
     const uv = uvIndexCache[label];
     if (!uv || uv.uvIndex === undefined || uv.uvIndex === null) return;
     valueEl.textContent = `${uv.uvIndex}（${uv.level}）`;
+    valueEl.style.color = uvIndexGradientColor(uv.uvIndex);
     valueEl.classList.remove("current-stat-empty");
   } catch (e) {
     /* 拿不到就維持「暫無資料」，不影響其他功能 */
   }
+}
+
+// UV 指數數字顏色：依數值平滑漸層（不是分段跳色），最低綠色、最高紫色，
+// 中間依序過黃、橙、紅，對應 WHO 的紫外線等級分類。
+function uvIndexGradientColor(uv) {
+  const stops = [
+    { v: 0, c: [46, 204, 113] }, // 綠：低量
+    { v: 3, c: [241, 196, 15] }, // 黃：中量
+    { v: 6, c: [230, 126, 34] }, // 橙：高量
+    { v: 8, c: [231, 76, 60] }, // 紅：過量
+    { v: 11, c: [142, 68, 173] }, // 紫：危險
+  ];
+  const value = Math.max(0, Math.min(11, uv));
+  let lower = stops[0];
+  let upper = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (value >= stops[i].v && value <= stops[i + 1].v) {
+      lower = stops[i];
+      upper = stops[i + 1];
+      break;
+    }
+  }
+  const range = upper.v - lower.v || 1;
+  const t = (value - lower.v) / range;
+  const mix = (a, b) => Math.round(a + (b - a) * t);
+  const [r, g, b] = [mix(lower.c[0], upper.c[0]), mix(lower.c[1], upper.c[1]), mix(lower.c[2], upper.c[2])];
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 // ---------------- 目前月相圖（NASA SVS Dial-A-Moon，已去背）----------------
