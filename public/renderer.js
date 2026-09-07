@@ -339,6 +339,30 @@ async function selectCity(label) {
   } catch (e) {
     setStatus(`取得天氣資料失敗：${e.message}`);
   }
+
+  loadSunTimes(label);
+}
+
+// ---------------- 日出／日落 ----------------
+// 同一批資料涵蓋全臺所有縣市，同一次網頁工作階段內快取起來，
+// 切換城市只要重新查表就好，不用每次都重打 API。
+let sunTimesCache = null;
+async function loadSunTimes(label) {
+  const valueEl = el("sunTimesValue");
+  if (!valueEl) return;
+  try {
+    if (!sunTimesCache) {
+      const result = await window.weatherAPI.getSunTimes();
+      if (!result || !result.ok) return; // 保持「暫無資料」，不用特別報錯打擾使用者
+      sunTimesCache = result.counties || {};
+    }
+    const times = sunTimesCache[label];
+    if (!times || !times.SunRiseTime || !times.SunSetTime) return;
+    valueEl.textContent = `${times.SunRiseTime} 升起　${times.SunSetTime} 落下`;
+    valueEl.classList.remove("current-stat-empty");
+  } catch (e) {
+    /* 拿不到就維持「暫無資料」，不影響其他功能 */
+  }
 }
 
 function getElement(weatherElements, name) {

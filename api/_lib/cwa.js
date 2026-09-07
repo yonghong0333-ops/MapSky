@@ -17,6 +17,7 @@ const CWA_FILEAPI_BASE = "https://opendata.cwa.gov.tw/fileapi/v1/opendataapi";
 const TYPHOON_WARNING_DATA_ID = "W-C0034-001";
 const RAIN_WARNING_DATA_ID = "W-C0033-003";
 const TYPHOON_PROB_DATA_ID = "W-C0034-003";
+const SUN_TIMES_DATA_ID = "A-B0062-001"; // 全臺各縣市日出、日沒、太陽過中天時刻
 
 const CWA_CITIES = [
   "臺北市", "新北市", "桃園市", "臺中市", "臺南市", "高雄市",
@@ -365,6 +366,36 @@ async function getTyphoonProbability({ forceRefresh = false } = {}) {
   }
 }
 
+// ---------- 日出日沒時刻 (A-B0062-001) ----------
+// 一次撈全臺各縣市今天起的資料（這個 API 不需要縣市篩選參數，本來就會回傳
+// 全部縣市），整理成 { CountyName: { SunRiseTime, SunSetTime, ... } } 方便查表。
+async function getSunTimes({ forceRefresh = false } = {}) {
+  const apiKey = getApiKey();
+  if (!apiKey) return { ok: false, reason: "no-api-key" };
+  const today = new Date().toISOString().slice(0, 10);
+  const cacheKey = `sun-${today}`;
+  if (!forceRefresh) {
+    const cached = readCache(cacheKey);
+    if (cached) return { ok: true, ...cached, cached: true };
+  }
+  const url = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/${SUN_TIMES_DATA_ID}?Authorization=${encodeURIComponent(apiKey)}&timeFrom=${today}&sort=Date`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (data.success === "false" || data.success === false) {
+    throw new Error(data.message || "查詢日出日沒資料失敗，請確認授權碼是否正確");
+  }
+  const locations = (data.records && data.records.locations && data.records.locations.location) || [];
+  const counties = {};
+  for (const loc of locations) {
+    const todays = (loc.time || []).find((t) => t.Date === today) || (loc.time || [])[0];
+    if (loc.CountyName && todays) counties[loc.CountyName] = todays;
+  }
+  const payload = { updatedAt: new Date().toISOString(), date: today, counties };
+  writeCache(cacheKey, payload);
+  return { ok: true, ...payload, cached: false };
+}
+
 module.exports = {
   CWA_CITIES,
   getApiKey,
@@ -372,4 +403,5 @@ module.exports = {
   getAllCities,
   getAlerts,
   getTyphoonProbability,
+  getSunTimes,
 };
