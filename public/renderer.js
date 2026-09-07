@@ -420,9 +420,20 @@ async function loadMoonTimes(label) {
     }
     const times = moonTimesCache[label];
     if (!times) return;
-    const rise = times.MoonRiseTime || "--";
-    const set = times.MoonSetTime || "--";
-    valueEl.textContent = `${rise} 升起　${set} 落下`;
+    const rise = times.MoonRiseTime || "";
+    const set = times.MoonSetTime || "";
+    if (!rise && !set) return; // 兩個都沒有（極少數情形），維持「暫無資料」
+
+    const now = new Date();
+    const nowStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    // 跟日出/日落同樣邏輯：月出之前顯示月出時間，之後就顯示月落時間，只顯示一個
+    if (rise && (!set || nowStr < rise)) {
+      valueEl.textContent = `${rise} 升起`;
+    } else if (set) {
+      valueEl.textContent = `${set} 落下`;
+    } else {
+      valueEl.textContent = `${rise} 升起`;
+    }
     valueEl.classList.remove("current-stat-empty");
   } catch (e) {
     /* 拿不到就維持「暫無資料」，不影響其他功能 */
