@@ -392,6 +392,7 @@ async function loadSunTimes(label) {
     }
     const times = sunTimesCache[label];
     if (!times || !times.SunRiseTime || !times.SunSetTime) return;
+    const labelEl = el("sunTimesLabel");
     const now = new Date();
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
     const toMinutes = (hhmm) => {
@@ -408,14 +409,17 @@ async function loadSunTimes(label) {
       return `${m}分`;
     };
 
-    // 日出之前：倒數還有多久日出；日出之後、日落之前：倒數還有多久日落；
-    // 日落之後：手上沒有隔天日出時間可以倒數，就先顯示「已日落」。
+    // 標籤（原本固定顯示「日出／日落」）改成動態顯示倒數剩餘時間；
+    // 下面數值那行維持顯示實際時間，兩個資訊互相搭配看。
     if (nowMinutes < riseMinutes) {
-      valueEl.innerHTML = `<img src="icons/sunrise.png" class="rise-set-icon" alt="日出">還有 ${formatRemaining(riseMinutes - nowMinutes)} 日出`;
+      if (labelEl) labelEl.textContent = `還有 ${formatRemaining(riseMinutes - nowMinutes)} 日出`;
+      valueEl.innerHTML = `<img src="icons/sunrise.png" class="rise-set-icon" alt="日出">${times.SunRiseTime} 升起`;
     } else if (nowMinutes < setMinutes) {
-      valueEl.innerHTML = `<img src="icons/sunset.png" class="rise-set-icon" alt="日落">還有 ${formatRemaining(setMinutes - nowMinutes)} 日落`;
+      if (labelEl) labelEl.textContent = `還有 ${formatRemaining(setMinutes - nowMinutes)} 日落`;
+      valueEl.innerHTML = `<img src="icons/sunset.png" class="rise-set-icon" alt="日落">${times.SunSetTime} 落下`;
     } else {
-      valueEl.innerHTML = `<img src="icons/sunset.png" class="rise-set-icon" alt="日落">已日落（${times.SunSetTime}）`;
+      if (labelEl) labelEl.textContent = "已日落";
+      valueEl.innerHTML = `<img src="icons/sunset.png" class="rise-set-icon" alt="日落">${times.SunSetTime} 落下`;
     }
     valueEl.classList.remove("current-stat-empty");
   } catch (e) {
