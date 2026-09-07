@@ -376,6 +376,7 @@ async function selectCity(label) {
   loadWindObservation(label);
   loadUvIndex(label);
   loadMoonPhaseImage();
+  loadWeeklyForecast(label);
 }
 
 // ---------------- 日出／日落 ----------------
@@ -511,6 +512,91 @@ setInterval(() => {
     loadMoonTimes(currentCity.label);
   }
 }, 60 * 1000);
+
+// ---------------- 未來 7 天預報 ----------------
+// 同一批資料涵蓋全臺所有縣市，跟日出/日落、月出/月落同樣邏輯：整批快取起來，
+// 切換城市只要重新查表就好，不用每次都重打 API。
+let weeklyForecastCache = null;
+async function loadWeeklyForecast(label) {
+  const listEl = el("weeklyForecastList");
+  if (!listEl) return;
+  try {
+    if (!weeklyForecastCache) {
+      const result = await window.weatherAPI.getWeeklyForecast();
+      if (!result || !result.ok) return; // 保持「載入中」文字，不用特別報錯打擾使用者
+      weeklyForecastCache = result.counties || {};
+    }
+    const periods = weeklyForecastCache[label];
+    if (!periods || !periods.length) return;
+
+    // 原始資料是每 12 小時一筆（白天／晚上各一筆），這裡依日期彙總成「一天一列」：
+    // 高溫、低溫各取當天兩個時段的極值，天氣描述優先採用白天（06:00-18:00）那筆，
+    // 降雨機率取當天兩時段較高的那個（比較保守，比較不會漏掉會下雨的提醒）。
+    const byDate = new Map(); // date -> { date, dayPeriod, high, low, pop }
+    for (const p of periods) {
+      if (!p.startTime) continue;
+      const d = new Date(p.startTime.replace("+08:00", ""));
+      const dateKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+      const hour = d.getHours();
+      const isDaytime = hour < 18; // 06:00 起的那筆算白天，18:00 起的那筆算晚上
+      const toNum = (v) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null; // CWA 資料在較遠的天數常是 "-"（無資料），別讓 NaN 混進畫面
+      };
+      const maxT = toNum(p.maxTemp);
+      const minT = toNum(p.minTemp);
+      const popT = toNum(p.pop);
+
+      if (!byDate.has(dateKey)) {
+        byDate.set(dateKey, { dateObj: d, high: maxT, low: minT, pop: popT, weather: p.weather, hasDaytime: isDaytime });
+      } else {
+        const row = byDate.get(dateKey);
+        if (maxT !== null && (row.high === null || maxT > row.high)) row.high = maxT;
+        if (minT !== null && (row.low === null || minT < row.low)) row.low = minT;
+        if (popT !== null && (row.pop === null || popT > row.pop)) row.pop = popT;
+        // 白天那筆的天氣描述優先蓋掉晚上那筆，這樣圖示/文字比較符合一般人對「今天天氣」的認知
+        if (isDaytime && !row.hasDaytime) {
+          row.weather = p.weather;
+          row.hasDaytime = true;
+        }
+      }
+    }
+    const days = Array.from(byDate.values());
+    if (!days.length) return;
+
+    // 整週的溫度範圍，拿來算每一列的溫度長條要畫在哪個相對位置
+    const allTemps = days.flatMap((d) => [d.high, d.low]).filter((v) => v !== null);
+    const weekMin = Math.min(...allTemps);
+    const weekMax = Math.max(...allTemps);
+    const weekRange = weekMax - weekMin || 1;
+
+    listEl.innerHTML = "";
+    const weekdayFmt = new Intl.DateTimeFormat("zh-TW", { weekday: "short" });
+    for (const d of days) {
+      const dateLabel = `${d.dateObj.getMonth() + 1}/${d.dateObj.getDate()}\n${weekdayFmt.format(d.dateObj)}`;
+      const high = d.high !== null ? Math.round(d.high) : null;
+      const low = d.low !== null ? Math.round(d.low) : null;
+      const leftPct = low !== null ? ((low - weekMin) / weekRange) * 100 : 0;
+      const widthPct = high !== null && low !== null ? Math.max(((high - low) / weekRange) * 100, 6) : 0;
+
+      const row = document.createElement("div");
+      row.className = "seven-day-row";
+      row.innerHTML = `
+        <div class="sd-day">${dateLabel}</div>
+        <div class="sd-icon">${iconForWx(d.weather || "")}</div>
+        <div class="sd-low">${low ?? "--"}°</div>
+        <div class="sd-bar"><div class="sd-bar-fill" style="left:${leftPct}%;width:${widthPct}%"></div></div>
+        <div class="sd-high">${high ?? "--"}°</div>
+        <div class="sd-pop">${d.pop ?? "--"}%</div>
+      `;
+      listEl.appendChild(row);
+    }
+  } catch (e) {
+    const emptyEl = el("weeklyForecastEmpty");
+    if (emptyEl) emptyEl.textContent = "暫無資料";
+    /* 拿不到就維持「載入中」文字，不影響其他功能 */
+  }
+}
 
 // 每分鐘重新算一次倒數剩餘時間，不用手動重新整理頁面。
 // sunTimesCache 已經在記憶體裡了，這裡只是重新跑一次算式更新畫面文字，不會再打 API。
@@ -953,15 +1039,9 @@ document.querySelectorAll(".county").forEach((path) => {
 });
 
 function goToForecastTab() {
-  // 這顆按鈕本來就長在「首頁／預報」分頁裡面，切到同一個分頁不會有任何
-  // 畫面變化（使用者會覺得按了沒反應）。改成直接捲動到下面的預報卡片列，
-  // 真正達到「查看完整預報」的效果。
-  const forecastRow = el("forecastRow");
-  if (forecastRow) {
-    forecastRow.scrollIntoView({ behavior: "smooth", block: "start" });
-  } else {
-    document.querySelector('.tab-btn[data-tab="forecast"]').click();
-  }
+  // 現在真的有「未來 7 天」分頁了，直接切過去，不用再捲動充數。
+  const btn = document.querySelector('.tab-btn[data-tab="weekly"]');
+  if (btn) btn.click();
 }
 el("currentViewForecastBtn").onclick = goToForecastTab;
 
@@ -973,6 +1053,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.classList.add("active");
     const panelMap = {
       forecast: "forecastPanel",
+      weekly: "weeklyPanel",
       chart: "chartPanel",
       compare: "comparePanel",
       map: "mapPanel",
@@ -983,6 +1064,9 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     el(target).classList.add("active");
     if (btn.dataset.tab === "compare") {
       renderCompareView(Array.from(selectedCompare));
+    }
+    if (btn.dataset.tab === "weekly" && currentCity && currentCity.label) {
+      loadWeeklyForecast(currentCity.label);
     }
     if (btn.dataset.tab === "alerts") {
       loadAlerts();
