@@ -321,6 +321,11 @@ async function fetchCityWeather(label) {
   return location;
 }
 
+// 每個縣市最後一次成功取得的天氣資料，存在記憶體裡（切換分頁/縣市時沿用，
+// 重新整理網頁才會清空）。有快取的話先把畫面畫出來，不用讓使用者盯著
+// 「載入中…」空白畫面等，之後再默默去後台要一次最新資料來更新。
+const cityWeatherCache = {};
+
 async function selectCity(label) {
   if (!(await refreshApiKeyStatus())) {
     setStatus("尚未設定 CWA 授權碼，請聯絡後台管理員設定");
@@ -330,14 +335,30 @@ async function selectCity(label) {
   currentCity = { label };
   el("cityName").textContent = label;
   renderFavorites();
-  setStatus("載入天氣資料中…");
+
+  const cached = cityWeatherCache[label];
+  if (cached) {
+    // 有舊資料：先直接顯示，不擋畫面，背景再悄悄刷新
+    renderWeather(cached);
+    setStatus("資料更新中…");
+  } else {
+    // 第一次查這個縣市，還沒有任何資料可以先顯示，只好等
+    setStatus("載入天氣資料中…");
+  }
 
   try {
     const location = await fetchCityWeather(label);
-    renderWeather(location);
-    setStatus("更新完成");
+    // 使用者可能在資料回來前已經切換到別的縣市，這裡要避免覆蓋錯畫面
+    cityWeatherCache[label] = location;
+    if (currentCity && currentCity.label === label) {
+      renderWeather(location);
+      setStatus("更新完成");
+    }
   } catch (e) {
-    setStatus(`取得天氣資料失敗：${e.message}`);
+    if (currentCity && currentCity.label === label) {
+      // 有舊資料可以顯示的話，刷新失敗就默默保留舊畫面就好，不用跳錯誤嚇使用者
+      setStatus(cached ? "更新完成（顯示上次資料）" : `取得天氣資料失敗：${e.message}`);
+    }
   }
 
   loadSunTimes(label);
