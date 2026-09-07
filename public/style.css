@@ -1520,10 +1520,27 @@ button:hover { background: var(--accent-hover); }
     flex-direction: column;
     align-items: center;
   }
+  /* 手機版把離島三張卡片並排成同一列（不換行），並整體縮小寬度，
+     這樣才會像中央氣象署官網那樣是本島主圖旁邊的小縮圖，而不是
+     跟本島地圖搶視覺重量的大圖。桌面版的 190/230/270px 固定寬度
+     在窄螢幕下三個加起來根本放不進一行，會被 flex-wrap 擠回直向
+     堆疊，所以這裡要連寬度一起覆寫，不能只改 flex-direction。 */
   .alert-map-insets {
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 320px;
+    margin: 0 auto;
+  }
+  .alert-inset-box,
+  .alert-inset-box--emphasis,
+  .alert-inset-box--emphasis-lg {
+    width: 32%;
+    max-width: 104px;
+    padding: 6px;
+    box-sizing: border-box;
   }
 
   /* 彈出視窗（縣市選擇等）固定寬度 340px 在很窄的手機上可能會超出螢幕，
