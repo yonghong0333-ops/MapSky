@@ -34,6 +34,7 @@
     getSunTimes: () => getJson("/api/weather/astro?type=sun"),
     getMoonTimes: () => getJson("/api/weather/astro?type=moon"),
     getUvIndex: () => getJson("/api/weather/astro?type=uv"),
+    getWeeklyForecast: () => getJson("/api/weather/astro?type=weekly"),
     getWindObservation: () => getJson("/api/weather/wind"),
 
     onUpdated: (cb) => updatedListeners.push(cb),
