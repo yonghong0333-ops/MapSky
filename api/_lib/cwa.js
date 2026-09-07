@@ -19,6 +19,7 @@ const RAIN_WARNING_DATA_ID = "W-C0033-003";
 const TYPHOON_PROB_DATA_ID = "W-C0034-003";
 const SUN_TIMES_DATA_ID = "A-B0062-001"; // 全臺各縣市日出、日沒、太陽過中天時刻
 const MOON_TIMES_DATA_ID = "A-B0063-001"; // 全臺各縣市月出、月沒、月球過中天時刻
+const OBSERVATION_DATA_ID = "O-A0003-001"; // 現在天氣觀測報告（自動氣象站，含即時風速）
 
 const CWA_CITIES = [
   "臺北市", "新北市", "桃園市", "臺中市", "臺南市", "高雄市",
@@ -427,6 +428,77 @@ async function getMoonTimes({ forceRefresh = false } = {}) {
   return { ok: true, ...payload, cached: false };
 }
 
+// ---------- 即時風速觀測 (O-A0003-001) ----------
+// 蒲氏風級（Beaufort Scale）對照表，輸入風速單位為 m/s。
+const BEAUFORT_SCALE = [
+  { max: 0.2, level: 0, desc: "無風" },
+  { max: 1.5, level: 1, desc: "軟風" },
+  { max: 3.3, level: 2, desc: "輕風" },
+  { max: 5.4, level: 3, desc: "微風" },
+  { max: 7.9, level: 4, desc: "和風" },
+  { max: 10.7, level: 5, desc: "清風" },
+  { max: 13.8, level: 6, desc: "強風" },
+  { max: 17.1, level: 7, desc: "疾風" },
+  { max: 20.7, level: 8, desc: "大風" },
+  { max: 24.4, level: 9, desc: "烈風" },
+  { max: 28.4, level: 10, desc: "狂風" },
+  { max: 32.6, level: 11, desc: "暴風" },
+  { max: Infinity, level: 12, desc: "颶風" },
+];
+
+function windSpeedToBeaufort(speedMs) {
+  if (!Number.isFinite(speedMs) || speedMs < 0) return null;
+  return BEAUFORT_SCALE.find((s) => speedMs <= s.max) || null;
+}
+
+// 一次撈全臺自動氣象站的即時觀測資料，依縣市分組。同一縣市可能有多個測站
+// （正式站 + 農業站等），優先取「正式氣象站」（測站代號為 6 位數字，例如
+// 466920）且風速資料有效（非 -99）者，取不到就退回任何一個有效資料的測站。
+async function getWindObservation({ forceRefresh = false } = {}) {
+  const apiKey = getApiKey();
+  if (!apiKey) return { ok: false, reason: "no-api-key" };
+  const cacheKey = "wind-obs";
+  if (!forceRefresh) {
+    const cached = readCache(cacheKey);
+    if (cached) return { ok: true, ...cached, cached: true };
+  }
+  const url = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/${OBSERVATION_DATA_ID}?Authorization=${encodeURIComponent(apiKey)}&format=JSON`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (data.success === "false" || data.success === false) {
+    throw new Error(data.message || "查詢即時風速觀測資料失敗，請確認授權碼是否正確");
+  }
+  const stations = (data.records && data.records.Station) || [];
+
+  const byCounty = {};
+  for (const s of stations) {
+    const county = s.GeoInfo && s.GeoInfo.CountyName;
+    if (!county) continue;
+    const we = s.WeatherElement || {};
+    const speed = parseFloat(we.WindSpeed);
+    if (!Number.isFinite(speed) || speed < 0) continue; // -99 代表該測站暫無資料
+    const isOfficial = /^\d{6}$/.test(s.StationId || "");
+    const existing = byCounty[county];
+    if (existing && existing.isOfficial && !isOfficial) continue; // 已有正式站資料就不覆蓋
+    const beaufort = windSpeedToBeaufort(speed);
+    byCounty[county] = {
+      stationName: s.StationName,
+      stationId: s.StationId,
+      windSpeed: speed,
+      windDirection: parseFloat(we.WindDirection),
+      beaufortLevel: beaufort ? beaufort.level : null,
+      beaufortDesc: beaufort ? beaufort.desc : null,
+      obsTime: s.ObsTime && s.ObsTime.DateTime,
+      isOfficial,
+    };
+  }
+
+  const payload = { updatedAt: new Date().toISOString(), counties: byCounty };
+  writeCache(cacheKey, payload);
+  return { ok: true, ...payload, cached: false };
+}
+
 module.exports = {
   CWA_CITIES,
   getApiKey,
@@ -436,4 +508,6 @@ module.exports = {
   getTyphoonProbability,
   getSunTimes,
   getMoonTimes,
+  getWindObservation,
+  windSpeedToBeaufort,
 };

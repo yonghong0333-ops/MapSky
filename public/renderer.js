@@ -342,6 +342,7 @@ async function selectCity(label) {
 
   loadSunTimes(label);
   loadMoonTimes(label);
+  loadWindObservation(label);
 }
 
 // ---------------- 日出／日落 ----------------
@@ -383,6 +384,29 @@ async function loadMoonTimes(label) {
     const rise = times.MoonRiseTime || "--";
     const set = times.MoonSetTime || "--";
     valueEl.textContent = `${rise} 升起　${set} 落下`;
+    valueEl.classList.remove("current-stat-empty");
+  } catch (e) {
+    /* 拿不到就維持「暫無資料」，不影響其他功能 */
+  }
+}
+
+// ---------------- 即時風速（蒲氏風級）----------------
+// 跟日出／月出資料同樣邏輯：整批全臺縣市資料一次撈回來，快取在同一次網頁
+// 工作階段內，切換城市只要重新查表，不用每次都重打 API。
+let windObsCache = null;
+async function loadWindObservation(label) {
+  const valueEl = el("statWind");
+  if (!valueEl) return;
+  try {
+    if (!windObsCache) {
+      const result = await window.weatherAPI.getWindObservation();
+      if (!result || !result.ok) return; // 拿不到就維持「暫無資料」，不影響其他功能
+      windObsCache = result.counties || {};
+    }
+    const wind = windObsCache[label];
+    if (!wind || wind.beaufortLevel === null || wind.beaufortLevel === undefined) return;
+    valueEl.textContent = `${wind.beaufortLevel} 級（${wind.beaufortDesc}）`;
+    valueEl.title = `${wind.stationName} 測站　風速 ${wind.windSpeed} m/s`;
     valueEl.classList.remove("current-stat-empty");
   } catch (e) {
     /* 拿不到就維持「暫無資料」，不影響其他功能 */
