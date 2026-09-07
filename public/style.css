@@ -17,20 +17,53 @@
 body {
   font-family: "Microsoft JhengHei", "Segoe UI", sans-serif;
   background: linear-gradient(160deg, #eef2f8, #eef2f8);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   color: var(--text-main);
   overflow: hidden;
-  transition: background 1.4s ease;
+  transition: background-color 1.4s ease;
 }
 
-body.weather-sunny-day    { background: linear-gradient(160deg, #cfe4ff 0%, #a9c9f2 45%, #ffd28a 100%); }
-body.weather-sunny-night  { background: linear-gradient(160deg, #6c7a9a 0%, #8996b4 55%, #a9b4cc 100%); }
-body.weather-cloudy-day   { background: linear-gradient(160deg, #dbe3ee 0%, #c3ccdb 55%, #aeb9cb 100%); }
-body.weather-cloudy-night { background: linear-gradient(160deg, #8b93a5 0%, #a3aabb 55%, #b8bfce 100%); }
-body.weather-overcast     { background: linear-gradient(160deg, #dfe2e6 0%, #cbcfd6 60%, #b9bec7 100%); }
-body.weather-rain         { background: linear-gradient(160deg, #c6d7e6 0%, #a9c3d9 55%, #8fb0cc 100%); }
-body.weather-thunder      { background: linear-gradient(160deg, #9aa0b5 0%, #7f86a0 45%, #6b7292 100%); }
-body.weather-fog          { background: linear-gradient(160deg, #e2e4e7 0%, #cfd2d6 55%, #babec4 100%); }
-body.weather-snow         { background: linear-gradient(160deg, #e4edf6 0%, #cfe0ee 55%, #b7d0e4 100%); }
+/* 背景改用真實天氣照片：疊一層深色漸層在照片上面，確保上面的白色文字
+   跟卡片在任何照片底下都還看得清楚，照片本身來自 Pexels（免費、可商用、
+   不需標註來源）。 */
+body.weather-sunny-day {
+  background-image: linear-gradient(160deg, rgba(20, 40, 70, 0.28), rgba(10, 20, 40, 0.42)),
+    url("https://images.pexels.com/photos/4435239/pexels-photo-4435239.jpeg?auto=compress&cs=tinysrgb&w=1600");
+}
+body.weather-sunny-night {
+  background-image: linear-gradient(160deg, rgba(5, 8, 20, 0.45), rgba(5, 8, 20, 0.6)),
+    url("https://images.pexels.com/photos/2890467/pexels-photo-2890467.jpeg?auto=compress&cs=tinysrgb&w=1600");
+}
+body.weather-cloudy-day {
+  background-image: linear-gradient(160deg, rgba(30, 40, 55, 0.35), rgba(20, 28, 40, 0.5)),
+    url("https://images.pexels.com/photos/3448/pexels-photo-3448.jpeg?auto=compress&cs=tinysrgb&w=1600");
+}
+body.weather-cloudy-night {
+  background-image: linear-gradient(160deg, rgba(5, 10, 25, 0.5), rgba(5, 10, 25, 0.62)),
+    url("https://images.pexels.com/photos/4435670/pexels-photo-4435670.jpeg?auto=compress&cs=tinysrgb&w=1600");
+}
+body.weather-overcast {
+  background-image: linear-gradient(160deg, rgba(30, 35, 42, 0.4), rgba(20, 24, 30, 0.55)),
+    url("https://images.pexels.com/photos/2331030/pexels-photo-2331030.jpeg?auto=compress&cs=tinysrgb&w=1600");
+}
+body.weather-rain {
+  background-image: linear-gradient(160deg, rgba(15, 25, 40, 0.45), rgba(10, 18, 32, 0.6)),
+    url("https://images.pexels.com/photos/531880/pexels-photo-531880.jpeg?auto=compress&cs=tinysrgb&w=1600");
+}
+body.weather-thunder {
+  background-image: linear-gradient(160deg, rgba(10, 12, 22, 0.5), rgba(8, 10, 18, 0.65)),
+    url("https://images.pexels.com/photos/9837044/pexels-photo-9837044.jpeg?auto=compress&cs=tinysrgb&w=1600");
+}
+body.weather-fog {
+  background-image: linear-gradient(160deg, rgba(35, 40, 45, 0.35), rgba(25, 30, 35, 0.5)),
+    url("https://images.pexels.com/photos/1367192/pexels-photo-1367192.jpeg?auto=compress&cs=tinysrgb&w=1600");
+}
+body.weather-snow {
+  background-image: linear-gradient(160deg, rgba(20, 35, 55, 0.35), rgba(15, 28, 45, 0.5)),
+    url("https://images.pexels.com/photos/38196911/pexels-photo-38196911.jpeg?auto=compress&cs=tinysrgb&w=1600");
+}
 
 .app {
   display: flex;
