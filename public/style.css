@@ -499,6 +499,10 @@ button:hover { background: var(--accent-hover); }
   overflow: hidden;
 }
 .extra-info-icon-img.hidden { display: none; }
+.sun-header-icon {
+  width: 44px;
+  height: 44px;
+}
 .rise-set-icon {
   width: 20px;
   height: 20px;
