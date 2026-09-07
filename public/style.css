@@ -503,6 +503,14 @@ button:hover { background: var(--accent-hover); }
   width: 44px;
   height: 44px;
 }
+/* 月相圖跟太陽圖示用同樣大小，兩張卡片才會對齊 */
+#moonPhaseImg,
+#moonPhaseFallbackIcon {
+  width: 44px;
+  height: 44px;
+  font-size: 40px;
+  line-height: 44px;
+}
 .rise-set-icon {
   width: 20px;
   height: 20px;
