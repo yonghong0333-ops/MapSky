@@ -953,7 +953,15 @@ document.querySelectorAll(".county").forEach((path) => {
 });
 
 function goToForecastTab() {
-  document.querySelector('.tab-btn[data-tab="forecast"]').click();
+  // 這顆按鈕本來就長在「首頁／預報」分頁裡面，切到同一個分頁不會有任何
+  // 畫面變化（使用者會覺得按了沒反應）。改成直接捲動到下面的預報卡片列，
+  // 真正達到「查看完整預報」的效果。
+  const forecastRow = el("forecastRow");
+  if (forecastRow) {
+    forecastRow.scrollIntoView({ behavior: "smooth", block: "start" });
+  } else {
+    document.querySelector('.tab-btn[data-tab="forecast"]').click();
+  }
 }
 el("currentViewForecastBtn").onclick = goToForecastTab;
 
