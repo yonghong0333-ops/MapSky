@@ -77,6 +77,7 @@
 
       <nav class="tabs">
         <button class="tab-btn active" data-tab="forecast">未來 36 小時預報</button>
+        <button class="tab-btn" data-tab="weekly">📅 未來 7 天</button>
         <button class="tab-btn" data-tab="chart">溫度趨勢圖</button>
         <button class="tab-btn" data-tab="compare">多城市比較</button>
         <button class="tab-btn" data-tab="map">地圖選點</button>
@@ -149,6 +150,12 @@
               <span id="humidityValue" class="extra-info-value current-stat-empty">暫無資料</span>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section id="weeklyPanel" class="tab-panel">
+        <div id="weeklyForecastList" class="seven-day-list">
+          <p id="weeklyForecastEmpty" class="seven-day-empty">載入中…</p>
         </div>
       </section>
 
@@ -754,6 +761,7 @@
         <span class="tools-menu-title">工具</span>
         <button id="toolsMenuCloseBtn" class="tools-menu-close" type="button" aria-label="關閉">✕</button>
       </div>
+      <button class="tools-menu-item" data-tab="weekly">📅 未來 7 天</button>
       <button class="tools-menu-item" data-tab="chart">📈 溫度趨勢圖</button>
       <button class="tools-menu-item" data-tab="compare">🏙️ 多城市比較</button>
       <button class="tools-menu-item" data-tab="map">🗺️ 地圖選點</button>
