@@ -677,6 +677,12 @@ button:hover { background: var(--accent-hover); }
 }
 .bottom-nav-btn.active { color: #ffffff; }
 
+/* 首頁圖示：在首頁分頁時顯示黑色實心版本，其他分頁時顯示白色線條版本 */
+.bottom-nav-btn .home-icon-active { display: none; color: #111111; }
+.bottom-nav-btn .home-icon-inactive { display: block; }
+.bottom-nav-btn.active .home-icon-active { display: block; }
+.bottom-nav-btn.active .home-icon-inactive { display: none; }
+
 /* 往下捲動內容時，導覽列自動縮小（少佔畫面）；往上捲或點按它馬上恢復，
    由 renderer.js 依捲動方向切換這個 class，這裡只負責過場動畫。
    結論：寬度維持不變，只縮小高度/圖示——試過改變寬度（Safari 殘留矩形霧影）、
