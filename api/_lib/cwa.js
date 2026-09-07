@@ -9,7 +9,6 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const AdmZip = require("adm-zip");
-const Jimp = require("jimp");
 const { classifyZone, ZONE_ORDER } = require("./rain-zone-classification");
 const { seaAreaToCounties, landAreaToCounty } = require("./typhoon-sea-area-mapping");
 
@@ -502,12 +501,8 @@ async function getWindObservation({ forceRefresh = false } = {}) {
 }
 
 // ---------- 目前月相圖（NASA SVS Dial-A-Moon）----------
-// 這支 API 不需要 CWA 授權碼，是 NASA 公開資料。抓回來的 jpg 背景是接近
-// 純黑的太空背景，這裡用簡單門檻去背（背景 -> 透明），輸出成 PNG。
-// 二進位內容不適合塞進原本 readCache/writeCache（那是給 JSON 用的），
-// 這裡另外用一組小快取，把處理好的 PNG bytes 跟時間戳存在同一個檔案旁。
+// 直接把 NASA 提供的圖片原封不動轉發出去，不做去背處理。
 const MOON_PHASE_CACHE_TTL_MS = 30 * 60 * 1000; // NASA 圖每小時才換一張，30 分鐘夠用
-const BLACK_THRESHOLD = 28; // r,g,b 都低於這個值視為背景
 
 function readBinCache(name, ttlMs) {
   try {
@@ -531,7 +526,7 @@ function writeBinCache(name, buf) {
   }
 }
 
-async function fetchMoonPhasePng() {
+async function fetchMoonPhaseJpeg() {
   // NASA API 要求 UTC 時間戳，格式 YYYY-MM-DDTHH:MM（會自動取最近的整點資料）
   const stamp = new Date().toISOString().slice(0, 16);
   const infoResp = await fetch(`${DIALAMOON_BASE}/${stamp}`);
@@ -542,63 +537,16 @@ async function fetchMoonPhasePng() {
 
   const imgResp = await fetch(imgUrl);
   if (!imgResp.ok) throw new Error(`月相圖片下載失敗 HTTP ${imgResp.status}`);
-  const arrayBuf = await imgResp.arrayBuffer();
-
-  const image = await Jimp.read(Buffer.from(arrayBuf));
-  removeBackgroundFloodFill(image);
-  return image.getBufferAsync(Jimp.MIME_PNG);
-}
-
-// 從圖片四周邊界開始，往內流動判斷「是不是背景」，只有跟邊界連在一起的
-// 近黑色區域才會被去背成透明。這樣月球暗面本身較深色的隕石坑陰影
-// （沒有連到邊界）不會被誤判成背景挖成一堆小洞。
-function removeBackgroundFloodFill(image) {
-  const { width, height, data } = image.bitmap;
-  const visited = new Uint8Array(width * height);
-  const stackX = [];
-  const stackY = [];
-  const pushSeed = (x, y) => {
-    stackX.push(x);
-    stackY.push(y);
-  };
-  for (let x = 0; x < width; x++) {
-    pushSeed(x, 0);
-    pushSeed(x, height - 1);
-  }
-  for (let y = 0; y < height; y++) {
-    pushSeed(0, y);
-    pushSeed(width - 1, y);
-  }
-
-  while (stackX.length) {
-    const x = stackX.pop();
-    const y = stackY.pop();
-    if (x < 0 || x >= width || y < 0 || y >= height) continue;
-    const pos = y * width + x;
-    if (visited[pos]) continue;
-    visited[pos] = 1;
-
-    const idx = pos * 4;
-    const r = data[idx];
-    const g = data[idx + 1];
-    const b = data[idx + 2];
-    if (r >= BLACK_THRESHOLD || g >= BLACK_THRESHOLD || b >= BLACK_THRESHOLD) continue; // 不是背景，這條路停在這裡
-
-    data[idx + 3] = 0; // 是背景 -> 去背
-    pushSeed(x + 1, y);
-    pushSeed(x - 1, y);
-    pushSeed(x, y + 1);
-    pushSeed(x, y - 1);
-  }
+  return Buffer.from(await imgResp.arrayBuffer());
 }
 
 async function getMoonPhaseImage({ forceRefresh = false } = {}) {
-  const cacheKey = "moon-phase-png";
+  const cacheKey = "moon-phase-jpg";
   if (!forceRefresh) {
     const cached = readBinCache(cacheKey, MOON_PHASE_CACHE_TTL_MS);
     if (cached) return cached;
   }
-  const buf = await fetchMoonPhasePng();
+  const buf = await fetchMoonPhaseJpeg();
   writeBinCache(cacheKey, buf);
   return buf;
 }

@@ -8,14 +8,14 @@ const { requireSession } = require("../_lib/require-session");
 module.exports = async function handler(req, res) {
   if (!requireSession(req, res)) return;
 
-  // 月相圖是二進位 PNG，直接用 image/png 回應，不走 JSON 格式，
+  // 月相圖是二進位圖片，直接用 image/jpeg 回應（NASA 原圖格式，未去背），
   // 前端可以直接 <img src="/api/weather/astro?type=moonphase">。
   if (req.query.type === "moonphase") {
     try {
-      const png = await getMoonPhaseImage({ forceRefresh: req.query.refresh === "1" });
-      res.setHeader("Content-Type", "image/png");
+      const jpg = await getMoonPhaseImage({ forceRefresh: req.query.refresh === "1" });
+      res.setHeader("Content-Type", "image/jpeg");
       res.setHeader("Cache-Control", "public, max-age=1800");
-      res.status(200).send(png);
+      res.status(200).send(jpg);
     } catch (e) {
       res.status(502).json({ ok: false, reason: e.message });
     }

@@ -8,8 +8,7 @@
     "deploy": "vercel --prod"
   },
   "dependencies": {
-    "adm-zip": "^0.6.0",
-    "jimp": "^0.22.12"
+    "adm-zip": "^0.6.0"
   },
   "devDependencies": {
     "vercel": "^37.0.0"
