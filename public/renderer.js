@@ -507,7 +507,8 @@ setInterval(() => {
 let windObsCache = null;
 async function loadWindObservation(label) {
   const valueEl = el("statWind");
-  if (!valueEl) return;
+  const humidityEl = el("humidityValue");
+  if (!valueEl && !humidityEl) return;
   try {
     if (!windObsCache) {
       const result = await window.weatherAPI.getWindObservation();
@@ -515,10 +516,16 @@ async function loadWindObservation(label) {
       windObsCache = result.counties || {};
     }
     const wind = windObsCache[label];
-    if (!wind || wind.beaufortLevel === null || wind.beaufortLevel === undefined) return;
-    valueEl.textContent = `${wind.beaufortLevel} 級（${wind.beaufortDesc}）`;
-    valueEl.title = `${wind.stationName} 測站　風速 ${wind.windSpeed} m/s`;
-    valueEl.classList.remove("current-stat-empty");
+    if (!wind) return;
+    if (valueEl && wind.beaufortLevel !== null && wind.beaufortLevel !== undefined) {
+      valueEl.textContent = `${wind.beaufortLevel} 級（${wind.beaufortDesc}）`;
+      valueEl.title = `${wind.stationName} 測站　風速 ${wind.windSpeed} m/s`;
+      valueEl.classList.remove("current-stat-empty");
+    }
+    if (humidityEl && wind.relativeHumidity !== null && wind.relativeHumidity !== undefined) {
+      humidityEl.textContent = `${wind.relativeHumidity}%`;
+      humidityEl.classList.remove("current-stat-empty");
+    }
   } catch (e) {
     /* 拿不到就維持「暫無資料」，不影響其他功能 */
   }

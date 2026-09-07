@@ -484,6 +484,7 @@ async function getWindObservation({ forceRefresh = false } = {}) {
     const existing = byCounty[county];
     if (existing && existing.isOfficial && !isOfficial) continue; // 已有正式站資料就不覆蓋
     const beaufort = windSpeedToBeaufort(speed);
+    const humidity = parseFloat(we.RelativeHumidity);
     byCounty[county] = {
       stationName: s.StationName,
       stationId: s.StationId,
@@ -491,6 +492,7 @@ async function getWindObservation({ forceRefresh = false } = {}) {
       windDirection: parseFloat(we.WindDirection),
       beaufortLevel: beaufort ? beaufort.level : null,
       beaufortDesc: beaufort ? beaufort.desc : null,
+      relativeHumidity: Number.isFinite(humidity) && humidity >= 0 ? humidity : null,
       obsTime: s.ObsTime && s.ObsTime.DateTime,
       isOfficial,
     };
