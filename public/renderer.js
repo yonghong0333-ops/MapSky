@@ -445,21 +445,46 @@ async function loadMoonTimes(label) {
     const set = times.MoonSetTime || "";
     if (!rise && !set) return; // 兩個都沒有（極少數情形），維持「暫無資料」
 
+    const labelEl = el("moonTimesLabel");
     const now = new Date();
-    const nowStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    // 跟日出/日落同樣邏輯：月出之前顯示月出時間，之後就顯示月落時間，只顯示一個
-    if (rise && (!set || nowStr < rise)) {
-      valueEl.textContent = `${rise} 升起`;
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const toMinutes = (hhmm) => {
+      const [h, m] = hhmm.split(":").map(Number);
+      return h * 60 + m;
+    };
+    const formatRemaining = (mins) => {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      if (h > 0 && m > 0) return `${h}小時${m}分`;
+      if (h > 0) return `${h}小時`;
+      return `${m}分`;
+    };
+
+    // 跟日出/日落同樣邏輯：月出之前顯示月出時間、標籤倒數月出；
+    // 之後顯示月落時間、標籤倒數月落，只顯示一個。標籤只留時間長度，不加文字說明。
+    const riseMinutes = rise ? toMinutes(rise) : null;
+    const setMinutes = set ? toMinutes(set) : null;
+    if (rise && (!set || nowMinutes < riseMinutes)) {
+      if (labelEl) labelEl.textContent = nowMinutes < riseMinutes ? formatRemaining(riseMinutes - nowMinutes) : "已升起";
+      valueEl.textContent = rise;
     } else if (set) {
-      valueEl.textContent = `${set} 落下`;
+      if (labelEl) labelEl.textContent = nowMinutes < setMinutes ? formatRemaining(setMinutes - nowMinutes) : "已落下";
+      valueEl.textContent = set;
     } else {
-      valueEl.textContent = `${rise} 升起`;
+      valueEl.textContent = rise;
     }
     valueEl.classList.remove("current-stat-empty");
   } catch (e) {
     /* 拿不到就維持「暫無資料」，不影響其他功能 */
   }
 }
+
+// 每分鐘重新算一次月出/月落倒數，跟日出/日落一樣不用手動重新整理。
+setInterval(() => {
+  if (currentCity && currentCity.label) {
+    loadMoonTimes(currentCity.label);
+  }
+}, 60 * 1000);
 
 // 每分鐘重新算一次倒數剩餘時間，不用手動重新整理頁面。
 // sunTimesCache 已經在記憶體裡了，這裡只是重新跑一次算式更新畫面文字，不會再打 API。
