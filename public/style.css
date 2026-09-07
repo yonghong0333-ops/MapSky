@@ -678,8 +678,10 @@ button:hover { background: var(--accent-hover); }
 .bottom-nav-btn.active { color: #ffffff; }
 
 /* 首頁圖示：在首頁分頁時顯示黑色實心版本，其他分頁時顯示白色線條版本 */
-.bottom-nav-btn .home-icon-active { display: none; color: #111111; }
-.bottom-nav-btn .home-icon-inactive { display: block; }
+.bottom-nav-btn .home-icon { width: 24px; height: 24px; object-fit: contain; }
+.bottom-nav-btn .home-icon-active { display: none; }
+/* 線條版是黑色線稿，套在深色導覽列上要反白才看得到 */
+.bottom-nav-btn .home-icon-inactive { display: block; filter: invert(1) brightness(1.8); opacity: 0.55; }
 .bottom-nav-btn.active .home-icon-active { display: block; }
 .bottom-nav-btn.active .home-icon-inactive { display: none; }
 
@@ -704,7 +706,8 @@ button:hover { background: var(--accent-hover); }
 .bottom-nav.bottom-nav-collapsed .bottom-nav-icon {
   padding: 3px 8px;
 }
-.bottom-nav.bottom-nav-collapsed .bottom-nav-icon svg {
+.bottom-nav.bottom-nav-collapsed .bottom-nav-icon svg,
+.bottom-nav.bottom-nav-collapsed .bottom-nav-icon .home-icon {
   width: 14px;
   height: 14px;
 }
