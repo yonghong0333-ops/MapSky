@@ -391,8 +391,10 @@ async function loadSunTimes(label) {
       if (!result || !result.ok) return; // 保持「暫無資料」，不用特別報錯打擾使用者
       sunTimesCache = result.counties || {};
     }
-    const times = sunTimesCache[label];
-    if (!times || !times.SunRiseTime || !times.SunSetTime) return;
+    const days = sunTimesCache[label]; // [今天, 明天]
+    const today = days && days[0];
+    const tomorrow = days && days[1];
+    if (!today || !today.SunRiseTime || !today.SunSetTime) return;
     const labelEl = el("sunTimesLabel");
     const iconEl = el("sunTimesIcon");
     const now = new Date();
@@ -401,8 +403,8 @@ async function loadSunTimes(label) {
       const [h, m] = hhmm.split(":").map(Number);
       return h * 60 + m;
     };
-    const riseMinutes = toMinutes(times.SunRiseTime);
-    const setMinutes = toMinutes(times.SunSetTime);
+    const riseMinutes = toMinutes(today.SunRiseTime);
+    const setMinutes = toMinutes(today.SunSetTime);
     const formatRemaining = (mins) => {
       const h = Math.floor(mins / 60);
       const m = mins % 60;
@@ -415,17 +417,23 @@ async function loadSunTimes(label) {
     // 下面數值那行只留時間本身，不放圖示也不放「升起／落下」文字。
     // 圖示：晚上（不管是日出前的凌晨，還是日落後的夜晚）用向上箭頭的
     // sunrise.png；白天（日出後、日落前）用向下箭頭的 sunset.png。
+    // 今天日落已經過了的話，直接跨到明天的日出繼續倒數，不會卡在「已日落」。
     if (nowMinutes < riseMinutes) {
       if (labelEl) labelEl.textContent = formatRemaining(riseMinutes - nowMinutes);
-      valueEl.textContent = times.SunRiseTime;
+      valueEl.textContent = today.SunRiseTime;
       if (iconEl) iconEl.src = "icons/sunrise.png";
     } else if (nowMinutes < setMinutes) {
       if (labelEl) labelEl.textContent = formatRemaining(setMinutes - nowMinutes);
-      valueEl.textContent = times.SunSetTime;
+      valueEl.textContent = today.SunSetTime;
       if (iconEl) iconEl.src = "icons/sunset.png";
+    } else if (tomorrow && tomorrow.SunRiseTime) {
+      const nextRiseMinutes = toMinutes(tomorrow.SunRiseTime) + 24 * 60;
+      if (labelEl) labelEl.textContent = formatRemaining(nextRiseMinutes - nowMinutes);
+      valueEl.textContent = tomorrow.SunRiseTime;
+      if (iconEl) iconEl.src = "icons/sunrise.png";
     } else {
       if (labelEl) labelEl.textContent = "已日落";
-      valueEl.textContent = times.SunSetTime;
+      valueEl.textContent = today.SunSetTime;
       if (iconEl) iconEl.src = "icons/sunrise.png";
     }
     valueEl.classList.remove("current-stat-empty");
@@ -446,11 +454,14 @@ async function loadMoonTimes(label) {
       if (!result || !result.ok) return;
       moonTimesCache = result.counties || {};
     }
-    const times = moonTimesCache[label];
-    if (!times) return;
-    const rise = times.MoonRiseTime || "";
-    const set = times.MoonSetTime || "";
-    if (!rise && !set) return; // 兩個都沒有（極少數情形），維持「暫無資料」
+    const days = moonTimesCache[label]; // [今天, 明天]
+    const today = days && days[0];
+    const tomorrow = days && days[1];
+    if (!today) return;
+    const rise = today.MoonRiseTime || "";
+    const set = today.MoonSetTime || "";
+    const nextRise = tomorrow && tomorrow.MoonRiseTime ? tomorrow.MoonRiseTime : "";
+    if (!rise && !set && !nextRise) return; // 完全沒資料（極少數情形），維持「暫無資料」
 
     const labelEl = el("moonTimesLabel");
     const now = new Date();
@@ -469,13 +480,21 @@ async function loadMoonTimes(label) {
 
     // 跟日出/日落同樣邏輯：月出之前顯示月出時間、標籤倒數月出；
     // 之後顯示月落時間、標籤倒數月落，只顯示一個。標籤只留時間長度，不加文字說明。
+    // 今天的月出/月落都過了（或今天沒有）的話，跨到明天的月出繼續倒數。
     const riseMinutes = rise ? toMinutes(rise) : null;
     const setMinutes = set ? toMinutes(set) : null;
-    if (rise && (!set || nowMinutes < riseMinutes)) {
-      if (labelEl) labelEl.textContent = nowMinutes < riseMinutes ? formatRemaining(riseMinutes - nowMinutes) : "已升起";
+    if (rise && nowMinutes < riseMinutes) {
+      if (labelEl) labelEl.textContent = formatRemaining(riseMinutes - nowMinutes);
       valueEl.textContent = rise;
+    } else if (set && nowMinutes < setMinutes) {
+      if (labelEl) labelEl.textContent = formatRemaining(setMinutes - nowMinutes);
+      valueEl.textContent = set;
+    } else if (nextRise) {
+      const nextRiseMinutes = toMinutes(nextRise) + 24 * 60;
+      if (labelEl) labelEl.textContent = formatRemaining(nextRiseMinutes - nowMinutes);
+      valueEl.textContent = nextRise;
     } else if (set) {
-      if (labelEl) labelEl.textContent = nowMinutes < setMinutes ? formatRemaining(setMinutes - nowMinutes) : "已落下";
+      if (labelEl) labelEl.textContent = "已落下";
       valueEl.textContent = set;
     } else {
       valueEl.textContent = rise;

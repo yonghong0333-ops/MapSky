@@ -372,7 +372,8 @@ async function getTyphoonProbability({ forceRefresh = false } = {}) {
 
 // ---------- 日出日沒時刻 (A-B0062-001) ----------
 // 一次撈全臺各縣市今天起的資料（這個 API 不需要縣市篩選參數，本來就會回傳
-// 全部縣市），整理成 { CountyName: { SunRiseTime, SunSetTime, ... } } 方便查表。
+// 全部縣市），整理成 { CountyName: [今天, 明天] } 方便查表。保留明天的資料
+// 是為了「今天日落後，直接算出明天日出的倒數」，不用等隔天才有資料。
 async function getSunTimes({ forceRefresh = false } = {}) {
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false, reason: "no-api-key" };
@@ -392,8 +393,9 @@ async function getSunTimes({ forceRefresh = false } = {}) {
   const locations = (data.records && data.records.locations && data.records.locations.location) || [];
   const counties = {};
   for (const loc of locations) {
-    const todays = (loc.time || []).find((t) => t.Date === today) || (loc.time || [])[0];
-    if (loc.CountyName && todays) counties[loc.CountyName] = todays;
+    if (!loc.CountyName) continue;
+    const upcoming = (loc.time || []).filter((t) => t.Date >= today);
+    if (upcoming.length) counties[loc.CountyName] = upcoming.slice(0, 2); // [今天, 明天]
   }
   const payload = { updatedAt: new Date().toISOString(), date: today, counties };
   writeCache(cacheKey, payload);
@@ -401,8 +403,8 @@ async function getSunTimes({ forceRefresh = false } = {}) {
 }
 
 // ---------- 月出月沒時刻 (A-B0063-001) ----------
-// 跟日出日沒同樣邏輯；有些日子月亮不會升起或落下，對應欄位會是空字串，
-// 交給前端顯示成「--」。
+// 跟日出日沒同樣邏輯，一樣保留 [今天, 明天] 兩天份；有些日子月亮不會升起
+// 或落下，對應欄位會是空字串，交給前端判斷要不要跨到明天查下一次月出。
 async function getMoonTimes({ forceRefresh = false } = {}) {
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false, reason: "no-api-key" };
@@ -422,8 +424,9 @@ async function getMoonTimes({ forceRefresh = false } = {}) {
   const locations = (data.records && data.records.locations && data.records.locations.location) || [];
   const counties = {};
   for (const loc of locations) {
-    const todays = (loc.time || []).find((t) => t.Date === today) || (loc.time || [])[0];
-    if (loc.CountyName && todays) counties[loc.CountyName] = todays;
+    if (!loc.CountyName) continue;
+    const upcoming = (loc.time || []).filter((t) => t.Date >= today);
+    if (upcoming.length) counties[loc.CountyName] = upcoming.slice(0, 2); // [今天, 明天]
   }
   const payload = { updatedAt: new Date().toISOString(), date: today, counties };
   writeCache(cacheKey, payload);
