@@ -486,6 +486,15 @@ button:hover { background: var(--accent-hover); }
   text-align: center;
 }
 .extra-info-icon { font-size: 20px; }
+.extra-info-icon-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  /* NASA 圖片背景已去黑底，這裡加一點陰影讓它在深色卡片上比較看得出輪廓 */
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.25));
+}
+.extra-info-icon-img.hidden { display: none; }
+#moonPhaseFallbackIcon.hidden { display: none; }
 .extra-info-label { font-size: 12px; color: var(--text-muted); }
 .extra-info-value { font-size: 13px; font-weight: 600; color: var(--text-main); }
 

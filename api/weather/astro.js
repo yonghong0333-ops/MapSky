@@ -2,11 +2,26 @@
 // 用 ?type=sun|moon 區分——原本兩支各佔一個 function 名額，Vercel Hobby 方案
 // 對 Serverless Functions 數量有上限（12 個），加入風速 (wind.js) 後會超過，
 // 合併這兩支省下一個名額。
-const { getSunTimes, getMoonTimes } = require("../_lib/cwa");
+const { getSunTimes, getMoonTimes, getMoonPhaseImage } = require("../_lib/cwa");
 const { requireSession } = require("../_lib/require-session");
 
 module.exports = async function handler(req, res) {
   if (!requireSession(req, res)) return;
+
+  // 月相圖是二進位 PNG，直接用 image/png 回應，不走 JSON 格式，
+  // 前端可以直接 <img src="/api/weather/astro?type=moonphase">。
+  if (req.query.type === "moonphase") {
+    try {
+      const png = await getMoonPhaseImage({ forceRefresh: req.query.refresh === "1" });
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "public, max-age=1800");
+      res.status(200).send(png);
+    } catch (e) {
+      res.status(502).json({ ok: false, reason: e.message });
+    }
+    return;
+  }
+
   const wantMoon = req.query.type === "moon";
   try {
     const result = wantMoon

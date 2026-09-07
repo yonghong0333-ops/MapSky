@@ -9,6 +9,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const AdmZip = require("adm-zip");
+const Jimp = require("jimp");
 const { classifyZone, ZONE_ORDER } = require("./rain-zone-classification");
 const { seaAreaToCounties, landAreaToCounty } = require("./typhoon-sea-area-mapping");
 
@@ -20,6 +21,7 @@ const TYPHOON_PROB_DATA_ID = "W-C0034-003";
 const SUN_TIMES_DATA_ID = "A-B0062-001"; // 全臺各縣市日出、日沒、太陽過中天時刻
 const MOON_TIMES_DATA_ID = "A-B0063-001"; // 全臺各縣市月出、月沒、月球過中天時刻
 const OBSERVATION_DATA_ID = "O-A0003-001"; // 現在天氣觀測報告（自動氣象站，含即時風速）
+const DIALAMOON_BASE = "https://svs.gsfc.nasa.gov/api/dialamoon"; // NASA SVS 月相圖 API
 
 const CWA_CITIES = [
   "臺北市", "新北市", "桃園市", "臺中市", "臺南市", "高雄市",
@@ -499,6 +501,72 @@ async function getWindObservation({ forceRefresh = false } = {}) {
   return { ok: true, ...payload, cached: false };
 }
 
+// ---------- 目前月相圖（NASA SVS Dial-A-Moon）----------
+// 這支 API 不需要 CWA 授權碼，是 NASA 公開資料。抓回來的 jpg 背景是接近
+// 純黑的太空背景，這裡用簡單門檻去背（背景 -> 透明），輸出成 PNG。
+// 二進位內容不適合塞進原本 readCache/writeCache（那是給 JSON 用的），
+// 這裡另外用一組小快取，把處理好的 PNG bytes 跟時間戳存在同一個檔案旁。
+const MOON_PHASE_CACHE_TTL_MS = 30 * 60 * 1000; // NASA 圖每小時才換一張，30 分鐘夠用
+const BLACK_THRESHOLD = 28; // r,g,b 都低於這個值視為背景
+
+function readBinCache(name, ttlMs) {
+  try {
+    const dataPath = tmpPath(name);
+    const meta = JSON.parse(fs.readFileSync(`${dataPath}.meta`, "utf-8"));
+    if (meta && meta.fetchedAt && Date.now() - meta.fetchedAt < ttlMs) {
+      return fs.readFileSync(dataPath);
+    }
+  } catch {
+    /* no cache yet */
+  }
+  return null;
+}
+function writeBinCache(name, buf) {
+  try {
+    const dataPath = tmpPath(name);
+    fs.writeFileSync(dataPath, buf);
+    fs.writeFileSync(`${dataPath}.meta`, JSON.stringify({ fetchedAt: Date.now() }), "utf-8");
+  } catch {
+    /* /tmp 不可寫就算了，改成每次即時抓 */
+  }
+}
+
+async function fetchMoonPhasePng() {
+  // NASA API 要求 UTC 時間戳，格式 YYYY-MM-DDTHH:MM（會自動取最近的整點資料）
+  const stamp = new Date().toISOString().slice(0, 16);
+  const infoResp = await fetch(`${DIALAMOON_BASE}/${stamp}`);
+  if (!infoResp.ok) throw new Error(`HTTP ${infoResp.status}`);
+  const info = await infoResp.json();
+  const imgUrl = info.image && info.image.url;
+  if (!imgUrl) throw new Error("NASA Dial-A-Moon 回應缺少圖片網址");
+
+  const imgResp = await fetch(imgUrl);
+  if (!imgResp.ok) throw new Error(`月相圖片下載失敗 HTTP ${imgResp.status}`);
+  const arrayBuf = await imgResp.arrayBuffer();
+
+  const image = await Jimp.read(Buffer.from(arrayBuf));
+  image.scan(0, 0, image.bitmap.width, image.bitmap.height, function scanPixels(x, y, idx) {
+    const r = this.bitmap.data[idx];
+    const g = this.bitmap.data[idx + 1];
+    const b = this.bitmap.data[idx + 2];
+    if (r < BLACK_THRESHOLD && g < BLACK_THRESHOLD && b < BLACK_THRESHOLD) {
+      this.bitmap.data[idx + 3] = 0; // alpha = 0，去背
+    }
+  });
+  return image.getBufferAsync(Jimp.MIME_PNG);
+}
+
+async function getMoonPhaseImage({ forceRefresh = false } = {}) {
+  const cacheKey = "moon-phase-png";
+  if (!forceRefresh) {
+    const cached = readBinCache(cacheKey, MOON_PHASE_CACHE_TTL_MS);
+    if (cached) return cached;
+  }
+  const buf = await fetchMoonPhasePng();
+  writeBinCache(cacheKey, buf);
+  return buf;
+}
+
 module.exports = {
   CWA_CITIES,
   getApiKey,
@@ -510,4 +578,5 @@ module.exports = {
   getMoonTimes,
   getWindObservation,
   windSpeedToBeaufort,
+  getMoonPhaseImage,
 };

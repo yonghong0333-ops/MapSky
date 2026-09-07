@@ -343,6 +343,7 @@ async function selectCity(label) {
   loadSunTimes(label);
   loadMoonTimes(label);
   loadWindObservation(label);
+  loadMoonPhaseImage();
 }
 
 // ---------------- 日出／日落 ----------------
@@ -411,6 +412,25 @@ async function loadWindObservation(label) {
   } catch (e) {
     /* 拿不到就維持「暫無資料」，不影響其他功能 */
   }
+}
+
+// ---------------- 目前月相圖（NASA SVS Dial-A-Moon，已去背）----------------
+// 跟縣市無關，全站共用同一張圖，只要載入過一次就不用每次切換城市重抓。
+let moonPhaseLoaded = false;
+function loadMoonPhaseImage() {
+  if (moonPhaseLoaded) return;
+  const img = el("moonPhaseImg");
+  const fallback = el("moonPhaseFallbackIcon");
+  if (!img) return;
+  img.addEventListener("load", () => {
+    img.classList.remove("hidden");
+    if (fallback) fallback.classList.add("hidden");
+  });
+  img.addEventListener("error", () => {
+    /* 抓失敗就維持原本的 🌙 emoji，不影響其他功能 */
+  });
+  img.src = "/api/weather/astro?type=moonphase";
+  moonPhaseLoaded = true;
 }
 
 function getElement(weatherElements, name) {
