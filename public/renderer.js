@@ -321,10 +321,19 @@ async function fetchCityWeather(label) {
   return location;
 }
 
-// 每個縣市最後一次成功取得的天氣資料，存在記憶體裡（切換分頁/縣市時沿用，
-// 重新整理網頁才會清空）。有快取的話先把畫面畫出來，不用讓使用者盯著
-// 「載入中…」空白畫面等，之後再默默去後台要一次最新資料來更新。
-const cityWeatherCache = {};
+// 每個縣市最後一次成功取得的天氣資料。除了放記憶體，也順便存一份到
+// localStorage：PWA 被滑掉關掉、重開後整個網頁會重新載入、記憶體會被清空，
+// 但 localStorage 還在，開啟時可以先讀出來墊底，避免每次重開都要空等伺服器。
+const CITY_WEATHER_CACHE_KEY = "weatherpro_city_weather_cache";
+function loadCityWeatherCache() {
+  try { return JSON.parse(localStorage.getItem(CITY_WEATHER_CACHE_KEY)) || {}; }
+  catch { return {}; }
+}
+function saveCityWeatherCache() {
+  try { localStorage.setItem(CITY_WEATHER_CACHE_KEY, JSON.stringify(cityWeatherCache)); }
+  catch { /* 存不進去（例如容量爆了）就算了，不影響其他功能 */ }
+}
+const cityWeatherCache = loadCityWeatherCache();
 
 async function selectCity(label) {
   if (!(await refreshApiKeyStatus())) {
@@ -350,6 +359,7 @@ async function selectCity(label) {
     const location = await fetchCityWeather(label);
     // 使用者可能在資料回來前已經切換到別的縣市，這裡要避免覆蓋錯畫面
     cityWeatherCache[label] = location;
+    saveCityWeatherCache();
     if (currentCity && currentCity.label === label) {
       renderWeather(location);
       setStatus("更新完成");
