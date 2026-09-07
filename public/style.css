@@ -1336,14 +1336,29 @@ button:hover { background: var(--accent-hover); }
     overflow: visible;
   }
 
-  /* 加了體感溫度之後統計列變成 4 顆，手機版太窄擠不下，改成兩排 2x2 */
+  /* 統計列固定在同一排、不換行；卡片本身用 flex:1 平分寬度，
+     文字/圖示在窄螢幕縮小一點，3 張塞得下不會被擠爆版面。 */
   .current-stat-row {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
   .current-stat-chip {
-    flex: 1 1 calc(50% - 5px);
-    min-width: calc(50% - 5px);
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 8px 4px;
   }
+  .current-stat-chip .extra-info-icon-img {
+    width: 22px;
+    height: 22px;
+  }
+  .current-stat-icon { font-size: 16px; }
+  .current-stat-label {
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .current-stat-value { font-size: 13px; }
 
   .app {
     flex-direction: column;
