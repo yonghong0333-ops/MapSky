@@ -461,6 +461,14 @@ async function loadMoonTimes(label) {
   }
 }
 
+// 每分鐘重新算一次倒數剩餘時間，不用手動重新整理頁面。
+// sunTimesCache 已經在記憶體裡了，這裡只是重新跑一次算式更新畫面文字，不會再打 API。
+setInterval(() => {
+  if (currentCity && currentCity.label) {
+    loadSunTimes(currentCity.label);
+  }
+}, 60 * 1000);
+
 // ---------------- 即時風速（蒲氏風級）----------------
 // 跟日出／月出資料同樣邏輯：整批全臺縣市資料一次撈回來，快取在同一次網頁
 // 工作階段內，切換城市只要重新查表，不用每次都重打 API。
