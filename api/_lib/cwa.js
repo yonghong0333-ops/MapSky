@@ -545,15 +545,51 @@ async function fetchMoonPhasePng() {
   const arrayBuf = await imgResp.arrayBuffer();
 
   const image = await Jimp.read(Buffer.from(arrayBuf));
-  image.scan(0, 0, image.bitmap.width, image.bitmap.height, function scanPixels(x, y, idx) {
-    const r = this.bitmap.data[idx];
-    const g = this.bitmap.data[idx + 1];
-    const b = this.bitmap.data[idx + 2];
-    if (r < BLACK_THRESHOLD && g < BLACK_THRESHOLD && b < BLACK_THRESHOLD) {
-      this.bitmap.data[idx + 3] = 0; // alpha = 0，去背
-    }
-  });
+  removeBackgroundFloodFill(image);
   return image.getBufferAsync(Jimp.MIME_PNG);
+}
+
+// 從圖片四周邊界開始，往內流動判斷「是不是背景」，只有跟邊界連在一起的
+// 近黑色區域才會被去背成透明。這樣月球暗面本身較深色的隕石坑陰影
+// （沒有連到邊界）不會被誤判成背景挖成一堆小洞。
+function removeBackgroundFloodFill(image) {
+  const { width, height, data } = image.bitmap;
+  const visited = new Uint8Array(width * height);
+  const stackX = [];
+  const stackY = [];
+  const pushSeed = (x, y) => {
+    stackX.push(x);
+    stackY.push(y);
+  };
+  for (let x = 0; x < width; x++) {
+    pushSeed(x, 0);
+    pushSeed(x, height - 1);
+  }
+  for (let y = 0; y < height; y++) {
+    pushSeed(0, y);
+    pushSeed(width - 1, y);
+  }
+
+  while (stackX.length) {
+    const x = stackX.pop();
+    const y = stackY.pop();
+    if (x < 0 || x >= width || y < 0 || y >= height) continue;
+    const pos = y * width + x;
+    if (visited[pos]) continue;
+    visited[pos] = 1;
+
+    const idx = pos * 4;
+    const r = data[idx];
+    const g = data[idx + 1];
+    const b = data[idx + 2];
+    if (r >= BLACK_THRESHOLD || g >= BLACK_THRESHOLD || b >= BLACK_THRESHOLD) continue; // 不是背景，這條路停在這裡
+
+    data[idx + 3] = 0; // 是背景 -> 去背
+    pushSeed(x + 1, y);
+    pushSeed(x - 1, y);
+    pushSeed(x, y + 1);
+    pushSeed(x, y - 1);
+  }
 }
 
 async function getMoonPhaseImage({ forceRefresh = false } = {}) {
