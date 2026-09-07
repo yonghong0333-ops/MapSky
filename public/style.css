@@ -1449,8 +1449,8 @@ button:hover { background: var(--accent-hover); }
   }
   .current-card-top {
     flex-wrap: wrap;
-    justify-content: center;
-    text-align: center;
+    justify-content: flex-start;
+    text-align: left;
     gap: 14px;
   }
   .current-detail {
