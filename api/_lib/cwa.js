@@ -18,6 +18,7 @@ const TYPHOON_WARNING_DATA_ID = "W-C0034-001";
 const RAIN_WARNING_DATA_ID = "W-C0033-003";
 const TYPHOON_PROB_DATA_ID = "W-C0034-003";
 const SUN_TIMES_DATA_ID = "A-B0062-001"; // 全臺各縣市日出、日沒、太陽過中天時刻
+const MOON_TIMES_DATA_ID = "A-B0063-001"; // 全臺各縣市月出、月沒、月球過中天時刻
 
 const CWA_CITIES = [
   "臺北市", "新北市", "桃園市", "臺中市", "臺南市", "高雄市",
@@ -396,6 +397,36 @@ async function getSunTimes({ forceRefresh = false } = {}) {
   return { ok: true, ...payload, cached: false };
 }
 
+// ---------- 月出月沒時刻 (A-B0063-001) ----------
+// 跟日出日沒同樣邏輯；有些日子月亮不會升起或落下，對應欄位會是空字串，
+// 交給前端顯示成「--」。
+async function getMoonTimes({ forceRefresh = false } = {}) {
+  const apiKey = getApiKey();
+  if (!apiKey) return { ok: false, reason: "no-api-key" };
+  const today = new Date().toISOString().slice(0, 10);
+  const cacheKey = `moon-${today}`;
+  if (!forceRefresh) {
+    const cached = readCache(cacheKey);
+    if (cached) return { ok: true, ...cached, cached: true };
+  }
+  const url = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/${MOON_TIMES_DATA_ID}?Authorization=${encodeURIComponent(apiKey)}&timeFrom=${today}&sort=Date`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (data.success === "false" || data.success === false) {
+    throw new Error(data.message || "查詢月出月沒資料失敗，請確認授權碼是否正確");
+  }
+  const locations = (data.records && data.records.locations && data.records.locations.location) || [];
+  const counties = {};
+  for (const loc of locations) {
+    const todays = (loc.time || []).find((t) => t.Date === today) || (loc.time || [])[0];
+    if (loc.CountyName && todays) counties[loc.CountyName] = todays;
+  }
+  const payload = { updatedAt: new Date().toISOString(), date: today, counties };
+  writeCache(cacheKey, payload);
+  return { ok: true, ...payload, cached: false };
+}
+
 module.exports = {
   CWA_CITIES,
   getApiKey,
@@ -404,4 +435,5 @@ module.exports = {
   getAlerts,
   getTyphoonProbability,
   getSunTimes,
+  getMoonTimes,
 };

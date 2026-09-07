@@ -32,6 +32,7 @@
     forceRefreshAlerts: () => getJson("/api/weather/alerts?refresh=1"),
     getTyphoonProbability: () => getJson("/api/weather/typhoon"),
     getSunTimes: () => getJson("/api/weather/sun"),
+    getMoonTimes: () => getJson("/api/weather/moon"),
 
     onUpdated: (cb) => updatedListeners.push(cb),
     onAlertsUpdated: (cb) => alertsUpdatedListeners.push(cb),

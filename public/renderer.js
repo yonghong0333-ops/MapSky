@@ -341,6 +341,7 @@ async function selectCity(label) {
   }
 
   loadSunTimes(label);
+  loadMoonTimes(label);
 }
 
 // ---------------- 日出／日落 ----------------
@@ -359,6 +360,29 @@ async function loadSunTimes(label) {
     const times = sunTimesCache[label];
     if (!times || !times.SunRiseTime || !times.SunSetTime) return;
     valueEl.textContent = `${times.SunRiseTime} 升起　${times.SunSetTime} 落下`;
+    valueEl.classList.remove("current-stat-empty");
+  } catch (e) {
+    /* 拿不到就維持「暫無資料」，不影響其他功能 */
+  }
+}
+
+// ---------------- 月出／月落 ----------------
+// 有些日子月亮不會升起或落下（極少數情形），對應欄位是空字串，顯示成「--」。
+let moonTimesCache = null;
+async function loadMoonTimes(label) {
+  const valueEl = el("moonTimesValue");
+  if (!valueEl) return;
+  try {
+    if (!moonTimesCache) {
+      const result = await window.weatherAPI.getMoonTimes();
+      if (!result || !result.ok) return;
+      moonTimesCache = result.counties || {};
+    }
+    const times = moonTimesCache[label];
+    if (!times) return;
+    const rise = times.MoonRiseTime || "--";
+    const set = times.MoonSetTime || "--";
+    valueEl.textContent = `${rise} 升起　${set} 落下`;
     valueEl.classList.remove("current-stat-empty");
   } catch (e) {
     /* 拿不到就維持「暫無資料」，不影響其他功能 */
