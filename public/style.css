@@ -691,6 +691,12 @@ button:hover { background: var(--accent-hover); }
 .bottom-nav-btn.active .tools-icon-active { display: block; }
 .bottom-nav-btn.active .tools-icon-inactive { display: none; }
 
+.bottom-nav-btn .warning-icon { width: 24px; height: 24px; object-fit: contain; }
+.bottom-nav-btn .warning-icon-active { display: none; }
+.bottom-nav-btn .warning-icon-inactive { display: block; filter: invert(1) brightness(1.8); opacity: 0.55; }
+.bottom-nav-btn.active .warning-icon-active { display: block; }
+.bottom-nav-btn.active .warning-icon-inactive { display: none; }
+
 /* 往下捲動內容時，導覽列自動縮小（少佔畫面）；往上捲或點按它馬上恢復，
    由 renderer.js 依捲動方向切換這個 class，這裡只負責過場動畫。
    結論：寬度維持不變，只縮小高度/圖示——試過改變寬度（Safari 殘留矩形霧影）、
@@ -714,7 +720,8 @@ button:hover { background: var(--accent-hover); }
 }
 .bottom-nav.bottom-nav-collapsed .bottom-nav-icon svg,
 .bottom-nav.bottom-nav-collapsed .bottom-nav-icon .home-icon,
-.bottom-nav.bottom-nav-collapsed .bottom-nav-icon .tools-icon {
+.bottom-nav.bottom-nav-collapsed .bottom-nav-icon .tools-icon,
+.bottom-nav.bottom-nav-collapsed .bottom-nav-icon .warning-icon {
   width: 14px;
   height: 14px;
 }
