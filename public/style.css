@@ -16,7 +16,7 @@
 
 body {
   font-family: "Microsoft JhengHei", "Segoe UI", sans-serif;
-  background: linear-gradient(160deg, #eef2f8, #eef2f8);
+  background: url("backgrounds/app-bg.jpg");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -25,44 +25,17 @@ body {
   transition: background-color 1.4s ease;
 }
 
-/* 背景改用真實天氣照片：疊一層深色漸層在照片上面，確保上面的白色文字
-   跟卡片在任何照片底下都還看得清楚，照片本身來自 Pexels（免費、可商用、
-   不需標註來源）。 */
-body.weather-sunny-day {
-  background-image: linear-gradient(160deg, rgba(20, 40, 70, 0.28), rgba(10, 20, 40, 0.42)),
-    url("https://images.pexels.com/photos/4435239/pexels-photo-4435239.jpeg?auto=compress&cs=tinysrgb&w=1600");
-}
-body.weather-sunny-night {
-  background-image: linear-gradient(160deg, rgba(5, 8, 20, 0.45), rgba(5, 8, 20, 0.6)),
-    url("https://images.pexels.com/photos/2890467/pexels-photo-2890467.jpeg?auto=compress&cs=tinysrgb&w=1600");
-}
-body.weather-cloudy-day {
-  background-image: linear-gradient(160deg, rgba(30, 40, 55, 0.35), rgba(20, 28, 40, 0.5)),
-    url("https://images.pexels.com/photos/3448/pexels-photo-3448.jpeg?auto=compress&cs=tinysrgb&w=1600");
-}
-body.weather-cloudy-night {
-  background-image: linear-gradient(160deg, rgba(5, 10, 25, 0.5), rgba(5, 10, 25, 0.62)),
-    url("https://images.pexels.com/photos/4435670/pexels-photo-4435670.jpeg?auto=compress&cs=tinysrgb&w=1600");
-}
-body.weather-overcast {
-  background-image: linear-gradient(160deg, rgba(30, 35, 42, 0.4), rgba(20, 24, 30, 0.55)),
-    url("https://images.pexels.com/photos/2331030/pexels-photo-2331030.jpeg?auto=compress&cs=tinysrgb&w=1600");
-}
-body.weather-rain {
-  background-image: linear-gradient(160deg, rgba(15, 25, 40, 0.45), rgba(10, 18, 32, 0.6)),
-    url("https://images.pexels.com/photos/531880/pexels-photo-531880.jpeg?auto=compress&cs=tinysrgb&w=1600");
-}
-body.weather-thunder {
-  background-image: linear-gradient(160deg, rgba(10, 12, 22, 0.5), rgba(8, 10, 18, 0.65)),
-    url("https://images.pexels.com/photos/9837044/pexels-photo-9837044.jpeg?auto=compress&cs=tinysrgb&w=1600");
-}
-body.weather-fog {
-  background-image: linear-gradient(160deg, rgba(35, 40, 45, 0.35), rgba(25, 30, 35, 0.5)),
-    url("https://images.pexels.com/photos/1367192/pexels-photo-1367192.jpeg?auto=compress&cs=tinysrgb&w=1600");
-}
+/* 背景改成固定的自訂圖片，不再依天氣狀態切換不同照片 */
+body.weather-sunny-day,
+body.weather-sunny-night,
+body.weather-cloudy-day,
+body.weather-cloudy-night,
+body.weather-overcast,
+body.weather-rain,
+body.weather-thunder,
+body.weather-fog,
 body.weather-snow {
-  background-image: linear-gradient(160deg, rgba(20, 35, 55, 0.35), rgba(15, 28, 45, 0.5)),
-    url("https://images.pexels.com/photos/38196911/pexels-photo-38196911.jpeg?auto=compress&cs=tinysrgb&w=1600");
+  background-image: url("backgrounds/app-bg.jpg");
 }
 
 .app {
