@@ -83,6 +83,7 @@
         <button class="tab-btn" data-tab="map">地圖選點</button>
         <button class="tab-btn" data-tab="alerts">⚠️ 警特報<span id="alertTabBadge" class="alert-tab-badge hidden">0</span></button>
         <button class="tab-btn" data-tab="typhoon">🌀 颱風</button>
+        <button class="tab-btn" data-tab="settings">⚙️ 設定</button>
       </nav>
 
       <section id="forecastPanel" class="tab-panel active">
@@ -725,6 +726,13 @@
           <div id="typhoonProbBands" class="typhoon-prob-bands"></div>
         </div>
       </section>
+
+      <section id="settingsPanel" class="tab-panel">
+        <div class="settings-page">
+          <h2 class="settings-page-title">設定</h2>
+          <div id="settingsAccountSlot"></div>
+        </div>
+      </section>
     </main>
 
     <nav class="bottom-nav" id="bottomNav">
@@ -771,15 +779,7 @@
       <button class="tools-menu-item" data-tab="alerts">⚠️ 警特報<span id="toolsAlertBadge" class="alert-tab-badge hidden">0</span></button>
     </div>
 
-    <div id="settingsMenuOverlay" class="tools-menu-overlay hidden"></div>
-    <div id="settingsMenu" class="tools-menu settings-menu hidden">
-      <div class="tools-menu-header">
-        <span class="tools-menu-title">設定</span>
-        <button id="settingsMenuCloseBtn" class="tools-menu-close" type="button" aria-label="關閉">✕</button>
-      </div>
-      <div id="settingsAccountSlot"></div>
     </div>
-  </div>
 
   <script src="web-shim.js"></script>
 </body>
