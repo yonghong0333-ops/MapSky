@@ -331,6 +331,7 @@ button:hover { background: var(--accent-hover); }
   justify-content: space-between;
   gap: 10px;
 }
+.main-header.hidden { display: none; }
 .main-header h2 {
   font-size: 24px;
   color: var(--text-main);
