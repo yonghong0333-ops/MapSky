@@ -1759,16 +1759,16 @@ button:hover { background: var(--accent-hover); }
 }
 .sidebar-settings-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-/* 設定面板背景改成跟首頁一樣直接透出天氣照片，不要整片不透明白色卡片；
-   裡面的內容（標題列、帳號資訊）改用跟首頁其他資訊卡一樣的白色小卡片呈現，
-   視覺上比較一致，不會像現在這樣整片白色貼在首頁上面。
-   桌面版維持原本浮動小卡片的樣子，見下面 @media 覆寫回不透明。 */
+/* 設定面板改成完全獨立的畫面：不透明的照片背景，不會讓底下首頁正在
+   顯示的即時內容（藍色天氣卡、預報卡等）透出來穿幫。標題列、帳號資訊
+   維持用跟首頁其他資訊卡一樣的白色小卡片呈現。
+   桌面版維持原本浮動小卡片的樣子，見下面 @media 覆寫。 */
 .settings-menu.open {
-  background: transparent;
+  background: linear-gradient(160deg, rgba(20, 40, 70, 0.55), rgba(10, 20, 40, 0.7)),
+    url("https://images.pexels.com/photos/4435239/pexels-photo-4435239.jpeg?auto=compress&cs=tinysrgb&w=1600");
+  background-size: cover;
+  background-position: center;
   box-shadow: none;
-}
-#settingsMenuOverlay.open {
-  background: transparent;
 }
 .settings-menu .tools-menu-header {
   background: var(--card-bg);
