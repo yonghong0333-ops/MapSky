@@ -1903,6 +1903,7 @@ function renderAlertsBadge(alerts) {
   const toolsBadge = el("toolsAlertBadge");
   const banner = el("alertBanner");
   const bannerText = el("alertBannerText");
+  const bottomNavWarningBtn = document.querySelector('.bottom-nav-btn[data-bottom="typhoon"]');
 
   if (activeCount > 0) {
     badge.textContent = String(activeCount);
@@ -1913,10 +1914,19 @@ function renderAlertsBadge(alerts) {
     }
     banner.classList.remove("hidden");
     bannerText.textContent = `目前有 ${activeCount} 則警特報生效中`;
+    if (bottomNavWarningBtn) bottomNavWarningBtn.classList.remove("hidden");
   } else {
     badge.classList.add("hidden");
     if (toolsBadge) toolsBadge.classList.add("hidden");
     banner.classList.add("hidden");
+    // 沒有生效中的警特報就把底部導覽列這顆按鈕藏起來；如果使用者當下正好
+    // 停在警特報/颱風分頁，先切回首頁，不要留在一個已經被藏起來入口的分頁。
+    if (bottomNavWarningBtn) {
+      bottomNavWarningBtn.classList.add("hidden");
+      if (bottomNavWarningBtn.classList.contains("active") && window.activateBottomNavKey) {
+        window.activateBottomNavKey("home");
+      }
+    }
   }
 }
 
