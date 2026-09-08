@@ -1766,6 +1766,51 @@ button:hover { background: var(--accent-hover); }
   flex-wrap: wrap;
 }
 
+/* ---- 後台管理 ---- */
+.admin-status-empty { color: var(--text-muted); font-size: 14px; }
+.admin-status-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.admin-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
+}
+.admin-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.admin-card-body {
+  font-size: 14px;
+  color: var(--text-main);
+  line-height: 1.7;
+  margin: 0;
+}
+.admin-provider-row,
+.admin-cache-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--card-border);
+}
+.admin-provider-row:last-child,
+.admin-cache-row:last-child { border-bottom: none; }
+.admin-ok { color: #1a9c5c; font-weight: 600; }
+.admin-off { color: var(--text-faint); }
+#adminBottomBtn.hidden { display: none; }
+#adminTabBtn.hidden { display: none; }
+#adminStatusContent.hidden { display: none; }
+
 /* 更小的手機（如 iPhone SE）再收斂一次間距與字級 */
 @media (max-width: 380px) {
   .sidebar { padding: 12px; }
