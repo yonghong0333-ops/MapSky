@@ -1986,7 +1986,7 @@ function activateBottomNavKey(key) {
     window.setTimeout(() => {
       // 第二段：彈性收縮回新按鈕的實際大小
       indicator.style.transition =
-        "left 0.24s cubic-bezier(.34,1.56,.64,1), width 0.24s cubic-bezier(.34,1.56,.64,1)";
+        "left 0.24s cubic-bezier(.32,2.2,.6,1), width 0.24s cubic-bezier(.32,2.2,.6,1)";
       indicator.style.left = target.left + "px";
       indicator.style.width = target.width + "px";
     }, 150);
