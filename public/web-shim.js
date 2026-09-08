@@ -111,27 +111,18 @@
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  // ---------------- 設定面板（帳號資訊 + 登出）----------------
-  // 側欄的「⚙️ 帳號 / 設定」按鈕跟手機底部導覽列的「設定」按鈕，
-  // 共用同一個面板；renderer.js 載入後會透過 window.openSettingsMenu 呼叫。
-  function openSettingsMenu() {
-    el("settingsMenu").classList.add("open");
-    el("settingsMenuOverlay").classList.add("open");
-  }
-  function closeSettingsMenu() {
-    el("settingsMenu").classList.remove("open");
-    el("settingsMenuOverlay").classList.remove("open");
-  }
-  window.openSettingsMenu = openSettingsMenu;
-  window.closeSettingsMenu = closeSettingsMenu;
-
+  // ---------------- 設定入口（帳號資訊 + 登出）----------------
+  // 現在「設定」已經是跟其他分頁（未來 7 天／溫度趨勢圖…）同一種真正的
+  // tab-panel，不再是另外浮出來的面板。側欄的「⚙️ 帳號 / 設定」按鈕
+  // 這裡只是幫忙點一下對應的分頁按鈕，換頁邏輯統一交給 renderer.js 處理。
   function initSettingsMenu() {
     const btn = el("sidebarSettingsBtn");
-    if (btn) btn.addEventListener("click", openSettingsMenu);
-    const overlay = el("settingsMenuOverlay");
-    if (overlay) overlay.addEventListener("click", closeSettingsMenu);
-    const closeBtn = el("settingsMenuCloseBtn");
-    if (closeBtn) closeBtn.addEventListener("click", closeSettingsMenu);
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const tabBtn = document.querySelector('.tab-btn[data-tab="settings"]');
+        if (tabBtn) tabBtn.click();
+      });
+    }
   }
 
   const LOGIN_ERROR_LABEL = {
