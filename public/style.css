@@ -646,6 +646,7 @@ button:hover { background: var(--accent-hover); }
   appearance: none;
   outline: none;
 }
+.bottom-nav-btn.hidden { display: none; }
 .bottom-nav-btn,
 .bottom-nav-btn:focus,
 .bottom-nav-btn:focus-visible,
