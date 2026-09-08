@@ -598,6 +598,62 @@ async function loadWeeklyForecast(label) {
   }
 }
 
+// ---------------- 後台管理 ----------------
+// 只有 ADMIN_IDS 白名單內的帳號打得到 /api/weather/status?admin=1，
+// 一般使用者這支 API 會拿到 403，這裡單純負責把資料畫出來。
+let adminStatusLoaded = false;
+async function loadAdminStatus() {
+  if (adminStatusLoaded) return; // 系統狀態不用一直重打，開分頁時查一次就好
+  const emptyEl = el("adminStatusEmpty");
+  const contentEl = el("adminStatusContent");
+  try {
+    const resp = await fetch("/api/weather/status?admin=1");
+    if (!resp.ok) {
+      if (emptyEl) emptyEl.textContent = resp.status === 403 ? "你的帳號沒有後台管理權限。" : "載入失敗，請重新整理再試一次。";
+      return;
+    }
+    const data = await resp.json();
+    adminStatusLoaded = true;
+
+    const meEl = el("adminMeInfo");
+    if (meEl) meEl.textContent = `${data.me.name}（${data.me.provider}／id: ${data.me.id}）`;
+
+    const sysEl = el("adminSystemInfo");
+    if (sysEl) {
+      const lines = [
+        `CWA 授權碼：${data.hasKey ? "已設定 ✅" : "尚未設定 ❌"}`,
+        `目前部署版本：${data.commit || "（本機開發，沒有 commit 資訊）"}`,
+        `伺服器區域：${data.region || "（未知）"}`,
+      ];
+      sysEl.innerHTML = lines.join("<br>");
+    }
+
+    const providersEl = el("adminProvidersList");
+    if (providersEl) {
+      providersEl.innerHTML = data.providers
+        .map((p) => `<div class="admin-provider-row"><span>${p.label}</span><span class="${p.configured ? "admin-ok" : "admin-off"}">${p.configured ? "已設定" : "未設定"}</span></div>`)
+        .join("");
+    }
+
+    const cacheEl = el("adminCacheList");
+    if (cacheEl) {
+      cacheEl.innerHTML = Object.entries(data.cache)
+        .map(([key, info]) => {
+          const label = info.exists
+            ? `${info.ageSeconds} 秒前（${info.fresh ? "新鮮" : "已過期"}）`
+            : "尚無快取";
+          return `<div class="admin-cache-row"><span>${key}</span><span>${label}</span></div>`;
+        })
+        .join("");
+    }
+
+    if (emptyEl) emptyEl.classList.add("hidden");
+    if (contentEl) contentEl.classList.remove("hidden");
+  } catch (e) {
+    if (emptyEl) emptyEl.textContent = "載入失敗，請重新整理再試一次。";
+  }
+}
+
 // 每分鐘重新算一次倒數剩餘時間，不用手動重新整理頁面。
 // sunTimesCache 已經在記憶體裡了，這裡只是重新跑一次算式更新畫面文字，不會再打 API。
 setInterval(() => {
@@ -1059,18 +1115,24 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
       map: "mapPanel",
       alerts: "alertsPanel",
       typhoon: "typhoonPanel",
+      admin: "adminPanel",
       settings: "settingsPanel",
     };
     const target = panelMap[btn.dataset.tab] || "forecastPanel";
     el(target).classList.add("active");
-    // 「設定」跟城市無關，共用的頁首（城市名稱 + 加入收藏）不應該留在這個畫面上
+    // 「設定」「後台管理」都跟城市無關，共用的頁首（城市名稱 + 加入收藏）
+    // 不應該留在這兩個畫面上
+    const hideHeaderTabs = ["settings", "admin"];
     const mainHeader = document.querySelector(".main-header");
-    if (mainHeader) mainHeader.classList.toggle("hidden", btn.dataset.tab === "settings");
+    if (mainHeader) mainHeader.classList.toggle("hidden", hideHeaderTabs.includes(btn.dataset.tab));
     if (btn.dataset.tab === "compare") {
       renderCompareView(Array.from(selectedCompare));
     }
     if (btn.dataset.tab === "weekly" && currentCity && currentCity.label) {
       loadWeeklyForecast(currentCity.label);
+    }
+    if (btn.dataset.tab === "admin") {
+      loadAdminStatus();
     }
     if (btn.dataset.tab === "alerts") {
       loadAlerts();
@@ -1080,7 +1142,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
       loadAlerts();
       loadTyphoonProbability();
     }
-    const bottomMap = { forecast: "home", typhoon: "typhoon", alerts: "typhoon", settings: "settings" };
+    const bottomMap = { forecast: "home", typhoon: "typhoon", alerts: "typhoon", admin: "admin", settings: "settings" };
     setBottomNavActive(bottomMap[btn.dataset.tab] || "tools");
   });
 });
@@ -1924,6 +1986,8 @@ function activateBottomNavKey(key) {
     document.querySelector('.tab-btn[data-tab="alerts"]').click();
   } else if (key === "settings") {
     document.querySelector('.tab-btn[data-tab="settings"]').click();
+  } else if (key === "admin") {
+    document.querySelector('.tab-btn[data-tab="admin"]').click();
   }
 }
 
