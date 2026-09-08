@@ -57,6 +57,32 @@ function writeCache(name, data) {
     /* /tmp 不可寫就算了，不影響回應 */
   }
 }
+// 給後台管理看的快取診斷資訊：不管新鮮不新鮮，只要檔案還在就回報存了多久，
+// 方便確認「怎麼資料一直沒更新」是不是快取卡住了。
+function cacheInfo(name) {
+  try {
+    const raw = JSON.parse(fs.readFileSync(tmpPath(name), "utf-8"));
+    if (raw && raw.fetchedAt) {
+      const ageMs = Date.now() - raw.fetchedAt;
+      return {
+        exists: true,
+        fetchedAt: new Date(raw.fetchedAt).toISOString(),
+        ageSeconds: Math.round(ageMs / 1000),
+        fresh: ageMs < CACHE_TTL_MS,
+      };
+    }
+  } catch {
+    /* 這個 warm instance 沒有這份快取，可能是冷啟動或還沒查過 */
+  }
+  return { exists: false };
+}
+function getCacheStatus() {
+  const today = new Date().toISOString().slice(0, 10);
+  const keys = ["all", "alerts", "typhoon-prob", `sun-${today}`, `moon-${today}`, `weekly-${today}`];
+  const status = {};
+  for (const k of keys) status[k] = cacheInfo(k);
+  return status;
+}
 
 // ---------- 一般天氣預報 (F-C0032-001) ----------
 async function fetchCityFromCwa(apiKey, label) {
@@ -716,4 +742,5 @@ module.exports = {
   windSpeedToBeaufort,
   getMoonPhaseImage,
   getUvIndexObservation,
+  getCacheStatus,
 };
