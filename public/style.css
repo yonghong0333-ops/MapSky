@@ -1727,6 +1727,23 @@ button:hover { background: var(--accent-hover); }
     overflow: hidden;
     box-shadow: 0 8px 24px rgba(20, 26, 40, 0.18);
   }
+  /* 桌面版本來就是小卡片形式，不用像手機版那樣透出照片，維持原本不透明樣子 */
+  .settings-menu.open {
+    background: var(--card-bg);
+    box-shadow: 0 8px 24px rgba(20, 26, 40, 0.18);
+  }
+  #settingsMenuOverlay.open {
+    background: rgba(20, 26, 40, 0.32);
+  }
+  .settings-menu .tools-menu-header {
+    margin: 0;
+    box-shadow: none;
+    border-bottom: 1px solid var(--card-border);
+  }
+  .settings-menu .auth-bar {
+    box-shadow: none;
+    border-radius: 0;
+  }
 }
 
 .sidebar-settings-btn {
@@ -1742,12 +1759,38 @@ button:hover { background: var(--accent-hover); }
 }
 .sidebar-settings-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-.settings-menu .auth-bar { padding: 0; }
+/* 設定面板背景改成跟首頁一樣直接透出天氣照片，不要整片不透明白色卡片；
+   裡面的內容（標題列、帳號資訊）改用跟首頁其他資訊卡一樣的白色小卡片呈現，
+   視覺上比較一致，不會像現在這樣整片白色貼在首頁上面。
+   桌面版維持原本浮動小卡片的樣子，見下面 @media 覆寫回不透明。 */
+.settings-menu.open {
+  background: transparent;
+  box-shadow: none;
+}
+#settingsMenuOverlay.open {
+  background: transparent;
+}
+.settings-menu .tools-menu-header {
+  background: var(--card-bg);
+  border-radius: 14px;
+  margin: 12px 16px 0;
+  border-bottom: none;
+  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.12);
+}
+.settings-menu #settingsAccountSlot {
+  padding: 12px 16px;
+}
+.settings-menu .auth-bar {
+  background: var(--card-bg);
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.12);
+}
 .settings-menu .auth-user {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 16px;
+  padding: 0;
   flex-wrap: wrap;
 }
 
