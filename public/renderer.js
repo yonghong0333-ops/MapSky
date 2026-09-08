@@ -1059,6 +1059,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
       map: "mapPanel",
       alerts: "alertsPanel",
       typhoon: "typhoonPanel",
+      settings: "settingsPanel",
     };
     const target = panelMap[btn.dataset.tab] || "forecastPanel";
     el(target).classList.add("active");
@@ -1076,7 +1077,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
       loadAlerts();
       loadTyphoonProbability();
     }
-    const bottomMap = { forecast: "home", typhoon: "typhoon", alerts: "typhoon" };
+    const bottomMap = { forecast: "home", typhoon: "typhoon", alerts: "typhoon", settings: "settings" };
     setBottomNavActive(bottomMap[btn.dataset.tab] || "tools");
   });
 });
@@ -1893,9 +1894,8 @@ if (locateBtnEl) locateBtnEl.addEventListener("click", closeSidebarDrawer);
 
 // ---------------- 底部導覽列 ----------------
 // 對應參考設計的手機底部導覽列（拿掉「地震」，目前沒有這個功能）。
-// 「首頁」「颱風」直接對應原本就有的分頁按鈕；「工具」先捲動到分頁列讓使用者
-// 自己挑（溫度趨勢圖／多城市比較／地圖選點）；「設定」目前還沒有實際設定頁，
-// 先提示開發中，避免點了沒反應。
+// 「首頁」「颱風」「設定」都直接對應分頁按鈕；「工具」先捲動到分頁列
+// 讓使用者自己挑（未來 7 天／溫度趨勢圖／多城市比較／地圖選點）。
 function setBottomNavActive(key) {
   document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.bottom === key);
@@ -1908,12 +1908,10 @@ function setBottomNavActive(key) {
 // 不會滑過去時每顆分頁的內容都被觸發一次。
 function activateBottomNavKey(key) {
   if (key === "tools") {
-    if (window.closeSettingsMenu) window.closeSettingsMenu();
     toggleToolsMenu();
     return;
   }
   closeToolsMenu();
-  if (key !== "settings" && window.closeSettingsMenu) window.closeSettingsMenu();
   setBottomNavActive(key);
   if (key === "home") {
     document.querySelector('.tab-btn[data-tab="forecast"]').click();
@@ -1922,7 +1920,7 @@ function activateBottomNavKey(key) {
     // 先看已發佈的警特報清單，想看颱風地圖詳情的話從清單裡點進去
     document.querySelector('.tab-btn[data-tab="alerts"]').click();
   } else if (key === "settings") {
-    if (window.openSettingsMenu) window.openSettingsMenu();
+    document.querySelector('.tab-btn[data-tab="settings"]').click();
   }
 }
 
