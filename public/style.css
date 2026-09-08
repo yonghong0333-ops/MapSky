@@ -1415,10 +1415,21 @@ button:hover { background: var(--accent-hover); }
   color: #fff;
   border: none;
   border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 12px;
+  padding: 5px 8px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
+.auth-mid-copy-icon {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+}
+.auth-mid-copy-icon.hidden { display: none; }
+/* 複製圖示原本是黑色線稿，套在藍色按鈕上要反白；打勾圖示本來就是綠色，
+   不用套濾鏡，保留它原本的顏色比較看得出「成功」的感覺。 */
+#authMidCopyIconDefault { filter: brightness(0) invert(1); }
 .auth-mid-hint {
   font-size: 11px;
   color: var(--text-faint);

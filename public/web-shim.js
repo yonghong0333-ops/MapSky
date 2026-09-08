@@ -92,7 +92,10 @@
       ? `<div class="auth-mid-row">
           <span class="auth-mid-label">我的會員 ID（MID）</span>
           <span class="auth-mid-value" id="authMidValue">${escapeHtml(session.memberId)}</span>
-          <button id="authMidCopyBtn" class="auth-mid-copy-btn" type="button">複製</button>
+          <button id="authMidCopyBtn" class="auth-mid-copy-btn" type="button">
+          <img id="authMidCopyIconDefault" src="icons/copy-icon.png" class="auth-mid-copy-icon" alt="複製" />
+          <img id="authMidCopyIconDone" src="icons/copied-check.png" class="auth-mid-copy-icon hidden" alt="已複製" />
+        </button>
         </div>
         <p class="auth-mid-hint">想申請成為管理員的話，把這組 ID 複製後傳給管理員就可以了。</p>`
       : "";
@@ -104,12 +107,18 @@
       </div>
       ${midRow}`;
     const copyBtn = bar.querySelector("#authMidCopyBtn");
-    if (copyBtn) {
+    const copyIconDefault = bar.querySelector("#authMidCopyIconDefault");
+    const copyIconDone = bar.querySelector("#authMidCopyIconDone");
+    if (copyBtn && copyIconDefault && copyIconDone) {
       copyBtn.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(session.memberId);
-          copyBtn.textContent = "已複製";
-          setTimeout(() => { copyBtn.textContent = "複製"; }, 1500);
+          copyIconDefault.classList.add("hidden");
+          copyIconDone.classList.remove("hidden");
+          setTimeout(() => {
+            copyIconDone.classList.add("hidden");
+            copyIconDefault.classList.remove("hidden");
+          }, 1500);
         } catch (e) {
           /* 複製失敗就算了，使用者還是能自己手動選取文字複製 */
         }
