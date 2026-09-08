@@ -1811,6 +1811,77 @@ button:hover { background: var(--accent-hover); }
 #adminTabBtn.hidden { display: none; }
 #adminStatusContent.hidden { display: none; }
 
+.admin-card-hint {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin: 0 0 10px;
+  line-height: 1.6;
+}
+.admin-list-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--card-border);
+}
+.admin-list-row:last-child { border-bottom: none; }
+.admin-list-empty { font-size: 13px; color: var(--text-faint); }
+.admin-list-tag {
+  font-size: 11px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.admin-revoke-btn {
+  flex-shrink: 0;
+  background: #fdecea;
+  color: #c0392b;
+  border: 1px solid #f5b7b1;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.admin-assign-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--card-border);
+}
+.admin-assign-form select,
+.admin-assign-form input {
+  flex: 1;
+  min-width: 100px;
+  padding: 8px 10px;
+  border: 1px solid var(--input-border, var(--card-border));
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--input-bg, var(--card-bg));
+  color: var(--text-main);
+}
+.admin-assign-form button {
+  flex-basis: 100%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-assign-msg {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 8px 0 0;
+  min-height: 1.4em;
+}
+#adminManageCard.hidden { display: none; }
+
 /* 更小的手機（如 iPhone SE）再收斂一次間距與字級 */
 @media (max-width: 380px) {
   .sidebar { padding: 12px; }

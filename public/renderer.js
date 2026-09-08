@@ -649,9 +649,83 @@ async function loadAdminStatus() {
 
     if (emptyEl) emptyEl.classList.add("hidden");
     if (contentEl) contentEl.classList.remove("hidden");
+
+    // 管理員名單：只有超級管理員看得到跟能操作，一般管理員/一般使用者不會看到這張卡片
+    renderAdminList(data);
   } catch (e) {
     if (emptyEl) emptyEl.textContent = "載入失敗，請重新整理再試一次。";
   }
+}
+
+// 管理員名單顯示 + 指派/踢除。只有超級管理員能操作（後端也一定會再檢查一次，
+// 這裡沒判斷成功也不代表繞得過去，是體驗上先擋一次而已）。
+function renderAdminList(data) {
+  const card = el("adminManageCard");
+  if (!card) return;
+  if (!data.isSuperAdmin || !data.admins) {
+    card.classList.add("hidden");
+    return;
+  }
+  card.classList.remove("hidden");
+
+  const listEl = el("adminList");
+  if (listEl) {
+    const superRows = data.admins.superAdmins
+      .map((key) => `<div class="admin-list-row"><span>👑 ${key}</span><span class="admin-list-tag">超級管理員・不可移除</span></div>`)
+      .join("");
+    const dynamicRows = data.admins.dynamicAdmins
+      .map(
+        (a) =>
+          `<div class="admin-list-row">
+            <span>🛡️ ${a.name}（${a.key}）</span>
+            <button class="admin-revoke-btn" data-provider="${a.provider}" data-id="${a.id}" type="button">踢除</button>
+          </div>`
+      )
+      .join("");
+    listEl.innerHTML = superRows + dynamicRows || "<p class=\"admin-list-empty\">目前沒有管理員</p>";
+
+    listEl.querySelectorAll(".admin-revoke-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm(`確定要把這個帳號的管理員資格拿掉嗎？`)) return;
+        await callAdminAction("revoke", { provider: btn.dataset.provider, id: btn.dataset.id });
+      });
+    });
+  }
+}
+
+async function callAdminAction(action, body) {
+  const msgEl = el("adminAssignMsg");
+  try {
+    const resp = await fetch(`/api/weather/status?admin=1&action=${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      if (msgEl) msgEl.textContent = `失敗：${data.reason || "未知錯誤"}`;
+      return;
+    }
+    if (msgEl) msgEl.textContent = action === "assign" ? "指派成功" : "已踢除";
+    adminStatusLoaded = false; // 名單變了，下次要重新載入
+    loadAdminStatus();
+  } catch (e) {
+    if (msgEl) msgEl.textContent = "失敗：網路錯誤";
+  }
+}
+
+const adminAssignForm = el("adminAssignForm");
+if (adminAssignForm) {
+  adminAssignForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const provider = el("adminAssignProvider").value;
+    const id = el("adminAssignId").value.trim();
+    const name = el("adminAssignName").value.trim();
+    if (!id) return;
+    await callAdminAction("assign", { provider, id, name });
+    el("adminAssignId").value = "";
+    el("adminAssignName").value = "";
+  });
 }
 
 // 每分鐘重新算一次倒數剩餘時間，不用手動重新整理頁面。

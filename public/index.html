@@ -749,6 +749,25 @@
               <h3 class="admin-card-title">資料快取狀態</h3>
               <div id="adminCacheList" class="admin-cache-list"></div>
             </div>
+            <div id="adminManageCard" class="admin-card hidden">
+              <h3 class="admin-card-title">管理員名單</h3>
+              <p class="admin-card-hint">超級管理員固定在伺服器環境變數裡，誰都踢不掉；一般管理員可以在這裡直接指派或踢除。</p>
+              <div id="adminList" class="admin-list"></div>
+              <form id="adminAssignForm" class="admin-assign-form">
+                <select id="adminAssignProvider">
+                  <option value="google">Google</option>
+                  <option value="facebook">Facebook</option>
+                  <option value="microsoft">Microsoft</option>
+                  <option value="discord">Discord</option>
+                  <option value="github">GitHub</option>
+                  <option value="yahoo">Yahoo</option>
+                </select>
+                <input id="adminAssignId" type="text" placeholder="該登入方式的使用者 id" required />
+                <input id="adminAssignName" type="text" placeholder="備註名稱（選填）" />
+                <button type="submit">指派為管理員</button>
+              </form>
+              <p id="adminAssignMsg" class="admin-assign-msg"></p>
+            </div>
           </div>
         </div>
       </section>
