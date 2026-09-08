@@ -1727,23 +1727,6 @@ button:hover { background: var(--accent-hover); }
     overflow: hidden;
     box-shadow: 0 8px 24px rgba(20, 26, 40, 0.18);
   }
-  /* 桌面版本來就是小卡片形式，不用像手機版那樣透出照片，維持原本不透明樣子 */
-  .settings-menu.open {
-    background: var(--card-bg);
-    box-shadow: 0 8px 24px rgba(20, 26, 40, 0.18);
-  }
-  #settingsMenuOverlay.open {
-    background: rgba(20, 26, 40, 0.32);
-  }
-  .settings-menu .tools-menu-header {
-    margin: 0;
-    box-shadow: none;
-    border-bottom: 1px solid var(--card-border);
-  }
-  .settings-menu .auth-bar {
-    box-shadow: none;
-    border-radius: 0;
-  }
 }
 
 .sidebar-settings-btn {
@@ -1759,38 +1742,26 @@ button:hover { background: var(--accent-hover); }
 }
 .sidebar-settings-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-/* 設定面板改成完全獨立的畫面：不透明的照片背景，不會讓底下首頁正在
-   顯示的即時內容（藍色天氣卡、預報卡等）透出來穿幫。標題列、帳號資訊
-   維持用跟首頁其他資訊卡一樣的白色小卡片呈現。
-   桌面版維持原本浮動小卡片的樣子，見下面 @media 覆寫。 */
-.settings-menu.open {
-  background: linear-gradient(160deg, rgba(20, 40, 70, 0.55), rgba(10, 20, 40, 0.7)),
-    url("https://images.pexels.com/photos/4435239/pexels-photo-4435239.jpeg?auto=compress&cs=tinysrgb&w=1600");
-  background-size: cover;
-  background-position: center;
-  box-shadow: none;
+/* 「設定」現在是跟其他分頁一樣的真正 tab-panel，不再是浮出來的面板，
+   所以樣式也比照其他分頁：標題 + 白色資訊卡（帳號資訊），不用另外處理
+   遮罩背景、開關動畫這些浮動面板才需要的東西。 */
+.settings-page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0 0 16px;
 }
-.settings-menu .tools-menu-header {
+.settings-page .auth-bar {
   background: var(--card-bg);
-  border-radius: 14px;
-  margin: 12px 16px 0;
-  border-bottom: none;
-  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.12);
-}
-.settings-menu #settingsAccountSlot {
-  padding: 12px 16px;
-}
-.settings-menu .auth-bar {
-  background: var(--card-bg);
+  border: 1px solid var(--card-border);
   border-radius: 14px;
   padding: 14px 16px;
-  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.12);
+  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
 }
-.settings-menu .auth-user {
+.settings-page .auth-user {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0;
   flex-wrap: wrap;
 }
 
