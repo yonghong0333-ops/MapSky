@@ -83,6 +83,7 @@
         <button class="tab-btn" data-tab="map">地圖選點</button>
         <button class="tab-btn" data-tab="alerts">⚠️ 警特報<span id="alertTabBadge" class="alert-tab-badge hidden">0</span></button>
         <button class="tab-btn" data-tab="typhoon">🌀 颱風</button>
+        <button class="tab-btn hidden" id="adminTabBtn" data-tab="admin">🛡️ 後台管理</button>
         <button class="tab-btn" data-tab="settings">⚙️ 設定</button>
       </nav>
 
@@ -727,6 +728,31 @@
         </div>
       </section>
 
+      <section id="adminPanel" class="tab-panel">
+        <div class="settings-page">
+          <h2 class="settings-page-title">🛡️ 後台管理</h2>
+          <p id="adminStatusEmpty" class="admin-status-empty">載入中…</p>
+          <div id="adminStatusContent" class="admin-status-content hidden">
+            <div class="admin-card">
+              <h3 class="admin-card-title">目前登入</h3>
+              <p id="adminMeInfo" class="admin-card-body"></p>
+            </div>
+            <div class="admin-card">
+              <h3 class="admin-card-title">系統狀態</h3>
+              <p id="adminSystemInfo" class="admin-card-body"></p>
+            </div>
+            <div class="admin-card">
+              <h3 class="admin-card-title">登入方式設定狀態</h3>
+              <div id="adminProvidersList" class="admin-providers-list"></div>
+            </div>
+            <div class="admin-card">
+              <h3 class="admin-card-title">資料快取狀態</h3>
+              <div id="adminCacheList" class="admin-cache-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="settingsPanel" class="tab-panel">
         <div class="settings-page">
           <h2 class="settings-page-title">設定</h2>
@@ -757,6 +783,12 @@
           <img class="tools-icon tools-icon-inactive" src="icons/tools-closed.png" alt="" aria-hidden="true" />
         </span>
         <span class="bottom-nav-label sr-only">工具</span>
+      </button>
+      <button class="bottom-nav-btn hidden" id="adminBottomBtn" data-bottom="admin" type="button" aria-label="後台管理">
+        <span class="bottom-nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.4-3 7.5-7 9-4-1.5-7-4.6-7-9V6l7-3z"/><path d="M9.5 12.2l1.8 1.8 3.2-3.6"/></svg>
+        </span>
+        <span class="bottom-nav-label sr-only">後台管理</span>
       </button>
       <button class="bottom-nav-btn" data-bottom="settings" type="button" aria-label="設定">
         <span class="bottom-nav-icon">
