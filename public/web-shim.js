@@ -171,6 +171,15 @@
           });
         }
       }
+      // 只有 ADMIN_IDS 白名單內的帳號才會看到「後台管理」按鈕。這裡只是
+      // 決定要不要「顯示」，真正的權限檢查在後端 /api/weather/status?admin=1
+      // 那邊做，藏起來只是體驗上不要讓一般使用者看到用不到的按鈕。
+      if (session.isAdmin) {
+        const adminBtn = el("adminBottomBtn");
+        if (adminBtn) adminBtn.classList.remove("hidden");
+        const adminTab = el("adminTabBtn");
+        if (adminTab) adminTab.classList.remove("hidden");
+      }
       initSettingsMenu();
       startAppAfterLogin();
       return;
