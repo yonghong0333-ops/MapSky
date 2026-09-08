@@ -1063,6 +1063,9 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     };
     const target = panelMap[btn.dataset.tab] || "forecastPanel";
     el(target).classList.add("active");
+    // 「設定」跟城市無關，共用的頁首（城市名稱 + 加入收藏）不應該留在這個畫面上
+    const mainHeader = document.querySelector(".main-header");
+    if (mainHeader) mainHeader.classList.toggle("hidden", btn.dataset.tab === "settings");
     if (btn.dataset.tab === "compare") {
       renderCompareView(Array.from(selectedCompare));
     }
