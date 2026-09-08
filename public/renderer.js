@@ -2001,6 +2001,10 @@ function activateBottomNavKey(key) {
     return activeBtn ? activeBtn.dataset.bottom : "home";
   }
 
+  // 立刻先定位一次（不要只靠 window.onload——如果這段程式執行的時候
+  // load 事件早就已經觸發過，監聽器就永遠不會被呼叫到，指示器會一直是
+  // opacity:0 完全看不到）。DOM 這時候已經解析完了，量測位置沒問題。
+  moveTo(currentActiveKey(), false);
   window.addEventListener("load", () => moveTo(currentActiveKey(), false));
   window.addEventListener("resize", () => moveTo(currentActiveKey(), false));
 })();
