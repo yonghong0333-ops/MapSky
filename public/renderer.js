@@ -718,13 +718,11 @@ const adminAssignForm = el("adminAssignForm");
 if (adminAssignForm) {
   adminAssignForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const provider = el("adminAssignProvider").value;
-    const id = el("adminAssignId").value.trim();
-    const name = el("adminAssignName").value.trim();
-    if (!id) return;
-    await callAdminAction("assign", { provider, id, name });
-    el("adminAssignId").value = "";
-    el("adminAssignName").value = "";
+    const midInput = el("adminAssignMid");
+    const memberId = midInput.value.trim();
+    if (!memberId) return;
+    await callAdminAction("assign", { memberId });
+    midInput.value = "";
   });
 }
 

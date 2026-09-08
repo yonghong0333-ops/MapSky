@@ -8,6 +8,7 @@ const {
   addDynamicAdmin,
   removeDynamicAdmin,
 } = require("../_lib/admin");
+const { resolveMemberId } = require("../_lib/member-id");
 const { PROVIDERS, isConfigured } = require("../_lib/providers");
 
 // 一般登入使用者打這支只會拿到 hasKey（給前端判斷要不要顯示「尚未設定授權碼」提示）。
@@ -31,9 +32,11 @@ module.exports = async function handler(req, res) {
     const body = req.body || {};
     try {
       if (action === "assign") {
-        const { provider, id, name } = body;
-        if (!provider || !id) return res.status(400).json({ ok: false, reason: "missing-provider-or-id" });
-        const list = await addDynamicAdmin({ provider, id, name });
+        const { memberId } = body;
+        if (!memberId) return res.status(400).json({ ok: false, reason: "missing-member-id" });
+        const info = await resolveMemberId(memberId);
+        if (!info) return res.status(404).json({ ok: false, reason: "member-id-not-found" });
+        const list = await addDynamicAdmin(info);
         return res.status(200).json({ ok: true, admins: list });
       }
       if (action === "revoke") {

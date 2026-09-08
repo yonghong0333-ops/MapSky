@@ -1,6 +1,7 @@
 const { parseCookies } = require("../_lib/cookies");
 const { verify } = require("../_lib/jwt");
 const { isAdminSession } = require("../_lib/admin");
+const { getOrCreateMemberId } = require("../_lib/member-id");
 
 module.exports = async function handler(req, res) {
   const cookies = parseCookies(req);
@@ -11,5 +12,6 @@ module.exports = async function handler(req, res) {
     provider: payload.provider,
     profile: payload.profile,
     isAdmin: await isAdminSession(payload),
+    memberId: await getOrCreateMemberId(payload),
   });
 };

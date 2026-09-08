@@ -1382,6 +1382,41 @@ button:hover { background: var(--accent-hover); }
 }
 .auth-logout-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
 
+.auth-mid-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--card-border);
+  flex-wrap: wrap;
+}
+.auth-mid-label { font-size: 12px; color: var(--text-faint); }
+.auth-mid-value {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-main);
+  background: var(--sidebar-bg, rgba(0, 0, 0, 0.05));
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.auth-mid-copy-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.auth-mid-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin: 4px 0 0;
+}
+
 /* ================================================================
    手機版排版（RWD）
    桌面版是用 .app { height:100vh } + body { overflow:hidden } 做固定

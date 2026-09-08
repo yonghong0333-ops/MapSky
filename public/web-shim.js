@@ -88,12 +88,33 @@
     const bar = document.createElement("div");
     bar.id = "authBar";
     bar.className = "auth-bar";
+    const midRow = session.memberId
+      ? `<div class="auth-mid-row">
+          <span class="auth-mid-label">我的會員 ID（MID）</span>
+          <span class="auth-mid-value" id="authMidValue">${escapeHtml(session.memberId)}</span>
+          <button id="authMidCopyBtn" class="auth-mid-copy-btn" type="button">複製</button>
+        </div>
+        <p class="auth-mid-hint">想申請成為管理員的話，把這組 ID 複製後傳給管理員就可以了。</p>`
+      : "";
     bar.innerHTML = `
       <div class="auth-user">
         <span class="auth-user-name">${escapeHtml(session.profile.name || "使用者")}</span>
         <span class="auth-user-provider">(${escapeHtml(session.provider)})</span>
         <button id="authLogoutBtn" class="auth-logout-btn" type="button">登出</button>
-      </div>`;
+      </div>
+      ${midRow}`;
+    const copyBtn = bar.querySelector("#authMidCopyBtn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(session.memberId);
+          copyBtn.textContent = "已複製";
+          setTimeout(() => { copyBtn.textContent = "複製"; }, 1500);
+        } catch (e) {
+          /* 複製失敗就算了，使用者還是能自己手動選取文字複製 */
+        }
+      });
+    }
     return bar;
   }
 
