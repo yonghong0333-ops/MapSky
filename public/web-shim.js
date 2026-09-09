@@ -158,9 +158,16 @@
 
     const avatarSrc = currentAvatarSrc(session);
     const displayName = currentDisplayName(session);
+    // 預設頭像直接內嵌成 SVG，不再另外載入外部圖檔——這樣就不會受到圖片
+    // 路徑、快取、部署時機這些變數影響，跟其他一定會顯示的文字內容一樣可靠。
+    const defaultAvatarSvg = `<svg viewBox="0 0 512 512" class="auth-avatar-img" role="img" aria-label="預設頭像">
+      <circle cx="256" cy="256" r="256" fill="#c9ced6"/>
+      <circle cx="256" cy="196" r="86" fill="#fff"/>
+      <path d="M112 420c0-90 64-150 144-150s144 60 144 150c-38 46-92 72-144 72s-106-26-144-72z" fill="#fff"/>
+    </svg>`;
     const avatarInner = avatarSrc
       ? `<img id="authAvatarImg" class="auth-avatar-img" src="${avatarSrc}" alt="大頭貼" />`
-      : `<img id="authAvatarImg" class="auth-avatar-img" src="icons/user-avatar-default.png" alt="預設頭像" />`;
+      : defaultAvatarSvg.replace("<svg ", '<svg id="authAvatarImg" ');
 
     bar.innerHTML = `
       <div class="auth-user">
