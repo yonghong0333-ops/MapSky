@@ -1747,23 +1747,36 @@ button:hover { background: var(--accent-hover); }
   color: var(--text-muted);
   cursor: pointer;
 }
+.tools-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
 .tools-menu-item {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 14px;
-  text-align: left;
-  padding: 16px;
-  font-size: 16px;
+  border-radius: 18px;
+  text-align: center;
+  padding: 24px 12px;
   color: var(--text-main);
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   cursor: pointer;
   box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
-  margin-bottom: 12px;
+  min-height: 120px;
+  position: relative;
 }
-.tools-menu-item:last-child { margin-bottom: 0; }
 .tools-menu-item:active { background: var(--sidebar-hover, rgba(0,0,0,0.04)); }
+.tool-icon { font-size: 34px; line-height: 1; }
+.tool-label { font-size: 15px; font-weight: 600; }
+.tools-menu-item .alert-tab-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
 
 /* 桌面版寬螢幕時，彈出面板改成貼齊側欄下方的小卡片，不用佔滿整個螢幕
    （滿版全螢幕是給手機用的，桌面版視窗夠大，用小面板比較自然） */
