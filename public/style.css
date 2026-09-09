@@ -1748,19 +1748,21 @@ button:hover { background: var(--accent-hover); }
   cursor: pointer;
 }
 .tools-menu-item {
-  background: none;
-  border: none;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
   text-align: left;
   padding: 16px;
   font-size: 16px;
   color: var(--text-main);
-  border-bottom: 1px solid var(--card-border);
   display: flex;
   align-items: center;
   gap: 10px;
   cursor: pointer;
+  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
+  margin-bottom: 12px;
 }
-.tools-menu-item:last-child { border-bottom: none; }
+.tools-menu-item:last-child { margin-bottom: 0; }
 .tools-menu-item:active { background: var(--sidebar-hover, rgba(0,0,0,0.04)); }
 
 /* 桌面版寬螢幕時，彈出面板改成貼齊側欄下方的小卡片，不用佔滿整個螢幕
