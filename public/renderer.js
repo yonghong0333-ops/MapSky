@@ -181,6 +181,17 @@ function renderFavorites() {
   });
 
   updateCompareBtn();
+  updateFavStar();
+}
+
+// 星星圖示狀態：目前這個城市有沒有被收藏，收藏了就顯示黃色實心星星
+function updateFavStar() {
+  const outlineIcon = el("favStarOutline");
+  const filledIcon = el("favStarFilled");
+  if (!outlineIcon || !filledIcon) return;
+  const isFav = Boolean(currentCity) && favorites.some((f) => f.label === currentCity.label);
+  outlineIcon.classList.toggle("hidden", isFav);
+  filledIcon.classList.toggle("hidden", !isFav);
 }
 
 function updateCompareBtn() {
@@ -200,8 +211,12 @@ el("compareBtn").onclick = () => {
 
 el("addFavBtn").onclick = () => {
   if (!currentCity) return;
-  if (favorites.some((f) => f.label === currentCity.label)) {
-    setStatus("此城市已在收藏中");
+  const already = favorites.some((f) => f.label === currentCity.label);
+  if (already) {
+    favorites = favorites.filter((f) => f.label !== currentCity.label);
+    saveFavorites(favorites);
+    renderFavorites();
+    setStatus(`已將「${currentCity.label}」從收藏移除`);
     return;
   }
   favorites.push({ label: currentCity.label });
