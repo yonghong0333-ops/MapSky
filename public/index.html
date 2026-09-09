@@ -72,7 +72,10 @@
     <main class="main">
       <header class="main-header">
         <h2 id="cityName">尚未選擇城市</h2>
-        <button id="addFavBtn">＋ 加入收藏</button>
+        <button id="addFavBtn" class="fav-star-btn" type="button" aria-label="加入我的最愛">
+          <img id="favStarOutline" src="icons/star-outline.png" class="fav-star-icon" alt="加入我的最愛" />
+          <img id="favStarFilled" src="icons/star-filled.png" class="fav-star-icon hidden" alt="已加入我的最愛" />
+        </button>
       </header>
 
       <nav class="tabs">
