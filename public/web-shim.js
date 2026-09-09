@@ -94,7 +94,7 @@
           <span class="auth-mid-value" id="authMidValue">${escapeHtml(session.memberId)}</span>
           <button id="authMidCopyBtn" class="auth-mid-copy-btn" type="button">
           <img id="authMidCopyIconDefault" src="icons/copy-icon.png" class="auth-mid-copy-icon" alt="複製" />
-          <img id="authMidCopyIconDone" src="icons/copied-check.png" class="auth-mid-copy-icon hidden" alt="已複製" />
+          <img id="authMidCopyIconDone" src="icons/copied-check-green.png" class="auth-mid-copy-icon hidden" alt="已複製" />
         </button>
         </div>
         <p class="auth-mid-hint">想申請成為管理員的話，把這組 ID 複製後傳給管理員就可以了。</p>`
@@ -115,9 +115,11 @@
           await navigator.clipboard.writeText(session.memberId);
           copyIconDefault.classList.add("hidden");
           copyIconDone.classList.remove("hidden");
+          copyBtn.classList.add("copied"); // 複製成功後藍色底色按鈕消失，只留綠色勾勾圖示
           setTimeout(() => {
             copyIconDone.classList.add("hidden");
             copyIconDefault.classList.remove("hidden");
+            copyBtn.classList.remove("copied");
           }, 1500);
         } catch (e) {
           /* 複製失敗就算了，使用者還是能自己手動選取文字複製 */
