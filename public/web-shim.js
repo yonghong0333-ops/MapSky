@@ -120,7 +120,7 @@
             copyIconDone.classList.add("hidden");
             copyIconDefault.classList.remove("hidden");
             copyBtn.classList.remove("copied");
-          }, 1500);
+          }, 5000);
         } catch (e) {
           /* 複製失敗就算了，使用者還是能自己手動選取文字複製 */
         }
