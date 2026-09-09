@@ -1394,6 +1394,11 @@ button:hover { background: var(--accent-hover); }
   align-items: center;
   justify-content: center;
 }
+/* 複製成功後藍色底色按鈕消失，只留綠色勾勾圖示浮著 */
+.auth-mid-copy-btn.copied {
+  background: transparent;
+  padding: 0;
+}
 .auth-mid-copy-icon {
   width: 15px;
   height: 15px;
