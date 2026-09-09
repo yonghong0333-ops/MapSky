@@ -84,6 +84,62 @@
     return getJson("/api/auth/session");
   }
 
+  function currentAvatarSrc(session) {
+    return (session.profile && (session.profile.avatarDataUrl || session.profile.avatarUrl)) || "";
+  }
+
+  function currentDisplayName(session) {
+    return (session.profile && (session.profile.nickname || session.profile.name)) || "使用者";
+  }
+
+  // 「設定」的圖示（底部導覽列 + 桌面分頁列）換成使用者大頭貼，沒有大頭貼就
+  // 維持原本的齒輪圖示／emoji，不用特別處理「沒有圖」的狀態。
+  function applySettingsAvatarIcon(src) {
+    if (!src) return;
+    const bottomIconSpan = document.querySelector('.bottom-nav-btn[data-bottom="settings"] .bottom-nav-icon');
+    if (bottomIconSpan) {
+      bottomIconSpan.innerHTML = `<img src="${src}" class="bottom-nav-avatar-img" alt="">`;
+    }
+    const tabBtn = document.querySelector('.tab-btn[data-tab="settings"]');
+    if (tabBtn) {
+      tabBtn.innerHTML = `<img src="${src}" class="tab-avatar-img" alt="">設定`;
+    }
+  }
+  window.applySettingsAvatarIcon = applySettingsAvatarIcon;
+
+  // 把選好的圖片縮小成正方形小圖再轉成 base64，不然直接把原圖傳上去
+  // 存進 Redis 很容易一張圖就好幾 MB，這裡統一縮到最長邊 160px、JPEG 壓縮。
+  function resizeImageFile(file, maxSize = 160, quality = 0.8) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("讀取圖片失敗"));
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("圖片格式無法讀取"));
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > height) {
+            if (width > maxSize) {
+              height = Math.round(height * (maxSize / width));
+              width = maxSize;
+            }
+          } else if (height > maxSize) {
+            width = Math.round(width * (maxSize / height));
+            height = maxSize;
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
   function buildUserBar(session) {
     const bar = document.createElement("div");
     bar.id = "authBar";
@@ -99,13 +155,117 @@
         </div>
         <p class="auth-mid-hint">想申請成為管理員的話，把這組 ID 複製後傳給管理員就可以了。</p>`
       : "";
+
+    const avatarSrc = currentAvatarSrc(session);
+    const displayName = currentDisplayName(session);
+    const avatarInner = avatarSrc
+      ? `<img id="authAvatarImg" class="auth-avatar-img" src="${avatarSrc}" alt="大頭貼" />`
+      : `<span id="authAvatarImg" class="auth-avatar-placeholder">${escapeHtml((displayName || "?").slice(0, 1))}</span>`;
+
     bar.innerHTML = `
       <div class="auth-user">
-        <span class="auth-user-name">${escapeHtml(session.profile.name || "使用者")}</span>
-        <span class="auth-user-provider">(${escapeHtml(session.provider)})</span>
+        <div class="auth-avatar-wrap">
+          ${avatarInner}
+          <button id="authAvatarEditBtn" class="auth-avatar-edit-btn" type="button" aria-label="更換大頭貼">📷</button>
+          <input id="authAvatarFileInput" type="file" accept="image/*" class="auth-avatar-file-input hidden" />
+        </div>
+        <div class="auth-user-info">
+          <div class="auth-user-name-row">
+            <span id="authUserNameDisplay" class="auth-user-name">${escapeHtml(displayName)}</span>
+            <button id="authNicknameEditBtn" class="auth-nickname-edit-btn" type="button" aria-label="編輯暱稱">✏️</button>
+          </div>
+          <span class="auth-user-provider">(${escapeHtml(session.provider)})</span>
+        </div>
         <button id="authLogoutBtn" class="auth-logout-btn" type="button">登出</button>
       </div>
+      <div id="authNicknameEditRow" class="auth-nickname-edit-row hidden">
+        <input id="authNicknameInput" type="text" maxlength="20" placeholder="輸入暱稱（最多 20 字）" />
+        <button id="authNicknameSaveBtn" class="auth-nickname-save-btn" type="button">儲存</button>
+        <button id="authNicknameCancelBtn" class="auth-nickname-cancel-btn" type="button">取消</button>
+      </div>
       ${midRow}`;
+
+    // ---- 大頭貼上傳 ----
+    const avatarEditBtn = bar.querySelector("#authAvatarEditBtn");
+    const avatarFileInput = bar.querySelector("#authAvatarFileInput");
+    if (avatarEditBtn && avatarFileInput) {
+      avatarEditBtn.addEventListener("click", () => avatarFileInput.click());
+      avatarFileInput.addEventListener("change", async () => {
+        const file = avatarFileInput.files && avatarFileInput.files[0];
+        if (!file) return;
+        avatarEditBtn.disabled = true;
+        try {
+          const dataUrl = await resizeImageFile(file);
+          const resp = await fetch("/api/auth/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ avatarDataUrl: dataUrl }),
+          });
+          const result = await resp.json();
+          if (!resp.ok || !result.ok) throw new Error((result && result.reason) || "上傳失敗");
+          session.profile.avatarDataUrl = dataUrl;
+          const imgEl = bar.querySelector("#authAvatarImg");
+          if (imgEl && imgEl.tagName === "IMG") {
+            imgEl.src = dataUrl;
+          } else if (imgEl) {
+            // 原本是文字佔位頭像，換成真的圖片元素
+            const newImg = document.createElement("img");
+            newImg.id = "authAvatarImg";
+            newImg.className = "auth-avatar-img";
+            newImg.alt = "大頭貼";
+            newImg.src = dataUrl;
+            imgEl.replaceWith(newImg);
+          }
+          applySettingsAvatarIcon(dataUrl);
+        } catch (e) {
+          alert("大頭貼上傳失敗，請換一張圖片再試一次。");
+        } finally {
+          avatarEditBtn.disabled = false;
+          avatarFileInput.value = "";
+        }
+      });
+    }
+
+    // ---- 暱稱編輯 ----
+    const nicknameEditBtn = bar.querySelector("#authNicknameEditBtn");
+    const nicknameRow = bar.querySelector("#authNicknameEditRow");
+    const nicknameInput = bar.querySelector("#authNicknameInput");
+    const nicknameSaveBtn = bar.querySelector("#authNicknameSaveBtn");
+    const nicknameCancelBtn = bar.querySelector("#authNicknameCancelBtn");
+    const nameDisplay = bar.querySelector("#authUserNameDisplay");
+    if (nicknameEditBtn && nicknameRow && nicknameInput) {
+      nicknameEditBtn.addEventListener("click", () => {
+        nicknameInput.value = (session.profile && session.profile.nickname) || "";
+        nicknameRow.classList.remove("hidden");
+        nicknameInput.focus();
+      });
+    }
+    if (nicknameCancelBtn && nicknameRow) {
+      nicknameCancelBtn.addEventListener("click", () => nicknameRow.classList.add("hidden"));
+    }
+    if (nicknameSaveBtn && nicknameInput && nameDisplay) {
+      nicknameSaveBtn.addEventListener("click", async () => {
+        const value = nicknameInput.value.trim();
+        nicknameSaveBtn.disabled = true;
+        try {
+          const resp = await fetch("/api/auth/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nickname: value }),
+          });
+          const result = await resp.json();
+          if (!resp.ok || !result.ok) throw new Error((result && result.reason) || "儲存失敗");
+          session.profile.nickname = value;
+          nameDisplay.textContent = value || session.profile.name || "使用者";
+          nicknameRow.classList.add("hidden");
+        } catch (e) {
+          alert("暱稱儲存失敗，請再試一次。");
+        } finally {
+          nicknameSaveBtn.disabled = false;
+        }
+      });
+    }
+
     const copyBtn = bar.querySelector("#authMidCopyBtn");
     const copyIconDefault = bar.querySelector("#authMidCopyIconDefault");
     const copyIconDone = bar.querySelector("#authMidCopyIconDone");
@@ -195,6 +355,7 @@
       if (slot) {
         slot.innerHTML = "";
         slot.appendChild(buildUserBar(session));
+        applySettingsAvatarIcon(currentAvatarSrc(session));
         const logoutBtn = el("authLogoutBtn");
         if (logoutBtn) {
           logoutBtn.addEventListener("click", async () => {
