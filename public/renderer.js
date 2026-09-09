@@ -1187,14 +1187,15 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
       map: "mapPanel",
       alerts: "alertsPanel",
       typhoon: "typhoonPanel",
+      tools: "toolsPanel",
       admin: "adminPanel",
       settings: "settingsPanel",
     };
     const target = panelMap[btn.dataset.tab] || "forecastPanel";
     el(target).classList.add("active");
-    // 「設定」「後台管理」都跟城市無關，共用的頁首（城市名稱 + 加入收藏）
-    // 不應該留在這兩個畫面上
-    const hideHeaderTabs = ["settings", "admin"];
+    // 「工具」「設定」「後台管理」都跟城市無關，共用的頁首（城市名稱 + 加入
+    // 收藏）不應該留在這幾個畫面上
+    const hideHeaderTabs = ["tools", "settings", "admin"];
     const mainHeader = document.querySelector(".main-header");
     if (mainHeader) mainHeader.classList.toggle("hidden", hideHeaderTabs.includes(btn.dataset.tab));
     if (btn.dataset.tab === "compare") {
@@ -2054,11 +2055,6 @@ function setBottomNavActive(key) {
 // 這樣手指滑過中間按鈕時可以只換外觀預覽，放開才真正觸發換頁，
 // 不會滑過去時每顆分頁的內容都被觸發一次。
 function activateBottomNavKey(key) {
-  if (key === "tools") {
-    toggleToolsMenu();
-    return;
-  }
-  closeToolsMenu();
   setBottomNavActive(key);
   if (key === "home") {
     document.querySelector('.tab-btn[data-tab="forecast"]').click();
@@ -2066,6 +2062,8 @@ function activateBottomNavKey(key) {
   } else if (key === "typhoon") {
     // 先看已發佈的警特報清單，想看颱風地圖詳情的話從清單裡點進去
     document.querySelector('.tab-btn[data-tab="alerts"]').click();
+  } else if (key === "tools") {
+    document.querySelector('.tab-btn[data-tab="tools"]').click();
   } else if (key === "settings") {
     document.querySelector('.tab-btn[data-tab="settings"]').click();
   } else if (key === "admin") {
@@ -2346,26 +2344,11 @@ document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => activateBottomNavKey(btn.dataset.bottom));
 });
 
-function toggleToolsMenu() {
-  const isOpen = el("toolsMenu").classList.contains("open");
-  if (isOpen) closeToolsMenu();
-  else openToolsMenu();
-}
-function openToolsMenu() {
-  el("toolsMenu").classList.add("open");
-  el("toolsMenuOverlay").classList.add("open");
-  setBottomNavActive("tools");
-}
-function closeToolsMenu() {
-  el("toolsMenu").classList.remove("open");
-  el("toolsMenuOverlay").classList.remove("open");
-}
-el("toolsMenuOverlay").addEventListener("click", closeToolsMenu);
-el("toolsMenuCloseBtn").addEventListener("click", closeToolsMenu);
+// 工具分頁裡的每個項目，點下去就直接切去對應的分頁（這些分頁本來就存在，
+// 工具分頁只是一個統整入口，不是彈出選單了）。
 document.querySelectorAll(".tools-menu-item").forEach((item) => {
   item.addEventListener("click", () => {
     document.querySelector(`.tab-btn[data-tab="${item.dataset.tab}"]`).click();
-    closeToolsMenu();
     document.querySelector(".main").scrollTo({ top: 0, behavior: "smooth" });
   });
 });

@@ -84,6 +84,7 @@
         <button class="tab-btn" data-tab="alerts">⚠️ 警特報<span id="alertTabBadge" class="alert-tab-badge hidden">0</span></button>
         <button class="tab-btn" data-tab="typhoon">🌀 颱風</button>
         <button class="tab-btn hidden" id="adminTabBtn" data-tab="admin">🛡️ 後台管理</button>
+        <button class="tab-btn hidden" id="toolsTabBtn" data-tab="tools">🧰 工具</button>
         <button class="tab-btn" data-tab="settings">⚙️ 設定</button>
       </nav>
 
@@ -763,6 +764,17 @@
         </div>
       </section>
 
+      <section id="toolsPanel" class="tab-panel">
+        <div class="settings-page">
+          <h2 class="settings-page-title">🧰 工具</h2>
+          <button class="tools-menu-item" data-tab="weekly">📅 未來 7 天</button>
+          <button class="tools-menu-item" data-tab="chart">📈 溫度趨勢圖</button>
+          <button class="tools-menu-item" data-tab="compare">🏙️ 多城市比較</button>
+          <button class="tools-menu-item" data-tab="map">🗺️ 地圖選點</button>
+          <button class="tools-menu-item" data-tab="alerts">⚠️ 警特報<span id="toolsAlertBadge" class="alert-tab-badge hidden">0</span></button>
+        </div>
+      </section>
+
       <section id="settingsPanel" class="tab-panel">
         <div class="settings-page">
           <h2 class="settings-page-title">設定</h2>
@@ -808,19 +820,6 @@
         <span class="bottom-nav-label sr-only">設定</span>
       </button>
     </nav>
-
-    <div id="toolsMenuOverlay" class="tools-menu-overlay hidden"></div>
-    <div id="toolsMenu" class="tools-menu hidden">
-      <div class="tools-menu-header">
-        <span class="tools-menu-title">工具</span>
-        <button id="toolsMenuCloseBtn" class="tools-menu-close" type="button" aria-label="關閉">✕</button>
-      </div>
-      <button class="tools-menu-item" data-tab="weekly">📅 未來 7 天</button>
-      <button class="tools-menu-item" data-tab="chart">📈 溫度趨勢圖</button>
-      <button class="tools-menu-item" data-tab="compare">🏙️ 多城市比較</button>
-      <button class="tools-menu-item" data-tab="map">🗺️ 地圖選點</button>
-      <button class="tools-menu-item" data-tab="alerts">⚠️ 警特報<span id="toolsAlertBadge" class="alert-tab-badge hidden">0</span></button>
-    </div>
 
     </div>
 
