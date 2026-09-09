@@ -160,7 +160,7 @@
     const displayName = currentDisplayName(session);
     const avatarInner = avatarSrc
       ? `<img id="authAvatarImg" class="auth-avatar-img" src="${avatarSrc}" alt="大頭貼" />`
-      : `<span id="authAvatarImg" class="auth-avatar-placeholder">${escapeHtml((displayName || "?").slice(0, 1))}</span>`;
+      : `<img id="authAvatarImg" class="auth-avatar-img" src="icons/default-avatar.png" alt="預設頭像" />`;
 
     bar.innerHTML = `
       <div class="auth-user">
