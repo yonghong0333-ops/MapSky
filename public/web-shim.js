@@ -160,7 +160,7 @@
     const displayName = currentDisplayName(session);
     const avatarInner = avatarSrc
       ? `<img id="authAvatarImg" class="auth-avatar-img" src="${avatarSrc}" alt="大頭貼" />`
-      : `<img id="authAvatarImg" class="auth-avatar-img" src="icons/default-avatar.png" alt="預設頭像" />`;
+      : `<img id="authAvatarImg" class="auth-avatar-img" src="icons/user-avatar-default.png" alt="預設頭像" />`;
 
     bar.innerHTML = `
       <div class="auth-user">
