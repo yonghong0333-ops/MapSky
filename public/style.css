@@ -1363,9 +1363,109 @@ button:hover { background: var(--accent-hover); }
 .auth-user {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-size: 13px;
   flex-wrap: wrap;
+}
+.auth-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.auth-avatar-img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  background: var(--sidebar-bg, #eee);
+}
+.auth-avatar-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.auth-avatar-edit-btn {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  font-size: 11px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(20, 26, 40, 0.15);
+}
+.auth-avatar-file-input.hidden { display: none; }
+.auth-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.auth-user-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.auth-nickname-edit-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.6;
+}
+.auth-nickname-edit-btn:hover { opacity: 1; background: none; }
+.auth-nickname-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--card-border);
+  flex-wrap: wrap;
+}
+.auth-nickname-edit-row.hidden { display: none; }
+.auth-nickname-edit-row input {
+  flex: 1;
+  min-width: 120px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--input-border);
+  font-size: 13px;
+  color: var(--text-main);
+  background: var(--card-bg);
+}
+.auth-nickname-save-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.auth-nickname-cancel-btn {
+  background: none;
+  border: 1px solid var(--input-border);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
 }
 .auth-user-name { font-weight: 700; color: var(--text-main); }
 .auth-user-provider { color: var(--text-faint); font-size: 11px; }
@@ -1380,6 +1480,22 @@ button:hover { background: var(--accent-hover); }
   cursor: pointer;
 }
 .auth-logout-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+
+/* 設定圖示（底部導覽列 + 桌面分頁列）換成大頭貼時使用 */
+.bottom-nav-avatar-img {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.tab-avatar-img {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
+  vertical-align: -3px;
+  margin-right: 4px;
+}
 
 .auth-mid-row {
   display: flex;
