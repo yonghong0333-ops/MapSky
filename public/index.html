@@ -770,11 +770,13 @@
       <section id="toolsPanel" class="tab-panel">
         <div class="settings-page">
           <h2 class="settings-page-title">🧰 工具</h2>
-          <button class="tools-menu-item" data-tab="weekly">📅 未來 7 天</button>
-          <button class="tools-menu-item" data-tab="chart">📈 溫度趨勢圖</button>
-          <button class="tools-menu-item" data-tab="compare">🏙️ 多城市比較</button>
-          <button class="tools-menu-item" data-tab="map">🗺️ 地圖選點</button>
-          <button class="tools-menu-item" data-tab="alerts">⚠️ 警特報<span id="toolsAlertBadge" class="alert-tab-badge hidden">0</span></button>
+          <div class="tools-grid">
+            <button class="tools-menu-item" data-tab="weekly"><span class="tool-icon">📅</span><span class="tool-label">未來 7 天</span></button>
+            <button class="tools-menu-item" data-tab="chart"><span class="tool-icon">📈</span><span class="tool-label">溫度趨勢圖</span></button>
+            <button class="tools-menu-item" data-tab="compare"><span class="tool-icon">🏙️</span><span class="tool-label">多城市比較</span></button>
+            <button class="tools-menu-item" data-tab="map"><span class="tool-icon">🗺️</span><span class="tool-label">地圖選點</span></button>
+            <button class="tools-menu-item" data-tab="alerts"><span class="tool-icon">⚠️</span><span class="tool-label">警特報</span><span id="toolsAlertBadge" class="alert-tab-badge hidden">0</span></button>
+          </div>
         </div>
       </section>
 
