@@ -335,7 +335,13 @@
             body: JSON.stringify({ nickname: value }),
           });
           const result = await resp.json();
-          if (!resp.ok || !result.ok) throw new Error((result && result.reason) || "儲存失敗");
+          if (!resp.ok || !result.ok) {
+            if (result && result.reason === "nickname-cooldown") {
+              alert(`暱稱改過了，還要等 ${result.remainingDays} 天才能再改一次。`);
+              return;
+            }
+            throw new Error((result && result.reason) || "儲存失敗");
+          }
           session.profile.nickname = value;
           nameDisplay.textContent = value || session.profile.name || "使用者";
           nicknameRow.classList.add("hidden");
