@@ -240,118 +240,21 @@
       <path d="M112 420c0-90 64-150 144-150s144 60 144 150c-38 46-92 72-144 72s-106-26-144-72z" fill="#fff"/>
     </svg>`;
     const avatarInner = avatarSrc
-      ? `<img id="authAvatarImg" class="auth-avatar-img" src="${avatarSrc}" alt="大頭貼" />`
-      : defaultAvatarSvg.replace("<svg ", '<svg id="authAvatarImg" ');
+      ? `<img class="auth-avatar-img" src="${avatarSrc}" alt="大頭貼" />`
+      : defaultAvatarSvg;
 
     bar.innerHTML = `
       <div class="auth-user">
         <div class="auth-avatar-wrap">
           ${avatarInner}
-          <button id="authAvatarEditBtn" class="auth-avatar-edit-btn" type="button" aria-label="更換大頭貼">📷</button>
-          <input id="authAvatarFileInput" type="file" accept="image/*" class="auth-avatar-file-input hidden" />
         </div>
         <div class="auth-user-info">
-          <div class="auth-user-name-row">
-            <span id="authUserNameDisplay" class="auth-user-name">${escapeHtml(displayName)}</span>
-            <button id="authNicknameEditBtn" class="auth-nickname-edit-btn" type="button" aria-label="編輯暱稱">✏️</button>
-          </div>
+          <span class="auth-user-name">${escapeHtml(displayName)}</span>
           <span class="auth-user-provider">(${escapeHtml(session.provider)})</span>
         </div>
         <button id="authLogoutBtn" class="auth-logout-btn" type="button">登出</button>
       </div>
-      <div id="authNicknameEditRow" class="auth-nickname-edit-row hidden">
-        <input id="authNicknameInput" type="text" maxlength="20" placeholder="輸入暱稱（最多 20 字）" />
-        <button id="authNicknameSaveBtn" class="auth-nickname-save-btn" type="button">儲存</button>
-        <button id="authNicknameCancelBtn" class="auth-nickname-cancel-btn" type="button">取消</button>
-      </div>
       ${midRow}`;
-
-    // ---- 大頭貼上傳 ----
-    const avatarEditBtn = bar.querySelector("#authAvatarEditBtn");
-    const avatarFileInput = bar.querySelector("#authAvatarFileInput");
-    if (avatarEditBtn && avatarFileInput) {
-      avatarEditBtn.addEventListener("click", () => avatarFileInput.click());
-      avatarFileInput.addEventListener("change", async () => {
-        const file = avatarFileInput.files && avatarFileInput.files[0];
-        if (!file) return;
-        avatarEditBtn.disabled = true;
-        try {
-          const dataUrl = await resizeImageFile(file);
-          const resp = await fetch("/api/auth/session", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ avatarDataUrl: dataUrl }),
-          });
-          const result = await resp.json();
-          if (!resp.ok || !result.ok) throw new Error((result && result.reason) || "上傳失敗");
-          session.profile.avatarDataUrl = dataUrl;
-          const imgEl = bar.querySelector("#authAvatarImg");
-          if (imgEl && imgEl.tagName === "IMG") {
-            imgEl.src = dataUrl;
-          } else if (imgEl) {
-            // 原本是文字佔位頭像，換成真的圖片元素
-            const newImg = document.createElement("img");
-            newImg.id = "authAvatarImg";
-            newImg.className = "auth-avatar-img";
-            newImg.alt = "大頭貼";
-            newImg.src = dataUrl;
-            imgEl.replaceWith(newImg);
-          }
-          applySettingsAvatarIcon(dataUrl);
-        } catch (e) {
-          alert("大頭貼上傳失敗，請換一張圖片再試一次。");
-        } finally {
-          avatarEditBtn.disabled = false;
-          avatarFileInput.value = "";
-        }
-      });
-    }
-
-    // ---- 暱稱編輯 ----
-    const nicknameEditBtn = bar.querySelector("#authNicknameEditBtn");
-    const nicknameRow = bar.querySelector("#authNicknameEditRow");
-    const nicknameInput = bar.querySelector("#authNicknameInput");
-    const nicknameSaveBtn = bar.querySelector("#authNicknameSaveBtn");
-    const nicknameCancelBtn = bar.querySelector("#authNicknameCancelBtn");
-    const nameDisplay = bar.querySelector("#authUserNameDisplay");
-    if (nicknameEditBtn && nicknameRow && nicknameInput) {
-      nicknameEditBtn.addEventListener("click", () => {
-        nicknameInput.value = (session.profile && session.profile.nickname) || "";
-        nicknameRow.classList.remove("hidden");
-        nicknameInput.focus();
-      });
-    }
-    if (nicknameCancelBtn && nicknameRow) {
-      nicknameCancelBtn.addEventListener("click", () => nicknameRow.classList.add("hidden"));
-    }
-    if (nicknameSaveBtn && nicknameInput && nameDisplay) {
-      nicknameSaveBtn.addEventListener("click", async () => {
-        const value = nicknameInput.value.trim();
-        nicknameSaveBtn.disabled = true;
-        try {
-          const resp = await fetch("/api/auth/session", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ nickname: value }),
-          });
-          const result = await resp.json();
-          if (!resp.ok || !result.ok) {
-            if (result && result.reason === "nickname-cooldown") {
-              alert(`暱稱改過了，還要等 ${result.remainingDays} 天才能再改一次。`);
-              return;
-            }
-            throw new Error((result && result.reason) || "儲存失敗");
-          }
-          session.profile.nickname = value;
-          nameDisplay.textContent = value || session.profile.name || "使用者";
-          nicknameRow.classList.add("hidden");
-        } catch (e) {
-          alert("暱稱儲存失敗，請再試一次。");
-        } finally {
-          nicknameSaveBtn.disabled = false;
-        }
-      });
-    }
 
     const copyBtn = bar.querySelector("#authMidCopyBtn");
     const copyIconDefault = bar.querySelector("#authMidCopyIconDefault");
@@ -374,6 +277,126 @@
       });
     }
     return bar;
+  }
+
+  // ---------------- 暱稱與大頭貼（獨立的編輯專區，跟上面的帳號摘要卡分開）----------------
+  function buildProfileEditCard(session) {
+    const card = document.createElement("div");
+    card.id = "profileEditCard";
+    card.className = "profile-edit-card";
+
+    const avatarSrc = currentAvatarSrc(session);
+    const defaultAvatarSvg = `<svg viewBox="0 0 512 512" class="profile-edit-avatar-img" role="img" aria-label="預設頭像">
+      <circle cx="256" cy="256" r="256" fill="#c9ced6"/>
+      <circle cx="256" cy="196" r="86" fill="#fff"/>
+      <path d="M112 420c0-90 64-150 144-150s144 60 144 150c-38 46-92 72-144 72s-106-26-144-72z" fill="#fff"/>
+    </svg>`;
+    const avatarInner = avatarSrc
+      ? `<img id="profileEditAvatarImg" class="profile-edit-avatar-img" src="${avatarSrc}" alt="大頭貼" />`
+      : defaultAvatarSvg.replace("<svg ", '<svg id="profileEditAvatarImg" ');
+
+    card.innerHTML = `
+      <h3 class="profile-edit-title">✏️ 暱稱與大頭貼</h3>
+      <div class="profile-edit-avatar-row">
+        <div class="profile-edit-avatar-wrap">${avatarInner}</div>
+        <div class="profile-edit-avatar-actions">
+          <button id="profileAvatarChangeBtn" class="profile-avatar-change-btn" type="button">更換大頭貼</button>
+          <input id="profileAvatarFileInput" type="file" accept="image/*" class="hidden" />
+          <p class="profile-edit-hint">建議使用正方形圖片，會自動縮小處理。</p>
+        </div>
+      </div>
+      <div class="profile-edit-nickname-row">
+        <label for="profileNicknameInput" class="profile-edit-label">暱稱</label>
+        <div class="profile-edit-nickname-inline">
+          <input id="profileNicknameInput" type="text" maxlength="20" placeholder="輸入暱稱（最多 20 字）" value="${escapeHtml((session.profile && session.profile.nickname) || "")}" />
+          <button id="profileNicknameSaveBtn" class="profile-nickname-save-btn" type="button">儲存</button>
+        </div>
+        <p id="profileNicknameMsg" class="profile-edit-hint"></p>
+      </div>
+    `;
+
+    // ---- 大頭貼上傳 ----
+    const avatarChangeBtn = card.querySelector("#profileAvatarChangeBtn");
+    const avatarFileInput = card.querySelector("#profileAvatarFileInput");
+    if (avatarChangeBtn && avatarFileInput) {
+      avatarChangeBtn.addEventListener("click", () => avatarFileInput.click());
+      avatarFileInput.addEventListener("change", async () => {
+        const file = avatarFileInput.files && avatarFileInput.files[0];
+        if (!file) return;
+        avatarChangeBtn.disabled = true;
+        avatarChangeBtn.textContent = "上傳中…";
+        try {
+          const dataUrl = await resizeImageFile(file);
+          const resp = await fetch("/api/auth/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ avatarDataUrl: dataUrl }),
+          });
+          const result = await resp.json();
+          if (!resp.ok || !result.ok) throw new Error((result && result.reason) || "上傳失敗");
+          session.profile.avatarDataUrl = dataUrl;
+
+          const imgEl = card.querySelector("#profileEditAvatarImg");
+          if (imgEl && imgEl.tagName === "IMG") {
+            imgEl.src = dataUrl;
+          } else if (imgEl) {
+            const newImg = document.createElement("img");
+            newImg.id = "profileEditAvatarImg";
+            newImg.className = "profile-edit-avatar-img";
+            newImg.alt = "大頭貼";
+            newImg.src = dataUrl;
+            imgEl.replaceWith(newImg);
+          }
+          // 上面帳號摘要卡的小頭像、底部導覽列/分頁列的設定圖示，都跟著換新
+          const barAvatar = document.querySelector("#authBar .auth-avatar-img");
+          if (barAvatar && barAvatar.tagName === "IMG") barAvatar.src = dataUrl;
+          applySettingsAvatarIcon(dataUrl);
+        } catch (e) {
+          alert("大頭貼上傳失敗，請換一張圖片再試一次。");
+        } finally {
+          avatarChangeBtn.disabled = false;
+          avatarChangeBtn.textContent = "更換大頭貼";
+          avatarFileInput.value = "";
+        }
+      });
+    }
+
+    // ---- 暱稱編輯 ----
+    const nicknameInput = card.querySelector("#profileNicknameInput");
+    const nicknameSaveBtn = card.querySelector("#profileNicknameSaveBtn");
+    const nicknameMsg = card.querySelector("#profileNicknameMsg");
+    if (nicknameSaveBtn && nicknameInput) {
+      nicknameSaveBtn.addEventListener("click", async () => {
+        const value = nicknameInput.value.trim();
+        nicknameSaveBtn.disabled = true;
+        if (nicknameMsg) nicknameMsg.textContent = "";
+        try {
+          const resp = await fetch("/api/auth/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nickname: value }),
+          });
+          const result = await resp.json();
+          if (!resp.ok || !result.ok) {
+            if (result && result.reason === "nickname-cooldown") {
+              if (nicknameMsg) nicknameMsg.textContent = `暱稱改過了，還要等 ${result.remainingDays} 天才能再改一次。`;
+              return;
+            }
+            throw new Error((result && result.reason) || "儲存失敗");
+          }
+          session.profile.nickname = value;
+          const barName = document.querySelector("#authBar .auth-user-name");
+          if (barName) barName.textContent = value || session.profile.name || "使用者";
+          if (nicknameMsg) nicknameMsg.textContent = "已儲存 ✅";
+        } catch (e) {
+          if (nicknameMsg) nicknameMsg.textContent = "儲存失敗，請再試一次。";
+        } finally {
+          nicknameSaveBtn.disabled = false;
+        }
+      });
+    }
+
+    return card;
   }
 
   function buildGateButtons(providers) {
@@ -443,6 +466,7 @@
       if (slot) {
         slot.innerHTML = "";
         slot.appendChild(buildUserBar(session));
+        slot.appendChild(buildProfileEditCard(session));
         applySettingsAvatarIcon(currentAvatarSrc(session));
         const logoutBtn = el("authLogoutBtn");
         if (logoutBtn) {
