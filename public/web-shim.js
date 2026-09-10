@@ -399,6 +399,50 @@
     return card;
   }
 
+  // ---------------- 暱稱與大頭貼：設定頁上收合成一條，點下去才彈出編輯卡片 ----------------
+  function buildProfileEditEntry(session) {
+    const wrap = document.createDocumentFragment();
+
+    const row = document.createElement("button");
+    row.type = "button";
+    row.id = "profileEditEntryBtn";
+    row.className = "settings-list-item";
+    row.innerHTML = `
+      <span class="settings-list-item-icon">✏️</span>
+      <span class="settings-list-item-label">暱稱與大頭貼</span>
+      <span class="settings-list-item-arrow">›</span>
+    `;
+
+    const overlay = document.createElement("div");
+    overlay.id = "profileEditModal";
+    overlay.className = "profile-edit-modal hidden";
+
+    const box = document.createElement("div");
+    box.className = "profile-edit-modal-box";
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "profile-edit-modal-close";
+    closeBtn.setAttribute("aria-label", "關閉");
+    closeBtn.textContent = "✕";
+
+    box.appendChild(closeBtn);
+    box.appendChild(buildProfileEditCard(session));
+    overlay.appendChild(box);
+
+    const openModal = () => overlay.classList.remove("hidden");
+    const closeModal = () => overlay.classList.add("hidden");
+    row.addEventListener("click", openModal);
+    closeBtn.addEventListener("click", closeModal);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeModal();
+    });
+
+    wrap.appendChild(row);
+    wrap.appendChild(overlay);
+    return wrap;
+  }
+
   function buildGateButtons(providers) {
     return providers
       .map((p) => {
@@ -466,7 +510,7 @@
       if (slot) {
         slot.innerHTML = "";
         slot.appendChild(buildUserBar(session));
-        slot.appendChild(buildProfileEditCard(session));
+        slot.appendChild(buildProfileEditEntry(session));
         applySettingsAvatarIcon(currentAvatarSrc(session));
         const logoutBtn = el("authLogoutBtn");
         if (logoutBtn) {
