@@ -665,6 +665,11 @@ async function loadAdminStatus() {
     if (emptyEl) emptyEl.classList.add("hidden");
     if (contentEl) contentEl.classList.remove("hidden");
 
+    const cooldownInput = el("adminCooldownInput");
+    if (cooldownInput && typeof data.nicknameCooldownDays === "number") {
+      cooldownInput.value = data.nicknameCooldownDays;
+    }
+
     // 管理員名單：只有超級管理員看得到跟能操作，一般管理員/一般使用者不會看到這張卡片
     renderAdminList(data);
   } catch (e) {
@@ -738,6 +743,36 @@ if (adminAssignForm) {
     if (!memberId) return;
     await callAdminAction("assign", { memberId });
     midInput.value = "";
+  });
+}
+
+// 暱稱修改冷卻天數：任何管理員都能改（不用到超級管理員）
+const adminCooldownForm = el("adminCooldownForm");
+if (adminCooldownForm) {
+  adminCooldownForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const input = el("adminCooldownInput");
+    const msgEl = el("adminCooldownMsg");
+    const days = Number(input.value);
+    if (!Number.isFinite(days) || days < 0) {
+      if (msgEl) msgEl.textContent = "請輸入 0 以上的整數";
+      return;
+    }
+    try {
+      const resp = await fetch("/api/weather/status?admin=1&action=set-nickname-cooldown", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ days }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        if (msgEl) msgEl.textContent = `失敗：${data.reason || "未知錯誤"}`;
+        return;
+      }
+      if (msgEl) msgEl.textContent = `已更新為 ${data.nicknameCooldownDays} 天`;
+    } catch (e) {
+      if (msgEl) msgEl.textContent = "失敗：網路錯誤";
+    }
   });
 }
 
