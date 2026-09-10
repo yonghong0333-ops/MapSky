@@ -2166,6 +2166,32 @@ button:hover { background: var(--accent-hover); }
   margin: 8px 0 0;
   min-height: 1.4em;
 }
+.admin-cooldown-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.admin-cooldown-form input {
+  width: 70px;
+  padding: 8px 10px;
+  border: 1px solid var(--input-border, var(--card-border));
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--input-bg, var(--card-bg));
+  color: var(--text-main);
+}
+.admin-cooldown-unit { font-size: 13px; color: var(--text-muted); }
+.admin-cooldown-form button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
 #adminManageCard.hidden { display: none; }
 
 /* 更小的手機（如 iPhone SE）再收斂一次間距與字級 */
