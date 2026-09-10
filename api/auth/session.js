@@ -20,7 +20,7 @@ module.exports = async function handler(req, res) {
         body = {};
       }
     }
-    const { nickname, avatarDataUrl } = body || {};
+    const { nickname, avatarDataUrl, onboarded } = body || {};
     const patch = {};
 
     if (nickname !== undefined) {
@@ -41,6 +41,9 @@ module.exports = async function handler(req, res) {
         }
       }
       patch.avatarDataUrl = avatarDataUrl;
+    }
+    if (onboarded !== undefined) {
+      patch.onboarded = Boolean(onboarded);
     }
 
     if (Object.keys(patch).length === 0) {
@@ -68,6 +71,7 @@ module.exports = async function handler(req, res) {
       ...payload.profile,
       nickname: (custom && custom.nickname) || null,
       avatarDataUrl: (custom && custom.avatarDataUrl) || null,
+      onboarded: Boolean(custom && custom.onboarded),
     },
     isAdmin,
     memberId,

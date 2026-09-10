@@ -140,6 +140,74 @@
     });
   }
 
+  // ---- 第一次登入的引導畫面：取暱稱、選大頭貼（都選填），完成或跳過都會
+  // 呼叫後端標記 onboarded，下次登入就不會再跳出來了。 ----
+  function showOnboarding(session) {
+    const gate = el("onboardingGate");
+    if (!gate) return;
+    gate.classList.remove("hidden");
+
+    const avatarInput = el("onboardingAvatarInput");
+    const avatarBtn = el("onboardingAvatarBtn");
+    const avatarPreview = el("onboardingAvatarPreview");
+    const avatarPlaceholder = el("onboardingAvatarPlaceholder");
+    const nicknameInput = el("onboardingNicknameInput");
+    const skipBtn = el("onboardingSkipBtn");
+    const doneBtn = el("onboardingDoneBtn");
+    if (!avatarInput || !avatarBtn || !nicknameInput || !skipBtn || !doneBtn) return;
+
+    let pendingAvatarDataUrl = null;
+
+    avatarBtn.addEventListener("click", () => avatarInput.click());
+    avatarInput.addEventListener("change", async () => {
+      const file = avatarInput.files && avatarInput.files[0];
+      if (!file) return;
+      try {
+        const dataUrl = await resizeImageFile(file);
+        pendingAvatarDataUrl = dataUrl;
+        avatarPreview.src = dataUrl;
+        avatarPreview.classList.remove("hidden");
+        if (avatarPlaceholder) avatarPlaceholder.classList.add("hidden");
+      } catch (e) {
+        alert("大頭貼讀取失敗，請換一張圖片再試一次。");
+      } finally {
+        avatarInput.value = "";
+      }
+    });
+
+    async function saveAndFinish(patch) {
+      try {
+        await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(Object.assign({ onboarded: true }, patch)),
+        });
+      } catch (e) {
+        /* 存不了也不要卡住使用者，至少讓他先進去用 */
+      }
+      gate.classList.add("hidden");
+      // 重新整理讓設定頁、頭像這些地方直接讀到剛剛存的最新資料，
+      // 不用另外手動同步好幾個地方的畫面。
+      window.location.reload();
+    }
+
+    skipBtn.addEventListener("click", () => {
+      skipBtn.disabled = true;
+      doneBtn.disabled = true;
+      saveAndFinish({});
+    });
+
+    doneBtn.addEventListener("click", () => {
+      skipBtn.disabled = true;
+      doneBtn.disabled = true;
+      const patch = {};
+      const nickname = nicknameInput.value.trim();
+      if (nickname) patch.nickname = nickname;
+      if (pendingAvatarDataUrl) patch.avatarDataUrl = pendingAvatarDataUrl;
+      saveAndFinish(patch);
+    });
+  }
+
   function buildUserBar(session) {
     const bar = document.createElement("div");
     bar.id = "authBar";
@@ -358,6 +426,7 @@
 
     if (session.loggedIn) {
       document.body.classList.add("auth-ok");
+      if (!session.profile.onboarded) showOnboarding(session);
       const slot = el("settingsAccountSlot");
       if (slot) {
         slot.innerHTML = "";

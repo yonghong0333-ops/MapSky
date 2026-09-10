@@ -62,6 +62,107 @@ body:not(.auth-ok) .app {
 body.auth-ok .login-gate {
   display: none;
 }
+
+/* 第一次登入的引導畫面：獨立全螢幕蓋在 App 上面，跟登入畫面同一個層級。 */
+.onboarding-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #eef2f8 0%, #dbe6fb 55%, #cddcf7 100%);
+  padding: 20px;
+}
+.onboarding-gate.hidden { display: none; }
+.onboarding-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 32px 26px 26px;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(30, 45, 80, 0.14);
+}
+.onboarding-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 8px;
+}
+.onboarding-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: 22px;
+}
+.onboarding-avatar-wrap {
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  background: var(--sidebar-bg, #eef0f4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.onboarding-avatar-placeholder { font-size: 30px; opacity: 0.5; }
+.onboarding-avatar-placeholder.hidden { display: none; }
+.onboarding-avatar-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.onboarding-avatar-preview.hidden { display: none; }
+.onboarding-file-input { display: none; }
+.onboarding-avatar-btn {
+  display: block;
+  margin: 0 auto 18px;
+  background: var(--sidebar-bg, #eef0f4);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  color: var(--text-main);
+  cursor: pointer;
+}
+.onboarding-nickname-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--input-border, var(--card-border));
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--input-bg, var(--card-bg));
+  color: var(--text-main);
+  margin-bottom: 20px;
+}
+.onboarding-actions {
+  display: flex;
+  gap: 10px;
+}
+.onboarding-skip-btn,
+.onboarding-done-btn {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.onboarding-skip-btn {
+  background: none;
+  border: 1px solid var(--card-border);
+  color: var(--text-muted);
+}
+.onboarding-done-btn {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+}
+.onboarding-skip-btn:disabled,
+.onboarding-done-btn:disabled { opacity: 0.6; cursor: default; }
 .login-gate-card {
   width: 100%;
   max-width: 360px;

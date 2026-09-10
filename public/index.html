@@ -34,6 +34,29 @@
     </div>
   </div>
 
+  <!-- 第一次登入才會出現的獨立引導畫面：取暱稱、選大頭貼，兩個都選填，
+       可以直接跳過；完成或跳過都會在後端標記 onboarded，之後就不會再跳出來。 -->
+  <div id="onboardingGate" class="onboarding-gate hidden">
+    <div class="onboarding-card">
+      <h2 class="onboarding-title">歡迎加入 MapSky 👋</h2>
+      <p class="onboarding-sub">先幫自己取個暱稱、選張大頭貼吧（都是選填，之後也可以到設定頁再改）</p>
+
+      <div class="onboarding-avatar-wrap">
+        <img id="onboardingAvatarPreview" class="onboarding-avatar-preview hidden" alt="大頭貼預覽" />
+        <span id="onboardingAvatarPlaceholder" class="onboarding-avatar-placeholder">📷</span>
+      </div>
+      <input id="onboardingAvatarInput" type="file" accept="image/*" class="onboarding-file-input" />
+      <button id="onboardingAvatarBtn" class="onboarding-avatar-btn" type="button">選擇大頭貼</button>
+
+      <input id="onboardingNicknameInput" class="onboarding-nickname-input" type="text" maxlength="20" placeholder="輸入暱稱（選填）" />
+
+      <div class="onboarding-actions">
+        <button id="onboardingSkipBtn" class="onboarding-skip-btn" type="button">先跳過</button>
+        <button id="onboardingDoneBtn" class="onboarding-done-btn" type="button">完成</button>
+      </div>
+    </div>
+  </div>
+
   <div class="app">
     <div id="sidebarDrawerOverlay" class="sidebar-drawer-overlay hidden"></div>
     <aside class="sidebar" id="sidebar">
