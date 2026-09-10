@@ -39,7 +39,7 @@
   <div id="onboardingGate" class="onboarding-gate hidden">
     <div class="onboarding-card">
       <h2 class="onboarding-title">歡迎加入 MapSky 👋</h2>
-      <p class="onboarding-sub">先幫自己取個暱稱、選張大頭貼吧（都是選填，之後也可以到設定頁再改）</p>
+      <p class="onboarding-sub">幫自己取個暱稱吧（必填）；大頭貼可以選一張，沒選的話會先用預設圖，之後隨時可以到設定頁再改</p>
 
       <div class="onboarding-avatar-wrap">
         <img id="onboardingAvatarPreview" class="onboarding-avatar-preview hidden" alt="大頭貼預覽" />
@@ -48,10 +48,9 @@
       <input id="onboardingAvatarInput" type="file" accept="image/*" class="onboarding-file-input" />
       <button id="onboardingAvatarBtn" class="onboarding-avatar-btn" type="button">選擇大頭貼</button>
 
-      <input id="onboardingNicknameInput" class="onboarding-nickname-input" type="text" maxlength="20" placeholder="輸入暱稱（選填）" />
+      <input id="onboardingNicknameInput" class="onboarding-nickname-input" type="text" maxlength="20" placeholder="輸入暱稱" required />
 
       <div class="onboarding-actions">
-        <button id="onboardingSkipBtn" class="onboarding-skip-btn" type="button">先跳過</button>
         <button id="onboardingDoneBtn" class="onboarding-done-btn" type="button">完成</button>
       </div>
     </div>

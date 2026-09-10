@@ -140,6 +140,11 @@
     });
   }
 
+  // 使用者在引導畫面沒選照片的話，就直接把這張預設圖存成他「真正」的
+  // 大頭貼（不是前端裝出來的樣子，是後端資料庫裡真的存這張），這樣之後
+  // 任何地方讀 avatarDataUrl 都會正常拿到圖片，不會再有特殊 fallback 邏輯。
+  const DEFAULT_AVATAR_DATA_URL = "data:image/jpeg;base64,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";
+
   // ---- 第一次登入的引導畫面：取暱稱、選大頭貼（都選填），完成或跳過都會
   // 呼叫後端標記 onboarded，下次登入就不會再跳出來了。 ----
   function showOnboarding(session) {
@@ -152,9 +157,12 @@
     const avatarPreview = el("onboardingAvatarPreview");
     const avatarPlaceholder = el("onboardingAvatarPlaceholder");
     const nicknameInput = el("onboardingNicknameInput");
-    const skipBtn = el("onboardingSkipBtn");
     const doneBtn = el("onboardingDoneBtn");
-    if (!avatarInput || !avatarBtn || !nicknameInput || !skipBtn || !doneBtn) return;
+    if (!avatarInput || !avatarBtn || !nicknameInput || !doneBtn) return;
+
+    nicknameInput.addEventListener("input", () => {
+      nicknameInput.classList.remove("onboarding-input-error");
+    });
 
     let pendingAvatarDataUrl = null;
 
@@ -191,19 +199,17 @@
       window.location.reload();
     }
 
-    skipBtn.addEventListener("click", () => {
-      skipBtn.disabled = true;
-      doneBtn.disabled = true;
-      saveAndFinish({});
-    });
-
     doneBtn.addEventListener("click", () => {
-      skipBtn.disabled = true;
-      doneBtn.disabled = true;
-      const patch = {};
       const nickname = nicknameInput.value.trim();
-      if (nickname) patch.nickname = nickname;
-      if (pendingAvatarDataUrl) patch.avatarDataUrl = pendingAvatarDataUrl;
+      if (!nickname) {
+        nicknameInput.focus();
+        nicknameInput.classList.add("onboarding-input-error");
+        return;
+      }
+      doneBtn.disabled = true;
+      const patch = { nickname };
+      // 沒選照片的話，直接用預設圖當作他「真正」的大頭貼存起來
+      patch.avatarDataUrl = pendingAvatarDataUrl || DEFAULT_AVATAR_DATA_URL;
       saveAndFinish(patch);
     });
   }

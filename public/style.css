@@ -138,6 +138,9 @@ body.auth-ok .login-gate {
   color: var(--text-main);
   margin-bottom: 20px;
 }
+.onboarding-nickname-input.onboarding-input-error {
+  border-color: #c0392b;
+}
 .onboarding-actions {
   display: flex;
   gap: 10px;
