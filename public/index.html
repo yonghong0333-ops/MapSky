@@ -775,6 +775,16 @@
               <h3 class="admin-card-title">資料快取狀態</h3>
               <div id="adminCacheList" class="admin-cache-list"></div>
             </div>
+            <div class="admin-card">
+              <h3 class="admin-card-title">暱稱修改冷卻天數</h3>
+              <p class="admin-card-hint">使用者改一次暱稱後，要等這麼多天才能再改一次。</p>
+              <form id="adminCooldownForm" class="admin-cooldown-form">
+                <input id="adminCooldownInput" type="number" min="0" max="365" step="1" required />
+                <span class="admin-cooldown-unit">天</span>
+                <button type="submit">儲存</button>
+              </form>
+              <p id="adminCooldownMsg" class="admin-assign-msg"></p>
+            </div>
             <div id="adminManageCard" class="admin-card hidden">
               <h3 class="admin-card-title">管理員名單</h3>
               <p class="admin-card-hint">超級管理員固定在伺服器環境變數裡，誰都踢不掉；一般管理員可以在這裡直接指派或踢除。</p>
