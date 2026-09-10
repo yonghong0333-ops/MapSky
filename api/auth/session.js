@@ -3,6 +3,7 @@ const { verify } = require("../_lib/jwt");
 const { isAdminSession } = require("../_lib/admin");
 const { getOrCreateMemberId } = require("../_lib/member-id");
 const { getUserProfile, setUserProfile } = require("../_lib/user-profile");
+const { getNicknameCooldownDays } = require("../_lib/app-settings");
 
 module.exports = async function handler(req, res) {
   const cookies = parseCookies(req);
@@ -27,7 +28,28 @@ module.exports = async function handler(req, res) {
       if (typeof nickname !== "string" || nickname.trim().length > 20) {
         return res.status(400).json({ ok: false, reason: "invalid-nickname" });
       }
+      // 改名有冷卻時間限制（後台可調整天數），避免改過就馬上又改。
+      const cooldownDays = await getNicknameCooldownDays();
+      if (cooldownDays > 0) {
+        const current = await getUserProfile(payload.provider, payload.profile.id);
+        const lastChangedAt = current && current.nicknameChangedAt;
+        if (lastChangedAt) {
+          const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
+          const elapsedMs = Date.now() - lastChangedAt;
+          if (elapsedMs < cooldownMs) {
+            const remainingDays = Math.ceil((cooldownMs - elapsedMs) / (24 * 60 * 60 * 1000));
+            return res.status(429).json({
+              ok: false,
+              reason: "nickname-cooldown",
+              remainingDays,
+              cooldownDays,
+              nextChangeAt: new Date(lastChangedAt + cooldownMs).toISOString(),
+            });
+          }
+        }
+      }
       patch.nickname = nickname.trim();
+      patch.nicknameChangedAt = Date.now();
     }
     if (avatarDataUrl !== undefined) {
       if (avatarDataUrl !== null) {
@@ -72,6 +94,7 @@ module.exports = async function handler(req, res) {
       nickname: (custom && custom.nickname) || null,
       avatarDataUrl: (custom && custom.avatarDataUrl) || null,
       onboarded: Boolean(custom && custom.onboarded),
+      nicknameChangedAt: (custom && custom.nicknameChangedAt) || null,
     },
     isAdmin,
     memberId,
