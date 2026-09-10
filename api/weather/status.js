@@ -10,6 +10,7 @@ const {
 } = require("../_lib/admin");
 const { resolveMemberId } = require("../_lib/member-id");
 const { PROVIDERS, isConfigured } = require("../_lib/providers");
+const { getNicknameCooldownDays, setNicknameCooldownDays } = require("../_lib/app-settings");
 
 // 一般登入使用者打這支只會拿到 hasKey（給前端判斷要不要顯示「尚未設定授權碼」提示）。
 // 管理員加上 ?admin=1 才會多回傳後台管理要看的系統狀態，不是隨便誰都看得到。
@@ -20,16 +21,31 @@ module.exports = async function handler(req, res) {
   const payload = requireSession(req, res);
   if (!payload) return;
 
-  // ---- POST：管理員名單的指派/踢除，只有超級管理員能做 ----
+  // ---- POST：後台操作，用 action 區分要做什麼 ----
   if (req.method === "POST") {
     if (req.query.admin !== "1") {
       return res.status(400).json({ ok: false, reason: "bad-request" });
     }
+    const action = req.query.action;
+    const body = req.body || {};
+
+    // 改名冷卻天數：一般管理員就能改，不用到超級管理員
+    if (action === "set-nickname-cooldown") {
+      if (!(await isAdminSession(payload))) {
+        return res.status(403).json({ ok: false, reason: "not-admin" });
+      }
+      try {
+        const saved = await setNicknameCooldownDays(body.days);
+        return res.status(200).json({ ok: true, nicknameCooldownDays: saved });
+      } catch (e) {
+        return res.status(400).json({ ok: false, reason: e.message });
+      }
+    }
+
+    // 管理員名單的指派/踢除，只有超級管理員能做
     if (!(await isSuperAdminSession(payload))) {
       return res.status(403).json({ ok: false, reason: "not-super-admin" });
     }
-    const action = req.query.action;
-    const body = req.body || {};
     try {
       if (action === "assign") {
         const { memberId } = body;
@@ -66,8 +82,11 @@ module.exports = async function handler(req, res) {
     configured: isConfigured(id),
   }));
 
-  const amSuperAdmin = await isSuperAdminSession(payload);
-  const dynamicAdmins = await getDynamicAdmins();
+  const [amSuperAdmin, dynamicAdmins, nicknameCooldownDays] = await Promise.all([
+    isSuperAdminSession(payload),
+    getDynamicAdmins(),
+    getNicknameCooldownDays(),
+  ]);
 
   res.status(200).json({
     ...basic,
@@ -78,6 +97,7 @@ module.exports = async function handler(req, res) {
     region: process.env.VERCEL_REGION || null,
     providers,
     cache: getCacheStatus(),
+    nicknameCooldownDays,
     // 管理員名單：只有超級管理員看得到，也只有超級管理員能在前端指派/踢除。
     // 超級管理員名單只列出「provider:id」（沒有真名，因為那份資料只在環境
     // 變數裡，沒有登入紀錄可查真名）；一般管理員有存 name，可以顯示。
