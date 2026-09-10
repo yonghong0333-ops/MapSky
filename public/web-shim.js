@@ -9,6 +9,16 @@
 (function () {
   window.appInfo = { platform: "web" };
 
+  // 註冊 service worker，讓瀏覽器把這個網站判定為「可安裝的 App」，
+  // 「加到主畫面」後系統會當成獨立軟體開啟，而不是網頁捷徑。
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {
+        // 註冊失敗（例如非 https 環境）不影響網站其他功能，安靜忽略即可。
+      });
+    });
+  }
+
   const updatedListeners = [];
   const alertsUpdatedListeners = [];
 
