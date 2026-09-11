@@ -491,6 +491,21 @@ button:hover { background: var(--accent-hover); }
   gap: 10px;
 }
 .main-header.hidden { display: none; }
+.share-weather-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+.share-weather-btn svg { width: 22px; height: 22px; }
+
 .fav-star-btn {
   flex-shrink: 0;
   background: none;

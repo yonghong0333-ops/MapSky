@@ -225,6 +225,36 @@ el("addFavBtn").onclick = () => {
   setStatus(`已將「${currentCity.label}」加入收藏`);
 };
 
+// 分享目前天氣：呼叫 Web Share API 跳出手機原生的分享清單（LINE、訊息、
+// Instagram 這些），不支援的瀏覽器（例如桌面版）就退回複製文字。
+const shareWeatherBtn = el("shareWeatherBtn");
+if (shareWeatherBtn) {
+  shareWeatherBtn.addEventListener("click", async () => {
+    if (!currentCity) return;
+    const tempEl = el("currentTemp");
+    const descEl = el("currentDesc");
+    const temp = (tempEl && tempEl.textContent) || "";
+    const desc = (descEl && descEl.textContent) || "";
+    const text = `${currentCity.label}天氣　${temp}　${desc}`;
+    const url = window.location.origin + window.location.pathname;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "MapSky 天氣", text, url });
+      } catch (e) {
+        /* 使用者自己取消分享，不用特別處理 */
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(`${text}\n${url}`);
+      setStatus("天氣資訊已複製，可以貼到任何地方分享");
+    } catch (e) {
+      setStatus("這個瀏覽器不支援分享功能");
+    }
+  });
+}
+
 // ---------------- Search / select ----------------
 el("searchBtn").onclick = () => {
   const city = el("citySelect").value;
