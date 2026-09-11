@@ -58,13 +58,17 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ ok: false, reason: "missing-title-or-body" });
       }
       const url = (body.url || "/").trim() || "/";
+      // 標題併進內文一起顯示，粗體標題欄位留空（iOS 一定會在標題下面自動
+      // 插入「from MapSky」這行，程式改不了；把標題也塞進內文，
+      // 排版上就會變成「(空白) / from MapSky / 標題：內容」）。
+      const combinedBody = `${title}：${message}`;
       const subs = await getAllSubscriptions();
       let sent = 0;
       let expired = 0;
       let failed = 0;
       await Promise.all(
         subs.map(async (sub) => {
-          const result = await sendPush(sub, { title, body: message, url });
+          const result = await sendPush(sub, { title: " ", body: combinedBody, url });
           if (result.ok) {
             sent += 1;
           } else if (result.expired) {
