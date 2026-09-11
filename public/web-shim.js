@@ -479,11 +479,14 @@
 
   // 是不是用「加到主畫面」的獨立模式打開的（而不是一般瀏覽器分頁）。
   // iOS Safari 用 navigator.standalone，其他瀏覽器看 display-mode media query。
+  // 掛在 window.appInfo 上是因為 renderer.js 要等登入成功才會被動態載入進來，
+  // 晚於這支檔案執行，需要一個地方存這個判斷結果給它用。
   function isStandalonePwa() {
     const byMediaQuery = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
     const byIosFlag = window.navigator && window.navigator.standalone === true;
     return Boolean(byMediaQuery || byIosFlag);
   }
+  window.appInfo.isStandalone = isStandalonePwa();
 
   const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 

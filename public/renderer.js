@@ -2106,6 +2106,31 @@ window.weatherAPI.onUpdated(() => {
   }
 })();
 
+// 加到主畫面、用獨立 App 模式打開時，如果使用者還沒對定位權限表態過，
+// 自動幫他跳出系統的定位權限彈窗（做法跟推播通知那邊一樣）。
+// 這裡只是要觸發權限詢問，不會因此切換目前畫面顯示的縣市——
+// 已經有收藏城市的人不會被打斷。跟推播的彈窗錯開一點時間，
+// 避免兩個系統權限彈窗幾乎同時跳出來、使用者分不清楚在問什麼。
+async function maybeAutoPromptLocation() {
+  if (!navigator.geolocation) return;
+  if (!(window.appInfo && window.appInfo.isStandalone)) return;
+  try {
+    if (navigator.permissions && navigator.permissions.query) {
+      const status = await navigator.permissions.query({ name: "geolocation" });
+      if (status.state !== "prompt") return; // 已經允許過或拒絕過，不用再問
+    }
+  } catch {
+    // 這個瀏覽器的 Permissions API 不支援查詢 geolocation 狀態，
+    // 那就直接嘗試，getCurrentPosition 本身也會處理權限詢問。
+  }
+  navigator.geolocation.getCurrentPosition(
+    () => {},
+    () => {},
+    { maximumAge: 60000, timeout: 15000 }
+  );
+}
+setTimeout(maybeAutoPromptLocation, 1500);
+
 // ---------------- 手機版側欄抽屜 ----------------
 // 整個側欄（城市選擇／收藏城市等）手機版預設收起來，點主畫面左上角
 // 的漢堡選單才滑出來，點遮罩或選了城市之後自動收回去。
