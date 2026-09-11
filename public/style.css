@@ -94,7 +94,19 @@ body:not(.auth-ok) .app {
   padding-left: 20px;
   margin-bottom: 14px;
 }
-.browser-gate-share-icon { margin-left: 2px; }
+.browser-gate-share-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin: 0 2px;
+  vertical-align: -5px;
+  background: #2f8bfd;
+  border-radius: 5px;
+  color: #fff;
+}
+.browser-gate-share-icon svg { width: 13px; height: 13px; }
 .browser-gate-hint {
   font-size: 12px;
   color: var(--text-faint);
