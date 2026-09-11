@@ -34,31 +34,33 @@
 
       if (isSafari) {
         if (safariVariant) safariVariant.classList.remove("hidden");
-        // 這顆按鈕跟畫面上那顆分享按鈕是同一個元件，按了會分享 App 連結本身
-        // （這個畫面還沒進到主程式，還沒有城市/天氣資料可以分享）。
+        // 這兩顆按鈕（小圖示 + 下面那顆大的圓角按鈕）都是同一個元件、同一段
+        // 分享邏輯，按了會分享 App 連結本身（這個畫面還沒進到主程式，還沒有
+        // 城市/天氣資料可以分享）。
         // 提醒：navigator.share() 跳出的系統分享清單不會有「加入主畫面」這個
         // 選項，那個只有 Safari 自己工具列上的分享圖示才有，這裡按了只是
         // 單純示範「分享」這個動作長什麼樣子，真正加入主畫面還是要點螢幕
         // 最下面 Safari 自己的工具列。
-        const gateShareBtn = document.getElementById("browserGateShareBtn");
-        if (gateShareBtn) {
-          gateShareBtn.addEventListener("click", async () => {
-            const url = window.location.origin + window.location.pathname;
-            if (navigator.share) {
-              try {
-                await navigator.share({ title: "MapSky 天氣", text: "MapSky —— 好用的天氣 App", url });
-              } catch (e) {
-                /* 使用者自己取消分享，不用特別處理 */
-              }
-              return;
-            }
+        const shareApp = async () => {
+          const url = window.location.origin + window.location.pathname;
+          if (navigator.share) {
             try {
-              await navigator.clipboard.writeText(url);
+              await navigator.share({ title: "MapSky 天氣", text: "MapSky —— 好用的天氣 App", url });
             } catch (e) {
-              /* 複製也失敗就算了，不影響主要的加入主畫面流程 */
+              /* 使用者自己取消分享，不用特別處理 */
             }
-          });
-        }
+            return;
+          }
+          try {
+            await navigator.clipboard.writeText(url);
+          } catch (e) {
+            /* 複製也失敗就算了，不影響主要的加入主畫面流程 */
+          }
+        };
+        const gateShareBtn = document.getElementById("browserGateShareBtn");
+        if (gateShareBtn) gateShareBtn.addEventListener("click", shareApp);
+        const gateShareBigBtn = document.getElementById("browserGateShareBigBtn");
+        if (gateShareBigBtn) gateShareBigBtn.addEventListener("click", shareApp);
       } else {
         if (otherVariant) otherVariant.classList.remove("hidden");
         const urlEl = document.getElementById("browserGateUrlValue");
