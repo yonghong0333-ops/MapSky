@@ -1731,6 +1731,11 @@ button:hover { background: var(--accent-hover); }
   color: var(--text-main);
   background: var(--input-bg, var(--card-bg));
 }
+.profile-edit-nickname-inline input:disabled {
+  background: var(--sidebar-hover, rgba(0,0,0,0.05));
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
 .profile-nickname-save-btn {
   flex-shrink: 0;
   background: var(--accent);

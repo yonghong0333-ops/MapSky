@@ -109,10 +109,11 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  const [isAdmin, memberId, custom] = await Promise.all([
+  const [isAdmin, memberId, custom, nicknameCooldownDays] = await Promise.all([
     isAdminSession(payload),
     getOrCreateMemberId(payload),
     getUserProfile(payload.provider, payload.profile.id),
+    getNicknameCooldownDays(),
   ]);
 
   res.status(200).json({
@@ -127,6 +128,7 @@ module.exports = async function handler(req, res) {
     },
     isAdmin,
     memberId,
+    nicknameCooldownDays,
     vapidPublicKey: getPublicKey(),
   });
 };

@@ -375,6 +375,28 @@
     const nicknameInput = card.querySelector("#profileNicknameInput");
     const nicknameSaveBtn = card.querySelector("#profileNicknameSaveBtn");
     const nicknameMsg = card.querySelector("#profileNicknameMsg");
+
+    // 算一下暱稱是不是還在冷卻期內：後端存了上次改名的時間
+    // （session.profile.nicknameChangedAt）跟目前設定的冷卻天數
+    // （session.nicknameCooldownDays），兩個都有值才需要算，缺一個
+    // 就當作沒有冷卻限制（沒改過名字，或後台沒開冷卻功能）。
+    function nicknameCooldownRemainingDays() {
+      const days = session.nicknameCooldownDays;
+      const changedAt = session.profile && session.profile.nicknameChangedAt;
+      if (!days || !changedAt) return 0;
+      const cooldownMs = days * 24 * 60 * 60 * 1000;
+      const elapsedMs = Date.now() - changedAt;
+      if (elapsedMs >= cooldownMs) return 0;
+      return Math.ceil((cooldownMs - elapsedMs) / (24 * 60 * 60 * 1000));
+    }
+
+    const remainingDays = nicknameCooldownRemainingDays();
+    if (remainingDays > 0 && nicknameInput && nicknameSaveBtn) {
+      nicknameInput.disabled = true;
+      nicknameSaveBtn.disabled = true;
+      if (nicknameMsg) nicknameMsg.textContent = `暱稱改過了，還要等 ${remainingDays} 天才能再改一次。`;
+    }
+
     if (nicknameSaveBtn && nicknameInput) {
       nicknameSaveBtn.addEventListener("click", async () => {
         const value = nicknameInput.value.trim();
