@@ -477,6 +477,75 @@
     return outputArray;
   }
 
+  // 是不是用「加到主畫面」的獨立模式打開的（而不是一般瀏覽器分頁）。
+  // iOS Safari 用 navigator.standalone，其他瀏覽器看 display-mode media query。
+  function isStandalonePwa() {
+    const byMediaQuery = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+    const byIosFlag = window.navigator && window.navigator.standalone === true;
+    return Boolean(byMediaQuery || byIosFlag);
+  }
+
+  const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+
+  // 訂閱推播。silent=true 時不跳 alert（給「加到主畫面自動詢問」用，
+  // 使用者還沒表態就自動彈的情境下，失敗了默默放棄就好，不用打擾他）。
+  async function subscribeToPush(session, { silent = false } = {}) {
+    if (!pushSupported()) return false;
+    if (!session.vapidPublicKey) {
+      if (!silent) alert("目前尚未設定推播金鑰，請聯絡管理員。");
+      return false;
+    }
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        if (!silent) alert("需要允許通知權限才能開啟推播。");
+        return false;
+      }
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(session.vapidPublicKey),
+      });
+      await fetch("/api/auth/session?action=push-subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription: sub.toJSON() }),
+      });
+      return true;
+    } catch (e) {
+      if (!silent) alert("設定推播時發生錯誤，請再試一次。");
+      return false;
+    }
+  }
+
+  async function unsubscribeFromPush() {
+    if (!pushSupported()) return false;
+    const reg = await navigator.serviceWorker.ready;
+    const existing = await reg.pushManager.getSubscription();
+    if (!existing) return true;
+    await fetch("/api/auth/session?action=push-unsubscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: existing.endpoint }),
+    });
+    await existing.unsubscribe();
+    return true;
+  }
+
+  // 加到主畫面、用獨立 App 模式打開時，如果使用者還沒表態過要不要通知
+  // （Notification.permission 還是預設值 "default"），自動幫他跳出系統的
+  // 允許通知彈窗，不用特地跑去設定頁找。使用者一旦選過允許/拒絕，
+  // permission 就不會再是 "default"，這裡也就不會再自動跳出來。
+  async function maybeAutoPromptPush(session) {
+    if (!pushSupported()) return;
+    if (!isStandalonePwa()) return;
+    if (Notification.permission !== "default") return;
+    if (!session.vapidPublicKey) return;
+    const alreadySubscribed = await navigator.serviceWorker.ready.then((reg) => reg.pushManager.getSubscription());
+    if (alreadySubscribed) return;
+    await subscribeToPush(session, { silent: true });
+  }
+
   // ---------------- 推播通知：訂閱／取消訂閱一條列表項目 ----------------
   function buildPushNotificationEntry(session) {
     const row = document.createElement("button");
@@ -489,10 +558,9 @@
       <span class="settings-list-item-arrow" id="pushNotificationState">…</span>
     `;
     const stateEl = row.querySelector("#pushNotificationState");
-    const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 
     async function refreshState() {
-      if (!supported) {
+      if (!pushSupported()) {
         stateEl.textContent = "此瀏覽器不支援";
         return null;
       }
@@ -503,37 +571,15 @@
     }
 
     row.addEventListener("click", async () => {
-      if (!supported) return;
+      if (!pushSupported()) return;
       row.disabled = true;
       try {
         const reg = await navigator.serviceWorker.ready;
         const existing = await reg.pushManager.getSubscription();
         if (existing) {
-          await fetch("/api/auth/session?action=push-unsubscribe", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ endpoint: existing.endpoint }),
-          });
-          await existing.unsubscribe();
+          await unsubscribeFromPush();
         } else {
-          if (!session.vapidPublicKey) {
-            alert("目前尚未設定推播金鑰，請聯絡管理員。");
-            return;
-          }
-          const permission = await Notification.requestPermission();
-          if (permission !== "granted") {
-            alert("需要允許通知權限才能開啟推播。");
-            return;
-          }
-          const sub = await reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(session.vapidPublicKey),
-          });
-          await fetch("/api/auth/session?action=push-subscribe", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ subscription: sub.toJSON() }),
-          });
+          await subscribeToPush(session);
         }
       } catch (e) {
         alert("設定推播時發生錯誤，請再試一次。");
@@ -602,6 +648,7 @@
         slot.appendChild(buildUserBar(session));
         slot.appendChild(buildProfileEditEntry(session));
         slot.appendChild(buildPushNotificationEntry(session));
+        maybeAutoPromptPush(session);
         applySettingsAvatarIcon(currentAvatarSrc(session));
         const logoutBtn = el("authLogoutBtn");
         if (logoutBtn) {
