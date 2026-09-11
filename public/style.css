@@ -1704,6 +1704,7 @@ button:hover { background: var(--accent-hover); }
   cursor: pointer;
 }
 .profile-avatar-change-btn:disabled { opacity: 0.6; cursor: default; }
+#profileAvatarFileInput.hidden { display: none; }
 .profile-edit-hint {
   font-size: 11px;
   color: var(--text-faint);
