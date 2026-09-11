@@ -10,7 +10,14 @@ function ensureConfigured() {
   const privateKey = process.env.VAPID_PRIVATE_KEY;
   const subject = process.env.VAPID_SUBJECT || "mailto:admin@example.com";
   if (!publicKey || !privateKey) return false;
-  webpush.setVapidDetails(subject, publicKey, privateKey);
+  try {
+    webpush.setVapidDetails(subject, publicKey, privateKey);
+  } catch (e) {
+    // 金鑰格式不對（例如貼漏字、多空白）web-push 會直接 throw，
+    // 不接住的話整支 serverless function 會 500，前端只會看到很籠統的錯誤。
+    console.error("VAPID 金鑰格式錯誤", e.message);
+    return false;
+  }
   configured = true;
   return true;
 }
