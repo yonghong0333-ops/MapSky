@@ -103,8 +103,9 @@ body:not(.auth-ok) .app {
   background: #2f8bfd;
   border-radius: 5px;
   color: #fff;
-  cursor: default;
+  cursor: pointer;
 }
+.browser-gate-share-btn:active { background: #1f6fe0; }
 .browser-gate-share-btn svg { width: 13px; height: 13px; }
 .browser-gate-hint {
   font-size: 12px;
