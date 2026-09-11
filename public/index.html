@@ -791,6 +791,16 @@
               </form>
               <p id="adminCooldownMsg" class="admin-assign-msg"></p>
             </div>
+            <div class="admin-card">
+              <h3 class="admin-card-title">發送公告推播</h3>
+              <p class="admin-card-hint">發送給所有有開啟推播通知的使用者。</p>
+              <form id="adminPushForm" class="admin-push-form">
+                <input id="adminPushTitle" type="text" placeholder="標題" maxlength="50" required />
+                <textarea id="adminPushBody" placeholder="內容" maxlength="200" rows="3" required></textarea>
+                <button type="submit">發送</button>
+              </form>
+              <p id="adminPushMsg" class="admin-assign-msg"></p>
+            </div>
             <div id="adminManageCard" class="admin-card hidden">
               <h3 class="admin-card-title">管理員名單</h3>
               <p class="admin-card-hint">超級管理員固定在伺服器環境變數裡，誰都踢不掉；一般管理員可以在這裡直接指派或踢除。</p>

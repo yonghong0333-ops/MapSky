@@ -11,6 +11,8 @@ const {
 const { resolveMemberId } = require("../_lib/member-id");
 const { PROVIDERS, isConfigured } = require("../_lib/providers");
 const { getNicknameCooldownDays, setNicknameCooldownDays } = require("../_lib/app-settings");
+const { getAllSubscriptions, removeSubscription } = require("../_lib/push-store");
+const { sendPush, ensureConfigured } = require("../_lib/web-push");
 
 // 一般登入使用者打這支只會拿到 hasKey（給前端判斷要不要顯示「尚未設定授權碼」提示）。
 // 管理員加上 ?admin=1 才會多回傳後台管理要看的系統狀態，不是隨便誰都看得到。
@@ -40,6 +42,40 @@ module.exports = async function handler(req, res) {
       } catch (e) {
         return res.status(400).json({ ok: false, reason: e.message });
       }
+    }
+
+    // 發公告推播：一般管理員就能發，不用到超級管理員
+    if (action === "push-send") {
+      if (!(await isAdminSession(payload))) {
+        return res.status(403).json({ ok: false, reason: "not-admin" });
+      }
+      if (!ensureConfigured()) {
+        return res.status(400).json({ ok: false, reason: "vapid-not-configured" });
+      }
+      const title = (body.title || "").trim();
+      const message = (body.body || "").trim();
+      if (!title || !message) {
+        return res.status(400).json({ ok: false, reason: "missing-title-or-body" });
+      }
+      const url = (body.url || "/").trim() || "/";
+      const subs = await getAllSubscriptions();
+      let sent = 0;
+      let expired = 0;
+      let failed = 0;
+      await Promise.all(
+        subs.map(async (sub) => {
+          const result = await sendPush(sub, { title, body: message, url });
+          if (result.ok) {
+            sent += 1;
+          } else if (result.expired) {
+            expired += 1;
+            await removeSubscription(sub.endpoint);
+          } else {
+            failed += 1;
+          }
+        })
+      );
+      return res.status(200).json({ ok: true, total: subs.length, sent, expired, failed });
     }
 
     // 管理員名單的指派/踢除，只有超級管理員能做

@@ -4,11 +4,40 @@ const { isAdminSession } = require("../_lib/admin");
 const { getOrCreateMemberId } = require("../_lib/member-id");
 const { getUserProfile, setUserProfile } = require("../_lib/user-profile");
 const { getNicknameCooldownDays } = require("../_lib/app-settings");
+const { addSubscription, removeSubscription } = require("../_lib/push-store");
+const { getPublicKey } = require("../_lib/web-push");
 
 module.exports = async function handler(req, res) {
   const cookies = parseCookies(req);
   const payload = verify(cookies.nexora_session);
   if (!payload) return res.status(200).json({ loggedIn: false });
+
+  // 推播訂閱／取消訂閱：跟改暱稱一樣「登入就能操作自己的」，不用另外開檔案
+  // （Vercel Hobby 方案一個部署最多 12 支 function，這支本來就要驗登入了，直接沿用）。
+  if (req.method === "POST" && req.query.action === "push-subscribe") {
+    let body = req.body;
+    if (typeof body === "string") {
+      try { body = JSON.parse(body); } catch { body = {}; }
+    }
+    const subscription = body && body.subscription;
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ ok: false, reason: "invalid-subscription" });
+    }
+    const saved = await addSubscription(subscription);
+    if (!saved) return res.status(502).json({ ok: false, reason: "save-failed" });
+    return res.status(200).json({ ok: true });
+  }
+
+  if (req.method === "POST" && req.query.action === "push-unsubscribe") {
+    let body = req.body;
+    if (typeof body === "string") {
+      try { body = JSON.parse(body); } catch { body = {}; }
+    }
+    const endpoint = body && body.endpoint;
+    if (!endpoint) return res.status(400).json({ ok: false, reason: "missing-endpoint" });
+    await removeSubscription(endpoint);
+    return res.status(200).json({ ok: true });
+  }
 
   // 使用者更新自己的暱稱／大頭貼。只能改自己的（session 本人），
   // 不需要額外的權限判斷——任何登入的人都能改自己的暱稱/大頭貼。
@@ -98,5 +127,6 @@ module.exports = async function handler(req, res) {
     },
     isAdmin,
     memberId,
+    vapidPublicKey: getPublicKey(),
   });
 };

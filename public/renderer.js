@@ -672,6 +672,43 @@ async function loadAdminStatus() {
 
     // 管理員名單：只有超級管理員看得到跟能操作，一般管理員/一般使用者不會看到這張卡片
     renderAdminList(data);
+
+    // 發送公告推播（一般管理員就能發）
+    const pushForm = el("adminPushForm");
+    const pushMsg = el("adminPushMsg");
+    if (pushForm && !pushForm.dataset.bound) {
+      pushForm.dataset.bound = "1";
+      pushForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const title = el("adminPushTitle").value.trim();
+        const body = el("adminPushBody").value.trim();
+        if (!title || !body) return;
+        const submitBtn = pushForm.querySelector("button[type=submit]");
+        submitBtn.disabled = true;
+        if (pushMsg) pushMsg.textContent = "發送中…";
+        try {
+          const resp = await fetch("/api/weather/status?admin=1&action=push-send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title, body }),
+          });
+          const result = await resp.json();
+          if (!resp.ok || !result.ok) {
+            const reason = result.reason === "vapid-not-configured"
+              ? "尚未設定 VAPID 金鑰（環境變數 VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY）"
+              : (result.reason || "發送失敗");
+            if (pushMsg) pushMsg.textContent = `發送失敗：${reason}`;
+            return;
+          }
+          if (pushMsg) pushMsg.textContent = `已發送給 ${result.sent} / ${result.total} 個裝置${result.expired ? `（清掉 ${result.expired} 個失效訂閱）` : ""}`;
+          pushForm.reset();
+        } catch (e) {
+          if (pushMsg) pushMsg.textContent = "發送失敗，請重新整理再試一次。";
+        } finally {
+          submitBtn.disabled = false;
+        }
+      });
+    }
   } catch (e) {
     if (emptyEl) emptyEl.textContent = "載入失敗，請重新整理再試一次。";
   }

@@ -467,6 +467,86 @@
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  // VAPID 公鑰是 base64url 字串，瀏覽器的 pushManager.subscribe 要吃 Uint8Array，中間要轉換一次。
+  function urlBase64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }
+
+  // ---------------- 推播通知：訂閱／取消訂閱一條列表項目 ----------------
+  function buildPushNotificationEntry(session) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.id = "pushNotificationBtn";
+    row.className = "settings-list-item";
+    row.innerHTML = `
+      <span class="settings-list-item-icon">🔔</span>
+      <span class="settings-list-item-label">推播通知</span>
+      <span class="settings-list-item-arrow" id="pushNotificationState">…</span>
+    `;
+    const stateEl = row.querySelector("#pushNotificationState");
+    const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+
+    async function refreshState() {
+      if (!supported) {
+        stateEl.textContent = "此瀏覽器不支援";
+        return null;
+      }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      stateEl.textContent = sub ? "已開啟 ✓" : "點擊開啟";
+      return sub;
+    }
+
+    row.addEventListener("click", async () => {
+      if (!supported) return;
+      row.disabled = true;
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const existing = await reg.pushManager.getSubscription();
+        if (existing) {
+          await fetch("/api/auth/session?action=push-unsubscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ endpoint: existing.endpoint }),
+          });
+          await existing.unsubscribe();
+        } else {
+          if (!session.vapidPublicKey) {
+            alert("目前尚未設定推播金鑰，請聯絡管理員。");
+            return;
+          }
+          const permission = await Notification.requestPermission();
+          if (permission !== "granted") {
+            alert("需要允許通知權限才能開啟推播。");
+            return;
+          }
+          const sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(session.vapidPublicKey),
+          });
+          await fetch("/api/auth/session?action=push-subscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ subscription: sub.toJSON() }),
+          });
+        }
+      } catch (e) {
+        alert("設定推播時發生錯誤，請再試一次。");
+      } finally {
+        row.disabled = false;
+        refreshState();
+      }
+    });
+
+    refreshState();
+    return row;
+  }
+
   // ---------------- 設定入口（帳號資訊 + 登出）----------------
   // 現在「設定」已經是跟其他分頁（未來 7 天／溫度趨勢圖…）同一種真正的
   // tab-panel，不再是另外浮出來的面板。側欄的「⚙️ 帳號 / 設定」按鈕
@@ -521,6 +601,7 @@
         slot.innerHTML = "";
         slot.appendChild(buildUserBar(session));
         slot.appendChild(buildProfileEditEntry(session));
+        slot.appendChild(buildPushNotificationEntry(session));
         applySettingsAvatarIcon(currentAvatarSrc(session));
         const logoutBtn = el("authLogoutBtn");
         if (logoutBtn) {
