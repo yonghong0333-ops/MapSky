@@ -68,7 +68,7 @@ module.exports = async function handler(req, res) {
       let failed = 0;
       await Promise.all(
         subs.map(async (sub) => {
-          const result = await sendPush(sub, { title: " ", body: combinedBody, url });
+          const result = await sendPush(sub, { title: "", body: combinedBody, url });
           if (result.ok) {
             sent += 1;
           } else if (result.expired) {
