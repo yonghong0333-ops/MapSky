@@ -106,6 +106,24 @@ body:not(.auth-ok) .app {
   cursor: pointer;
 }
 .browser-gate-share-btn:active { background: #1f6fe0; }
+.browser-gate-share-big-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #2f8bfd;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.browser-gate-share-big-btn svg { width: 18px; height: 18px; }
+.browser-gate-share-big-btn:active { background: #1f6fe0; }
 .browser-gate-share-btn svg { width: 13px; height: 13px; }
 .browser-gate-hint {
   font-size: 12px;
