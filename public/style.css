@@ -1771,51 +1771,18 @@ button:hover { background: var(--accent-hover); }
   flex-shrink: 0;
 }
 
-/* ---- 點「暱稱與大頭貼」後彈出的視窗 ---- */
-.profile-edit-modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(30, 38, 50, 0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-  padding: 16px;
-}
-.profile-edit-modal.hidden { display: none; }
-.profile-edit-modal-box {
-  position: relative;
-  width: 100%;
-  max-width: 380px;
-  max-height: 85vh;
-  overflow-y: auto;
-  background: var(--card-bg);
-  border-radius: 16px;
-  box-shadow: 0 12px 30px rgba(20, 26, 40, 0.25);
-}
-/* 卡片被放進彈出視窗裡了，不用再重複一層邊框跟陰影 */
-.profile-edit-modal-box .profile-edit-card {
+/* ---- 「暱稱與大頭貼」子頁面的返回按鈕 ---- */
+.settings-back-btn {
+  display: inline-block;
+  background: none;
   border: none;
-  box-shadow: none;
-  padding: 16px;
-  margin-top: 0;
-}
-.profile-edit-modal-close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 50%;
-  background: #eef1f6;
-  color: var(--text-main);
+  color: var(--accent);
   font-size: 14px;
-  line-height: 1;
+  font-weight: 600;
+  padding: 4px 0 12px;
   cursor: pointer;
-  z-index: 1;
 }
-.profile-edit-modal-close:active { background: #dde3ea; }
+.settings-back-btn:active { opacity: 0.6; }
 
 /* ================================================================
    手機版排版（RWD）

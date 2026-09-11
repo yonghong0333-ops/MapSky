@@ -411,8 +411,6 @@
 
   // ---------------- 暱稱與大頭貼：設定頁上收合成一條，點下去才彈出編輯卡片 ----------------
   function buildProfileEditEntry(session) {
-    const wrap = document.createDocumentFragment();
-
     const row = document.createElement("button");
     row.type = "button";
     row.id = "profileEditEntryBtn";
@@ -423,34 +421,34 @@
       <span class="settings-list-item-arrow">›</span>
     `;
 
-    const overlay = document.createElement("div");
-    overlay.id = "profileEditModal";
-    overlay.className = "profile-edit-modal hidden";
-
-    const box = document.createElement("div");
-    box.className = "profile-edit-modal-box";
-
-    const closeBtn = document.createElement("button");
-    closeBtn.type = "button";
-    closeBtn.className = "profile-edit-modal-close";
-    closeBtn.setAttribute("aria-label", "關閉");
-    closeBtn.textContent = "✕";
-
-    box.appendChild(closeBtn);
-    box.appendChild(buildProfileEditCard(session));
-    overlay.appendChild(box);
-
-    const openModal = () => overlay.classList.remove("hidden");
-    const closeModal = () => overlay.classList.add("hidden");
-    row.addEventListener("click", openModal);
-    closeBtn.addEventListener("click", closeModal);
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) closeModal();
+    row.addEventListener("click", () => {
+      const slot = el("profileEditPanelSlot");
+      if (slot) {
+        slot.innerHTML = "";
+        slot.appendChild(buildProfileEditCard(session));
+      }
+      // 沒有對應的頂部分頁按鈕（這是設定底下的子頁面，不是主導覽項目），
+      // 所以自己重現一次 renderer.js 那邊「切分頁」該做的事：清掉舊的
+      // active、把這個分頁標成 active、頁首（城市名稱那排）跟其他設定類
+      // 分頁一樣要藏起來。底部導覽列的「設定」維持亮著就好，不用去動它。
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+      const panel = el("profileEditPanel");
+      if (panel) panel.classList.add("active");
+      const mainHeader = document.querySelector(".main-header");
+      if (mainHeader) mainHeader.classList.add("hidden");
     });
 
-    wrap.appendChild(row);
-    wrap.appendChild(overlay);
-    return wrap;
+    const backBtn = el("profileEditBackBtn");
+    if (backBtn && !backBtn.dataset.bound) {
+      backBtn.dataset.bound = "1";
+      backBtn.addEventListener("click", () => {
+        const settingsTabBtn = document.querySelector('.tab-btn[data-tab="settings"]');
+        if (settingsTabBtn) settingsTabBtn.click();
+      });
+    }
+
+    return row;
   }
 
   function buildGateButtons(providers) {
