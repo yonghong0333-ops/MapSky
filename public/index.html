@@ -17,6 +17,37 @@
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- 手機瀏覽器打開、還沒加到主畫面時鎖住整個畫面：
+       Safari 顯示「加入主畫面」教學；不是 Safari 就顯示「請用 Safari 開啟」+
+       複製網址（iOS 不開放網頁用程式碼觸發加入主畫面或跳轉到別的瀏覽器 App，
+       只能這樣引導使用者自己操作）。由 web-shim.js 判斷要不要顯示、顯示哪一種。 -->
+  <div id="browserGate" class="browser-gate hidden">
+    <div class="browser-gate-card">
+      <img class="browser-gate-logo" src="icons/logo-dark.png" alt="MapSky" />
+
+      <div id="browserGateSafari" class="browser-gate-variant hidden">
+        <h2 class="browser-gate-title">請把 MapSky 加入主畫面</h2>
+        <p class="browser-gate-sub">這樣才能像 App 一樣獨立開啟，體驗比較完整。</p>
+        <ol class="browser-gate-steps">
+          <li>點下方工具列的「分享」<span class="browser-gate-share-icon">⬆️</span> 圖示</li>
+          <li>選單裡找「加入主畫面」</li>
+          <li>點右上角「加入」</li>
+        </ol>
+        <p class="browser-gate-hint">加入後，改用主畫面上的 MapSky 圖示打開就可以了。</p>
+      </div>
+
+      <div id="browserGateOtherBrowser" class="browser-gate-variant hidden">
+        <h2 class="browser-gate-title">請用 Safari 開啟</h2>
+        <p class="browser-gate-sub">「加入主畫面」這個功能只有 Safari 支援，麻煩複製下面的網址，貼到 Safari 開啟。</p>
+        <div class="browser-gate-url-row">
+          <span id="browserGateUrlValue" class="browser-gate-url-value"></span>
+          <button id="browserGateCopyBtn" class="browser-gate-copy-btn" type="button">複製網址</button>
+        </div>
+        <p id="browserGateCopyMsg" class="browser-gate-copy-msg"></p>
+      </div>
+    </div>
+  </div>
+
   <!-- 底部導覽列的「液態玻璃」折射濾鏡（SVG feDisplacementMap）。
        只有背景（backdrop）會被折射扭曲，導覽列自己的圖示/文字不受影響。
        目前僅 Chromium 系瀏覽器支援把 SVG filter 用在 backdrop-filter 上，

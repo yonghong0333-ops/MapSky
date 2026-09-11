@@ -9,6 +9,51 @@
 (function () {
   window.appInfo = { platform: "web" };
 
+  // 手機瀏覽器打開、還沒加到主畫面就先鎖住畫面，逼使用者先加入主畫面
+  // （或先換成 Safari）才能繼續用。桌面版（寬螢幕）不受影響，直接放行——
+  // 「加入主畫面」本來就是行動裝置的概念，桌面瀏覽器沒有這回事。
+  (function guardBrowserGate() {
+    const isDesktopWidth = window.matchMedia && window.matchMedia("(min-width: 901px)").matches;
+    if (isDesktopWidth) return;
+
+    const byMediaQuery = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+    const byIosFlag = window.navigator && window.navigator.standalone === true;
+    const isStandalone = Boolean(byMediaQuery || byIosFlag);
+    if (isStandalone) return;
+
+    const ua = navigator.userAgent || "";
+    const isSafari = /^((?!chrome|android|crios|fxios|edgios|opios|opr\/).)*safari/i.test(ua);
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const gate = document.getElementById("browserGate");
+      if (!gate) return;
+      gate.classList.remove("hidden");
+
+      const safariVariant = document.getElementById("browserGateSafari");
+      const otherVariant = document.getElementById("browserGateOtherBrowser");
+
+      if (isSafari) {
+        if (safariVariant) safariVariant.classList.remove("hidden");
+      } else {
+        if (otherVariant) otherVariant.classList.remove("hidden");
+        const urlEl = document.getElementById("browserGateUrlValue");
+        if (urlEl) urlEl.textContent = window.location.href;
+        const copyBtn = document.getElementById("browserGateCopyBtn");
+        const msgEl = document.getElementById("browserGateCopyMsg");
+        if (copyBtn) {
+          copyBtn.addEventListener("click", async () => {
+            try {
+              await navigator.clipboard.writeText(window.location.href);
+              if (msgEl) msgEl.textContent = "已複製，去 Safari 貼上打開吧";
+            } catch (e) {
+              if (msgEl) msgEl.textContent = "複製失敗，請手動選取上面的網址複製";
+            }
+          });
+        }
+      }
+    });
+  })();
+
   // 註冊 service worker，讓瀏覽器把這個網站判定為「可安裝的 App」，
   // 「加到主畫面」後系統會當成獨立軟體開啟，而不是網頁捷徑。
   if ("serviceWorker" in navigator) {
