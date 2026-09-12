@@ -672,7 +672,10 @@
         const reg = await navigator.serviceWorker.ready;
         const existing = await reg.pushManager.getSubscription();
         if (existing) {
-          await unsubscribeFromPush();
+          // 已經同意過的話，不讓使用者在 App 裡面直接關閉推播——
+          // 瀏覽器的通知權限本來就只能靠系統設定收回，這裡改成引導過去，
+          // 避免使用者以為點一下就關掉了，結果系統權限其實還開著、行為不一致。
+          alert("要關閉推播通知，請到手機的「設定」App 裡調整這個網站/App 的通知權限，沒辦法直接在這裡關閉。");
         } else {
           await subscribeToPush(session);
         }
