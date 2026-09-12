@@ -721,6 +721,33 @@
 
   // 一定要先登入才能開啟功能：預設整個 .app 是隱藏的（見 CSS），
   // 只有確認 session 有效後才在 body 加上 auth-ok，讓主畫面顯示出來。
+  function showMaintenanceScreen(session, providers) {
+    const gate = el("maintenanceGate");
+    const loginGate = el("loginGate");
+    if (loginGate) loginGate.classList.add("hidden");
+    if (gate) gate.classList.remove("hidden");
+
+    const link = el("maintenanceAdminLoginBtn");
+    if (link && !link.dataset.bound) {
+      link.dataset.bound = "1";
+      link.addEventListener("click", () => {
+        if (gate) gate.classList.add("hidden");
+        if (loginGate) loginGate.classList.remove("hidden");
+        const statusEl = el("loginGateStatus");
+        const buttonsEl = el("loginGateButtons");
+        if (!session.loggedIn) {
+          if (statusEl) statusEl.textContent = "請先登入管理員帳號：";
+          if (buttonsEl) {
+            buttonsEl.innerHTML = buildGateButtons(providers);
+            buttonsEl.classList.remove("hidden");
+          }
+        } else if (statusEl) {
+          statusEl.textContent = "這個帳號不是管理員，維護模式期間無法使用。";
+        }
+      });
+    }
+  }
+
   async function initAuthGate() {
     showGateError();
     const statusEl = el("loginGateStatus");
@@ -731,6 +758,15 @@
       [providers, session] = await Promise.all([loadProviders(), loadSession()]);
     } catch {
       if (statusEl) statusEl.textContent = "無法連線到登入伺服器，請重新整理再試一次。";
+      return;
+    }
+
+    // 維護模式：後台開關打開時，除了管理員以外一律鎖住，連 App 本體
+    // （renderer.js）都不會載入，不只是畫面被蓋住而已。管理員登入後
+    // 這裡會是 false，正常往下走原本的流程。
+    const isAdminUser = Boolean(session.loggedIn && session.isAdmin);
+    if (session.maintenanceMode && !isAdminUser) {
+      showMaintenanceScreen(session, providers);
       return;
     }
 

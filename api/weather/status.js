@@ -10,7 +10,7 @@ const {
 } = require("../_lib/admin");
 const { resolveMemberId } = require("../_lib/member-id");
 const { PROVIDERS, isConfigured } = require("../_lib/providers");
-const { getNicknameCooldownDays, setNicknameCooldownDays } = require("../_lib/app-settings");
+const { getNicknameCooldownDays, setNicknameCooldownDays, isMaintenanceMode, setMaintenanceMode } = require("../_lib/app-settings");
 const { getAllSubscriptions, removeSubscription } = require("../_lib/push-store");
 const { sendPush, ensureConfigured } = require("../_lib/web-push");
 
@@ -39,6 +39,20 @@ module.exports = async function handler(req, res) {
       try {
         const saved = await setNicknameCooldownDays(body.days);
         return res.status(200).json({ ok: true, nicknameCooldownDays: saved });
+      } catch (e) {
+        return res.status(400).json({ ok: false, reason: e.message });
+      }
+    }
+
+    // 維護模式開關：一般管理員就能切，管理員自己不受這個開關影響
+    // （前端判斷「是不是要鎖住畫面」時，管理員一律略過，見 web-shim.js）。
+    if (action === "set-maintenance-mode") {
+      if (!(await isAdminSession(payload))) {
+        return res.status(403).json({ ok: false, reason: "not-admin" });
+      }
+      try {
+        const saved = await setMaintenanceMode(body.enabled);
+        return res.status(200).json({ ok: true, maintenanceMode: saved });
       } catch (e) {
         return res.status(400).json({ ok: false, reason: e.message });
       }
@@ -122,10 +136,11 @@ module.exports = async function handler(req, res) {
     configured: isConfigured(id),
   }));
 
-  const [amSuperAdmin, dynamicAdmins, nicknameCooldownDays] = await Promise.all([
+  const [amSuperAdmin, dynamicAdmins, nicknameCooldownDays, maintenanceMode] = await Promise.all([
     isSuperAdminSession(payload),
     getDynamicAdmins(),
     getNicknameCooldownDays(),
+    isMaintenanceMode(),
   ]);
 
   res.status(200).json({
@@ -138,6 +153,7 @@ module.exports = async function handler(req, res) {
     providers,
     cache: getCacheStatus(),
     nicknameCooldownDays,
+    maintenanceMode,
     // 管理員名單：只有超級管理員看得到，也只有超級管理員能在前端指派/踢除。
     // 超級管理員名單只列出「provider:id」（沒有真名，因為那份資料只在環境
     // 變數裡，沒有登入紀錄可查真名）；一般管理員有存 name，可以顯示。

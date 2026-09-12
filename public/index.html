@@ -75,6 +75,20 @@
     </div>
   </div>
 
+  <!-- 維護模式：後台開關打開時，非管理員的使用者一律看到這個畫面，
+       整個網站功能都碰不到；管理員照常使用，由 web-shim.js 判斷。 -->
+  <div id="maintenanceGate" class="login-gate hidden">
+    <div class="login-gate-card maintenance-card">
+      <img class="login-gate-logo" src="icons/logo-dark.png" alt="MapSky" />
+      <h1 class="login-gate-title">MapSky</h1>
+      <div class="maintenance-inner-card">
+        <p class="maintenance-text">伺服器維護中<br />敬請見諒</p>
+        <div class="maintenance-icon" aria-hidden="true">🙇</div>
+      </div>
+      <button id="maintenanceAdminLoginBtn" class="maintenance-admin-link" type="button">管理員登入</button>
+    </div>
+  </div>
+
   <!-- 第一次登入才會出現的獨立引導畫面：取暱稱、選大頭貼，兩個都選填，
        可以直接跳過；完成或跳過都會在後端標記 onboarded，之後就不會再跳出來。 -->
   <div id="onboardingGate" class="onboarding-gate hidden">
@@ -828,6 +842,15 @@
                 <button type="submit">儲存</button>
               </form>
               <p id="adminCooldownMsg" class="admin-assign-msg"></p>
+            </div>
+            <div class="admin-card">
+              <h3 class="admin-card-title">🚧 維護模式</h3>
+              <p class="admin-card-hint">打開後，非管理員的使用者一律看到「伺服器維護中」畫面，看不到、也用不到任何功能；管理員不受影響。</p>
+              <label class="admin-toggle-row">
+                <input id="adminMaintenanceToggle" type="checkbox" />
+                <span id="adminMaintenanceToggleLabel">目前：關閉</span>
+              </label>
+              <p id="adminMaintenanceMsg" class="admin-assign-msg"></p>
             </div>
             <div class="admin-card">
               <h3 class="admin-card-title">發送公告推播</h3>

@@ -3,14 +3,18 @@ const { verify } = require("../_lib/jwt");
 const { isAdminSession } = require("../_lib/admin");
 const { getOrCreateMemberId } = require("../_lib/member-id");
 const { getUserProfile, setUserProfile } = require("../_lib/user-profile");
-const { getNicknameCooldownDays } = require("../_lib/app-settings");
+const { getNicknameCooldownDays, isMaintenanceMode } = require("../_lib/app-settings");
 const { addSubscription, removeSubscription } = require("../_lib/push-store");
 const { getPublicKey } = require("../_lib/web-push");
 
 module.exports = async function handler(req, res) {
   const cookies = parseCookies(req);
   const payload = verify(cookies.nexora_session);
-  if (!payload) return res.status(200).json({ loggedIn: false });
+  if (!payload) {
+    // 沒登入也要讓前端知道現在是不是維護模式，不然一般使用者的登入畫面
+    // 沒辦法在還沒登入的狀態下就先鎖住。
+    return res.status(200).json({ loggedIn: false, maintenanceMode: await isMaintenanceMode() });
+  }
 
   // 推播訂閱／取消訂閱：跟改暱稱一樣「登入就能操作自己的」，不用另外開檔案
   // （Vercel Hobby 方案一個部署最多 12 支 function，這支本來就要驗登入了，直接沿用）。
@@ -109,11 +113,12 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  const [isAdmin, memberId, custom, nicknameCooldownDays] = await Promise.all([
+  const [isAdmin, memberId, custom, nicknameCooldownDays, maintenanceMode] = await Promise.all([
     isAdminSession(payload),
     getOrCreateMemberId(payload),
     getUserProfile(payload.provider, payload.profile.id),
     getNicknameCooldownDays(),
+    isMaintenanceMode(),
   ]);
 
   res.status(200).json({
@@ -129,6 +134,7 @@ module.exports = async function handler(req, res) {
     isAdmin,
     memberId,
     nicknameCooldownDays,
+    maintenanceMode,
     vapidPublicKey: getPublicKey(),
   });
 };

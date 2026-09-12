@@ -700,6 +700,13 @@ async function loadAdminStatus() {
       cooldownInput.value = data.nicknameCooldownDays;
     }
 
+    const maintenanceToggle = el("adminMaintenanceToggle");
+    const maintenanceLabel = el("adminMaintenanceToggleLabel");
+    if (maintenanceToggle) {
+      maintenanceToggle.checked = Boolean(data.maintenanceMode);
+      if (maintenanceLabel) maintenanceLabel.textContent = `目前：${data.maintenanceMode ? "開啟" : "關閉"}`;
+    }
+
     // 管理員名單：只有超級管理員看得到跟能操作，一般管理員/一般使用者不會看到這張卡片
     renderAdminList(data);
 
@@ -839,6 +846,38 @@ if (adminCooldownForm) {
       if (msgEl) msgEl.textContent = `已更新為 ${data.nicknameCooldownDays} 天`;
     } catch (e) {
       if (msgEl) msgEl.textContent = "失敗：網路錯誤";
+    }
+  });
+}
+
+// 維護模式開關：任何管理員都能切（不用到超級管理員）
+const adminMaintenanceToggle = el("adminMaintenanceToggle");
+if (adminMaintenanceToggle) {
+  adminMaintenanceToggle.addEventListener("change", async () => {
+    const label = el("adminMaintenanceToggleLabel");
+    const msgEl = el("adminMaintenanceMsg");
+    const enabled = adminMaintenanceToggle.checked;
+    adminMaintenanceToggle.disabled = true;
+    if (msgEl) msgEl.textContent = "更新中…";
+    try {
+      const resp = await fetch("/api/weather/status?admin=1&action=set-maintenance-mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        adminMaintenanceToggle.checked = !enabled; // 失敗就退回原本的狀態
+        if (msgEl) msgEl.textContent = `失敗：${data.reason || "未知錯誤"}`;
+        return;
+      }
+      if (label) label.textContent = `目前：${data.maintenanceMode ? "開啟" : "關閉"}`;
+      if (msgEl) msgEl.textContent = data.maintenanceMode ? "已開啟，非管理員現在都會看到維護畫面。" : "已關閉，恢復正常使用。";
+    } catch (e) {
+      adminMaintenanceToggle.checked = !enabled;
+      if (msgEl) msgEl.textContent = "失敗：網路錯誤";
+    } finally {
+      adminMaintenanceToggle.disabled = false;
     }
   });
 }

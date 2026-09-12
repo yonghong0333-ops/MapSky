@@ -25,8 +25,30 @@ async function setNicknameCooldownDays(days) {
   return n;
 }
 
+const MAINTENANCE_MODE_KEY = "settings:maintenance_mode";
+
+async function isMaintenanceMode() {
+  try {
+    const client = await getRedisClient();
+    if (!client) return false;
+    const raw = await client.get(MAINTENANCE_MODE_KEY);
+    return raw === "1";
+  } catch {
+    return false;
+  }
+}
+
+async function setMaintenanceMode(enabled) {
+  const client = await getRedisClient();
+  if (!client) throw new Error("尚未設定 Redis，無法儲存設定");
+  await client.set(MAINTENANCE_MODE_KEY, enabled ? "1" : "0");
+  return Boolean(enabled);
+}
+
 module.exports = {
   DEFAULT_NICKNAME_COOLDOWN_DAYS,
   getNicknameCooldownDays,
   setNicknameCooldownDays,
+  isMaintenanceMode,
+  setMaintenanceMode,
 };
