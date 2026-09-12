@@ -1,0 +1,188 @@
+// ------------------------------------------------------------------
+// electron/main.js —— 桌面版主行程
+//
+// 這個桌面版本身不含任何後端邏輯（沒有天氣資料、OAuth、Redis 那些），
+// 純粹是一個載入線上 MapSky（https://mapskyapp.vercel.app）的原生視窗殼。
+// 所有 API 呼叫、OAuth 登入都還是打去 Vercel 上的正式站台，金鑰留在
+// 伺服器端，桌面安裝檔裡不會包到任何機密資料。
+//
+// 之所以選這個做法而不是把 public/ 資料夾整包塞進安裝檔本地執行，是
+// 因為看了 api/auth 的程式碼後發現：OAuth 供應商（Google/GitHub/…）的
+// 「Authorized redirect URI」都是寫死指向 https://mapskyapp.vercel.app/api/auth/callback，
+// 登入完成後 Provider 一定會把使用者導回這個正式網域、Set-Cookie 也是
+// 掛在這個網域下。如果桌面版改成載入「本地打包的前端 + 只轉發 /api 的
+// reverse proxy」，畫面雖然一開始是本地檔案，但登入完成那一刻使用者
+// 會被導到 mapskyapp.vercel.app（因為 Provider 只認得這個網址），session
+// cookie 也會掛在那個網域、不會回到本地殼上，等於登入完卡住或要重新
+// 導覽一次，體驗會很怪。直接讓桌面殼從頭到尾都载入正式網域，就完全
+// 沒有這個落差，登入流程跟網頁版一模一樣。
+// ------------------------------------------------------------------
+
+const { app, BrowserWindow, shell, session, screen } = require("electron");
+const path = require("path");
+
+const APP_URL = "https://mapskyapp.vercel.app/";
+const APP_ORIGIN = new URL(APP_URL).origin;
+
+// Electron 預設 UA 尾巴會帶「Electron/版本號」，某些服務（尤其 Google OAuth）
+// 看到這種內嵌瀏覽器字樣會擋掉或降級成舊版頁面。統一換成一般桌面版 Chrome 的
+// UA（版本號用這個 Electron 內建的實際 Chromium 版本），主視窗、登入視窗都套用。
+const CHROME_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+
+// 登入按鈕在網頁裡是普通的 <a href="/api/auth/login?provider=...">，不是
+// window.open 開新分頁，所以預設會直接在主視窗裡導覽過去、繞去 Google/GitHub/
+// …等登入頁，登入完再繞回來。這裡改成攔截這個連結，改用另一個獨立視窗跑完
+// 整個登入流程，主視窗全程留在 App 畫面上，跟大部分桌面 App「登入另開視窗」
+// 的體驗一致。
+function isLoginUrl(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    return u.origin === APP_ORIGIN && u.pathname === "/api/auth/login";
+  } catch {
+    return false;
+  }
+}
+
+// 判斷「登入流程是不是跑完了」——OAuth 供應商登入完一定會導回
+// /api/auth/callback，這才是登入完成的訊號（session cookie 這時候已經設好）。
+// 不能只看「是不是回到自己網域」，因為登入視窗一開始載入的
+// /api/auth/login 本身就是自己網域，會誤判成一開始就登入完成。
+function isCallbackUrl(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    return u.origin === APP_ORIGIN && u.pathname.startsWith("/api/auth/callback");
+  } catch {
+    return false;
+  }
+}
+
+// 每個登入視窗都換成當時登入的那家公司 logo（跟網頁版登入按鈕用的圖是同一份），
+// 而不是整個都用 MapSky 自己的圖示，比較看得出來現在是在登入哪個帳號。
+const PROVIDER_ICON = {
+  google: "google.png",
+  facebook: "facebook.png",
+  microsoft: "microsoft.png",
+  discord: "discord.png",
+  github: "github.png",
+  yahoo: "yahoo.png",
+};
+
+function getProviderIconPath(urlStr) {
+  try {
+    const provider = new URL(urlStr).searchParams.get("provider");
+    const file = PROVIDER_ICON[provider];
+    return file ? path.join(__dirname, "icons", file) : path.join(__dirname, "build-icon.ico");
+  } catch {
+    return path.join(__dirname, "build-icon.ico");
+  }
+}
+
+function openLoginWindow(parentWin, loginUrl) {
+  const loginWin = new BrowserWindow({
+    width: 480,
+    height: 720,
+    parent: parentWin,
+    modal: true,
+    title: "登入 MapSky",
+    icon: getProviderIconPath(loginUrl),
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+
+  // Electron 視窗預設的 User-Agent 尾巴會帶一段「Electron/版本號」，Google 的
+  // OAuth 登入頁看到這種內嵌瀏覽器的 UA 會直接判定不安全，跳出閹割過的舊版
+  // 登入頁（甚至直接擋掉），不是給一般瀏覽器看的那個正常畫面。換成一般桌面版
+  // Chrome 的 UA，登入頁才會正常顯示成目前的樣子。
+  loginWin.webContents.setUserAgent(CHROME_UA);
+
+  loginWin.loadURL(loginUrl);
+
+  let finished = false;
+  const checkDone = (url) => {
+    if (finished || !isCallbackUrl(url)) return;
+    finished = true;
+    loginWin.close();
+    if (!parentWin.isDestroyed()) parentWin.webContents.reload();
+  };
+
+  loginWin.webContents.on("will-navigate", (_event, url) => checkDone(url));
+  loginWin.webContents.on("will-redirect", (_event, url) => checkDone(url));
+  loginWin.webContents.on("did-navigate", (_event, url) => checkDone(url));
+}
+
+function createWindow() {
+  // 依照使用者螢幕解析度算一個合理的視窗大小（小筆電開小一點、大螢幕開大一點），
+  // 而不是寫死固定尺寸。
+  //   下限 960x640 —— 寬度一定要超過網站判斷「桌面版」的 901px 門檻（見下面），
+  //   不然會誤跳手機版「加入主畫面」提示。
+  //   上限 1600x1000 —— App 內容本身是偏窄的單欄卡片式版面，視窗開太大兩側只會
+  //   留一堆空白，沒有意義。
+  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+  const winWidth = Math.min(Math.max(Math.round(screenWidth * 0.65), 960), 1600);
+  const winHeight = Math.min(Math.max(Math.round(screenHeight * 0.85), 640), 1000);
+
+  const win = new BrowserWindow({
+    // MapSky 網頁版自己會用 `matchMedia("(min-width: 901px)")` 判斷是不是「桌面」，
+    // 沒過門檻就會當成手機瀏覽器，跳出「請用 Safari 開啟／加入主畫面」的提示
+    // （這個提示只對手機有意義，桌面版不該看到）。所以這裡預設尺寸、最小尺寸都
+    // 抓在 901px 以上，讓網站自己的判斷邏輯正確辨識成桌面，不用另外改網站程式碼。
+    width: winWidth,
+    height: winHeight,
+    minWidth: 960,
+    minHeight: 640,
+    title: "MapSky 天氣",
+    icon: path.join(__dirname, "build-icon.ico"),
+    backgroundColor: "#0b1220",
+    autoHideMenuBar: true, // 保留選單（重新整理/開發者工具用得到），但預設收起來，貼近一般天氣 App 的簡潔感
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+
+  win.webContents.setUserAgent(CHROME_UA);
+  win.loadURL(APP_URL);
+  win.once("ready-to-show", () => win.show());
+
+  // 點「使用 OO 登入」時，不要讓主視窗整個導覽去 Google/GitHub 這些登入頁，
+  // 改開一個獨立的登入視窗去跑，主視窗全程留在 App 畫面。
+  win.webContents.on("will-navigate", (event, url) => {
+    if (isLoginUrl(url)) {
+      event.preventDefault();
+      openLoginWindow(win, url);
+    }
+  });
+
+  // 頁面裡任何「開新分頁」的連結（例如分享、外部說明連結）都改用系統瀏覽器開，
+  // 不要在 App 裡再開一個 Electron 視窗。
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: "deny" };
+  });
+
+  return win;
+}
+
+app.whenReady().then(() => {
+  // App 有「自動定位目前位置」功能，桌面版也要能拿到定位權限；
+  // 通知權限則是給之後可能要接的天氣警特報推播用。
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === "geolocation" || permission === "notifications");
+  });
+
+  createWindow();
+
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
+});

@@ -1,0 +1,40 @@
+{
+  "name": "mapsky-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MapSky 天氣 —— Windows 桌面版（載入線上 map-sky.vercel.app 的原生視窗殼）",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.mapsky.weather.desktop",
+    "productName": "MapSky 天氣",
+    "asar": true,
+    "files": [
+      "main.js",
+      "package.json",
+      "build-icon.ico",
+      "icons/**/*"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "build-icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MapSky 天氣"
+    }
+  }
+}
