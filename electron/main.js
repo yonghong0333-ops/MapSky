@@ -24,6 +24,11 @@ const path = require("path");
 const APP_URL = "https://mapskyapp.vercel.app/";
 const APP_ORIGIN = new URL(APP_URL).origin;
 
+// Electron 預設 UA 尾巴會帶「Electron/版本號」，某些服務（尤其 Google OAuth）
+// 看到這種內嵌瀏覽器字樣會擋掉或降級成舊版頁面。統一換成一般桌面版 Chrome 的
+// UA（版本號用這個 Electron 內建的實際 Chromium 版本），主視窗、登入視窗都套用。
+const CHROME_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+
 // 登入按鈕在網頁裡是普通的 <a href="/api/auth/login?provider=...">，不是
 // window.open 開新分頁，所以預設會直接在主視窗裡導覽過去、繞去 Google/GitHub/
 // …等登入頁，登入完再繞回來。這裡改成攔截這個連結，改用另一個獨立視窗跑完
@@ -88,6 +93,12 @@ function openLoginWindow(parentWin, loginUrl) {
     },
   });
 
+  // Electron 視窗預設的 User-Agent 尾巴會帶一段「Electron/版本號」，Google 的
+  // OAuth 登入頁看到這種內嵌瀏覽器的 UA 會直接判定不安全，跳出閹割過的舊版
+  // 登入頁（甚至直接擋掉），不是給一般瀏覽器看的那個正常畫面。換成一般桌面版
+  // Chrome 的 UA，登入頁才會正常顯示成目前的樣子。
+  loginWin.webContents.setUserAgent(CHROME_UA);
+
   loginWin.loadURL(loginUrl);
 
   let finished = false;
@@ -135,6 +146,7 @@ function createWindow() {
     },
   });
 
+  win.webContents.setUserAgent(CHROME_UA);
   win.loadURL(APP_URL);
   win.once("ready-to-show", () => win.show());
 
