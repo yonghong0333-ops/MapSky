@@ -2437,50 +2437,8 @@ try {
   );
 })();
 
-// ---------------- 底部導覽列：往下捲自動縮小、往上捲或點按恢復 ----------------
-(function setupBottomNavAutoCollapse() {
-  const nav = el("bottomNav");
-  if (!nav) return;
-
-  const DELTA_THRESHOLD = 6; // 累積捲動超過這個距離才判定方向，避免手抖誤判
-  const MIN_SCROLL_TOP = 40; // 太靠頁面頂端就不縮，避免一開始滑一點點就縮起來
-
-  function getScrollTop() {
-    // 手機版是整個網頁在捲（.main 在手機版是 overflow-y: visible），
-    // 桌面版才是 .main 自己捲動，兩種都兼顧。
-    const mainEl = document.querySelector(".main");
-    const mainScroll = mainEl ? mainEl.scrollTop : 0;
-    const pageScroll = window.scrollY || document.documentElement.scrollTop || 0;
-    return Math.max(mainScroll, pageScroll);
-  }
-
-  let anchorScrollTop = getScrollTop();
-
-  function handleScroll() {
-    const current = getScrollTop();
-    const diff = current - anchorScrollTop;
-
-    if (current <= MIN_SCROLL_TOP) {
-      nav.classList.remove("bottom-nav-collapsed");
-      anchorScrollTop = current;
-    } else if (diff > DELTA_THRESHOLD) {
-      nav.classList.add("bottom-nav-collapsed"); // 累積往下捲夠多：縮小
-      anchorScrollTop = current; // 觸發後重設基準點，才能偵測下一次方向改變
-    } else if (diff < -DELTA_THRESHOLD) {
-      nav.classList.remove("bottom-nav-collapsed"); // 累積往上捲夠多：恢復
-      anchorScrollTop = current;
-    }
-  }
-
-  window.addEventListener("scroll", handleScroll, { passive: true });
-  const mainEl = document.querySelector(".main");
-  if (mainEl) mainEl.addEventListener("scroll", handleScroll, { passive: true });
-
-  // 點按導覽列本身：不用等使用者往上滑，馬上恢復正常大小
-  nav.addEventListener("pointerdown", () => {
-    nav.classList.remove("bottom-nav-collapsed");
-  });
-})();
+// 底部導覽列原本有「往下捲自動縮小、往上捲恢復」的效果，
+// 使用者反應滑動時選單一直變動很干擾，這裡整個拿掉，改成固定大小。
 
 document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => activateBottomNavKey(btn.dataset.bottom));
