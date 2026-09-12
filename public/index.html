@@ -76,17 +76,11 @@
   </div>
 
   <!-- 維護模式：後台開關打開時，非管理員的使用者一律看到這個畫面，
-       整個網站功能都碰不到；管理員照常使用，由 web-shim.js 判斷。 -->
-  <div id="maintenanceGate" class="login-gate hidden">
-    <div class="login-gate-card maintenance-card">
-      <img class="login-gate-logo" src="icons/logo-dark.png" alt="MapSky" />
-      <h1 class="login-gate-title">MapSky</h1>
-      <div class="maintenance-inner-card">
-        <p class="maintenance-text">伺服器維護中<br />敬請見諒</p>
-        <div class="maintenance-icon" aria-hidden="true">🙇</div>
-      </div>
-      <button id="maintenanceAdminLoginBtn" class="maintenance-admin-link" type="button">管理員登入</button>
-    </div>
+       整個網站功能都碰不到；管理員照常使用，由 web-shim.js 判斷。
+       直接全螢幕放使用者提供的那張圖，不用 CSS 另外拼卡片。 -->
+  <div id="maintenanceGate" class="maintenance-gate hidden">
+    <img class="maintenance-gate-img" src="images/maintenance.jpg" alt="伺服器維護中，敬請見諒" />
+    <button id="maintenanceAdminLoginBtn" class="maintenance-admin-link" type="button">管理員登入</button>
   </div>
 
   <!-- 第一次登入才會出現的獨立引導畫面：取暱稱、選大頭貼，兩個都選填，
