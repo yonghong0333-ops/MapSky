@@ -24,13 +24,10 @@ const path = require("path");
 const APP_URL = "https://mapskyapp.vercel.app/";
 const APP_ORIGIN = new URL(APP_URL).origin;
 
-// 多久檢查一次網站是不是有新版本（背景默默檢查，不是每次都重整畫面）。
+// 多久檢查一次網站是不是有新版本。
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 分鐘
-// 如果使用者從頭到尾都不關機、視窗又一直保持在前景（從沒切走過），「等失焦
-// 再套用」這個條件永遠不會成立，更新會卡住。所以待處理的更新等超過這個時間
-// 還沒機會套用，就不等了，直接強制重新整理——犧牲一點「不打斷使用者」，
-// 換來「不會無限期卡在舊版本」。
-const MAX_PENDING_RELOAD_WAIT_MS = 30 * 60 * 1000; // 30 分鐘
+// 提示條倒數幾秒後自動重新整理。
+const UPDATE_TOAST_COUNTDOWN_SECONDS = 10;
 
 // Electron 預設 UA 尾巴會帶「Electron/版本號」，某些服務（尤其 Google OAuth）
 // 看到這種內嵌瀏覽器字樣會擋掉或降級成舊版頁面。統一換成一般桌面版 Chrome 的
@@ -54,51 +51,86 @@ function fetchVersionTag() {
   });
 }
 
-// 背景默默檢查有沒有新版本：
-//   - 使用者正在用視窗（有 focus）時偵測到新版本 → 先記著，等使用者切去別的視窗
-//     （blur）再偷偷重新整理，不要在使用者操作到一半時忽然把畫面刷掉。
-//   - 視窗本來就不在前景 → 偵測到就直接重新整理，反正使用者也沒在看。
+// 在畫面右下角插一條「發現新版本」提示條：倒數 10 秒沒動作就自動重新整理，
+// 也可以按「重新整理」馬上刷新，或按「稍後再說」先關掉（之後如果偵測到還是
+// 舊版本，下一輪檢查會再提示一次）。純粹用注入的 JS/CSS 畫出來，不用改
+// 網站本身的程式碼。
+function showUpdateToast(win) {
+  if (win.isDestroyed()) return;
+  const script = `
+    (function () {
+      if (document.getElementById("__mapsky_update_toast__")) return;
+      var seconds = ${UPDATE_TOAST_COUNTDOWN_SECONDS};
+
+      var el = document.createElement("div");
+      el.id = "__mapsky_update_toast__";
+      el.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:2147483647;" +
+        "background:#111827;color:#fff;padding:14px 16px;border-radius:14px;" +
+        "box-shadow:0 10px 30px rgba(0,0,0,.35);font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;" +
+        "display:flex;flex-direction:column;gap:10px;max-width:300px;";
+
+      var msg = document.createElement("div");
+      msg.innerHTML = "發現新版本，<b id='__mapsky_update_countdown__'>" + seconds + "</b> 秒後自動重新整理";
+      el.appendChild(msg);
+
+      var row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:8px;justify-content:flex-end;";
+
+      var reloadBtn = document.createElement("button");
+      reloadBtn.textContent = "重新整理";
+      reloadBtn.style.cssText = "background:#3b82f6;color:#fff;border:none;padding:6px 14px;" +
+        "border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;";
+
+      var laterBtn = document.createElement("button");
+      laterBtn.textContent = "稍後再說";
+      laterBtn.style.cssText = "background:transparent;color:#cbd5e1;border:1px solid #475569;" +
+        "padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px;";
+
+      row.appendChild(laterBtn);
+      row.appendChild(reloadBtn);
+      el.appendChild(row);
+      document.body.appendChild(el);
+
+      var timer = setInterval(function () {
+        seconds -= 1;
+        var c = document.getElementById("__mapsky_update_countdown__");
+        if (c) c.textContent = String(seconds);
+        if (seconds <= 0) {
+          clearInterval(timer);
+          location.reload();
+        }
+      }, 1000);
+
+      reloadBtn.onclick = function () {
+        clearInterval(timer);
+        location.reload();
+      };
+      laterBtn.onclick = function () {
+        clearInterval(timer);
+        el.remove();
+      };
+    })();
+  `;
+  win.webContents.executeJavaScript(script).catch(() => {});
+}
+
+// 背景檢查有沒有新版本：抓到跟上次不一樣的 ETag/Last-Modified 就跳提示條
+// （不管視窗當下在不在前景，反正只是畫面角落一條小提示，不會打斷操作）。
 function watchForUpdates(win) {
   let lastTag = null;
-  let pendingReload = false;
-  let pendingSince = null;
-
-  const applyReloadIfPending = () => {
-    if (pendingReload && !win.isDestroyed()) {
-      win.webContents.reload();
-      pendingReload = false;
-      pendingSince = null;
-    }
-  };
 
   const check = async () => {
     if (win.isDestroyed()) return;
     const tag = await fetchVersionTag();
     if (!tag) return; // 拿不到指紋（例如網路暫時不通）就跳過這次，不誤判有更新
     if (lastTag && tag !== lastTag) {
-      if (win.isFocused()) {
-        if (!pendingReload) {
-          pendingReload = true;
-          pendingSince = Date.now();
-        }
-      } else {
-        win.webContents.reload();
-        pendingReload = false;
-        pendingSince = null;
-      }
+      showUpdateToast(win);
     }
     lastTag = tag;
-
-    // 保險：待處理的更新等太久（使用者一直沒切走視窗）就強制套用，
-    // 不要無限期卡在舊版本。
-    if (pendingReload && Date.now() - pendingSince >= MAX_PENDING_RELOAD_WAIT_MS) {
-      applyReloadIfPending();
-    }
   };
 
   check(); // 開機先記一次基準值
   const timer = setInterval(check, UPDATE_CHECK_INTERVAL_MS);
-  win.on("blur", applyReloadIfPending);
   win.on("closed", () => clearInterval(timer));
 }
 
@@ -228,8 +260,8 @@ function createWindow() {
   });
   win.once("ready-to-show", () => win.show());
 
-  // App 開著的時候背景默默檢查有沒有新版本，有的話在使用者沒在看畫面的時候
-  // 偷偷重新整理，不用整個重開軟體才吃得到最新版本。
+  // App 開著的時候背景檢查有沒有新版本，有的話跳出倒數提示條，
+  // 不用整個重開軟體才吃得到最新版本。
   watchForUpdates(win);
 
   // 點「使用 OO 登入」時，不要讓主視窗整個導覽去 Google/GitHub 這些登入頁，
