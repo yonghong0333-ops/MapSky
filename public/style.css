@@ -1945,6 +1945,11 @@ button:hover { background: var(--accent-hover); }
   line-height: 1;
   flex-shrink: 0;
 }
+.settings-list-item-check {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
 
 /* ---- 「暱稱與大頭貼」子頁面的返回按鈕 ---- */
 .settings-back-btn {
