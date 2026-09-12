@@ -18,7 +18,9 @@
     "asar": true,
     "files": [
       "main.js",
-      "package.json"
+      "package.json",
+      "build-icon.ico",
+      "icons/**/*"
     ],
     "win": {
       "target": [

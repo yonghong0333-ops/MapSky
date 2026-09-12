@@ -51,6 +51,27 @@ function isCallbackUrl(urlStr) {
   }
 }
 
+// 每個登入視窗都換成當時登入的那家公司 logo（跟網頁版登入按鈕用的圖是同一份），
+// 而不是整個都用 MapSky 自己的圖示，比較看得出來現在是在登入哪個帳號。
+const PROVIDER_ICON = {
+  google: "google.png",
+  facebook: "facebook.png",
+  microsoft: "microsoft.png",
+  discord: "discord.png",
+  github: "github.png",
+  yahoo: "yahoo.png",
+};
+
+function getProviderIconPath(urlStr) {
+  try {
+    const provider = new URL(urlStr).searchParams.get("provider");
+    const file = PROVIDER_ICON[provider];
+    return file ? path.join(__dirname, "icons", file) : path.join(__dirname, "build-icon.ico");
+  } catch {
+    return path.join(__dirname, "build-icon.ico");
+  }
+}
+
 function openLoginWindow(parentWin, loginUrl) {
   const loginWin = new BrowserWindow({
     width: 480,
@@ -58,6 +79,7 @@ function openLoginWindow(parentWin, loginUrl) {
     parent: parentWin,
     modal: true,
     title: "登入 MapSky",
+    icon: getProviderIconPath(loginUrl),
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
