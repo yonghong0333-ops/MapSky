@@ -25,10 +25,14 @@ const APP_URL = "https://mapskyapp.vercel.app/";
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 430,
-    height: 860,
-    minWidth: 360,
-    minHeight: 600,
+    // MapSky 網頁版自己會用 `matchMedia("(min-width: 901px)")` 判斷是不是「桌面」，
+    // 沒過門檻就會當成手機瀏覽器，跳出「請用 Safari 開啟／加入主畫面」的提示
+    // （這個提示只對手機有意義，桌面版不該看到）。所以這裡預設尺寸、最小尺寸都
+    // 抓在 901px 以上，讓網站自己的判斷邏輯正確辨識成桌面，不用另外改網站程式碼。
+    width: 1200,
+    height: 820,
+    minWidth: 960,
+    minHeight: 640,
     title: "MapSky 天氣",
     icon: path.join(__dirname, "build-icon.ico"),
     backgroundColor: "#0b1220",
