@@ -26,6 +26,11 @@ const APP_ORIGIN = new URL(APP_URL).origin;
 
 // 多久檢查一次網站是不是有新版本（背景默默檢查，不是每次都重整畫面）。
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 分鐘
+// 如果使用者從頭到尾都不關機、視窗又一直保持在前景（從沒切走過），「等失焦
+// 再套用」這個條件永遠不會成立，更新會卡住。所以待處理的更新等超過這個時間
+// 還沒機會套用，就不等了，直接強制重新整理——犧牲一點「不打斷使用者」，
+// 換來「不會無限期卡在舊版本」。
+const MAX_PENDING_RELOAD_WAIT_MS = 30 * 60 * 1000; // 30 分鐘
 
 // Electron 預設 UA 尾巴會帶「Electron/版本號」，某些服務（尤其 Google OAuth）
 // 看到這種內嵌瀏覽器字樣會擋掉或降級成舊版頁面。統一換成一般桌面版 Chrome 的
@@ -56,11 +61,13 @@ function fetchVersionTag() {
 function watchForUpdates(win) {
   let lastTag = null;
   let pendingReload = false;
+  let pendingSince = null;
 
   const applyReloadIfPending = () => {
     if (pendingReload && !win.isDestroyed()) {
       win.webContents.reload();
       pendingReload = false;
+      pendingSince = null;
     }
   };
 
@@ -70,12 +77,23 @@ function watchForUpdates(win) {
     if (!tag) return; // 拿不到指紋（例如網路暫時不通）就跳過這次，不誤判有更新
     if (lastTag && tag !== lastTag) {
       if (win.isFocused()) {
-        pendingReload = true;
+        if (!pendingReload) {
+          pendingReload = true;
+          pendingSince = Date.now();
+        }
       } else {
         win.webContents.reload();
+        pendingReload = false;
+        pendingSince = null;
       }
     }
     lastTag = tag;
+
+    // 保險：待處理的更新等太久（使用者一直沒切走視窗）就強制套用，
+    // 不要無限期卡在舊版本。
+    if (pendingReload && Date.now() - pendingSince >= MAX_PENDING_RELOAD_WAIT_MS) {
+      applyReloadIfPending();
+    }
   };
 
   check(); // 開機先記一次基準值
