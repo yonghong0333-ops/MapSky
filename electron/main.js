@@ -18,11 +18,15 @@
 // 沒有這個落差，登入流程跟網頁版一模一樣。
 // ------------------------------------------------------------------
 
-const { app, BrowserWindow, shell, session, screen, net } = require("electron");
+const { app, BrowserWindow, shell, session, screen, net, ipcMain } = require("electron");
 const path = require("path");
+const fs = require("fs");
 
 const APP_URL = "https://mapskyapp.vercel.app/";
 const APP_ORIGIN = new URL(APP_URL).origin;
+
+// 自訂標題列的高度（隱藏系統原生框之後，這段空間由我們自己畫）。
+const TITLEBAR_HEIGHT = 36;
 
 // 多久檢查一次網站是不是有新版本。
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 分鐘
@@ -109,6 +113,94 @@ function showUpdateToast(win) {
         clearInterval(timer);
         el.remove();
       };
+    })();
+  `;
+  win.webContents.executeJavaScript(script).catch(() => {});
+}
+
+// 讀一次 logo，轉成 base64 內嵌進注入的 HTML 裡——標題列是插進「別人網域」的
+// 頁面裡，用 file:// 路徑當 <img src> 在 https 頁面裡會被當成混合內容擋掉，
+// 用 data: URI 就沒有這個問題。
+let cachedLogoDataUri = null;
+function getLogoDataUri() {
+  if (cachedLogoDataUri) return cachedLogoDataUri;
+  try {
+    const buf = fs.readFileSync(path.join(__dirname, "icons", "app-logo.png"));
+    cachedLogoDataUri = `data:image/png;base64,${buf.toString("base64")}`;
+  } catch {
+    cachedLogoDataUri = "";
+  }
+  return cachedLogoDataUri;
+}
+
+// 隱藏系統原生標題列之後（frame:false），自己畫一列貼合 App 深色風格的標題列：
+// 左邊 App 圖示＋名稱，右邊縮小／放大還原／關閉三顆鈕。整段用注入的
+// HTML/CSS/JS 畫出來，不用改網站本身的程式碼；每次頁面（重新）載入完都要
+// 重插一次，因為 reload 會把注入的東西一起洗掉。
+function injectTitleBar(win) {
+  if (win.isDestroyed()) return;
+  const logoDataUri = getLogoDataUri();
+  const script = `
+    (function () {
+      if (document.getElementById("__mapsky_titlebar__")) return;
+
+      var bar = document.createElement("div");
+      bar.id = "__mapsky_titlebar__";
+      bar.style.cssText = "position:fixed;top:0;left:0;right:0;height:${TITLEBAR_HEIGHT}px;" +
+        "background:#0b1220;color:#e5e7eb;display:flex;align-items:center;" +
+        "justify-content:space-between;z-index:2147483647;" +
+        "font:12px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;" +
+        "-webkit-app-region:drag;user-select:none;border-bottom:1px solid rgba(255,255,255,.08);";
+
+      var left = document.createElement("div");
+      left.style.cssText = "display:flex;align-items:center;gap:8px;padding-left:12px;overflow:hidden;";
+      left.innerHTML = ${JSON.stringify('<img src="' + logoDataUri + '" style="width:16px;height:16px;border-radius:4px;" />')} +
+        "<span style='white-space:nowrap;'>MapSky 天氣</span>";
+
+      var right = document.createElement("div");
+      right.style.cssText = "display:flex;height:100%;-webkit-app-region:no-drag;";
+
+      function makeBtn(label, danger) {
+        var b = document.createElement("button");
+        b.textContent = label;
+        b.style.cssText = "width:44px;height:${TITLEBAR_HEIGHT}px;border:none;background:transparent;" +
+          "color:#e5e7eb;cursor:pointer;font-size:13px;line-height:1;";
+        b.onmouseenter = function () {
+          b.style.background = danger ? "#dc2626" : "rgba(255,255,255,.12)";
+        };
+        b.onmouseleave = function () {
+          b.style.background = "transparent";
+        };
+        return b;
+      }
+
+      var minBtn = makeBtn("—", false);
+      var maxBtn = makeBtn("▢", false);
+      var closeBtn = makeBtn("✕", true);
+
+      minBtn.onclick = function () { window.mapskyWindowControls.minimize(); };
+      maxBtn.onclick = function () { window.mapskyWindowControls.maximize(); };
+      closeBtn.onclick = function () { window.mapskyWindowControls.close(); };
+
+      right.appendChild(minBtn);
+      right.appendChild(maxBtn);
+      right.appendChild(closeBtn);
+
+      bar.appendChild(left);
+      bar.appendChild(right);
+      document.documentElement.appendChild(bar);
+
+      // 幫整份文件往下推，剛好空出標題列的高度，避免蓋到原本的畫面內容
+      // （視窗本身在建立時已經多加了這段高度，所以不會因此多出捲軸）。
+      var pushStyle = document.createElement("style");
+      pushStyle.textContent = "html{margin-top:${TITLEBAR_HEIGHT}px !important;}";
+      document.head.appendChild(pushStyle);
+
+      if (window.mapskyWindowControls && window.mapskyWindowControls.onMaximizedChange) {
+        window.mapskyWindowControls.onMaximizedChange(function (isMaximized) {
+          maxBtn.textContent = isMaximized ? "❐" : "▢";
+        });
+      }
     })();
   `;
   win.webContents.executeJavaScript(script).catch(() => {});
@@ -236,18 +328,19 @@ function createWindow() {
     // （這個提示只對手機有意義，桌面版不該看到）。所以這裡預設尺寸、最小尺寸都
     // 抓在 901px 以上，讓網站自己的判斷邏輯正確辨識成桌面，不用另外改網站程式碼。
     width: winWidth,
-    height: winHeight,
+    height: winHeight + TITLEBAR_HEIGHT,
     minWidth: 960,
-    minHeight: 640,
+    minHeight: 640 + TITLEBAR_HEIGHT,
     title: "MapSky 天氣",
     icon: path.join(__dirname, "build-icon.ico"),
     backgroundColor: "#0b1220",
-    autoHideMenuBar: true, // 保留選單（重新整理/開發者工具用得到），但預設收起來，貼近一般天氣 App 的簡潔感
+    frame: false, // 隱藏系統原生標題列，改用注入的自訂標題列（見 injectTitleBar）
     show: false,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, "preload.js"),
     },
   });
 
@@ -259,6 +352,14 @@ function createWindow() {
     win.loadURL(APP_URL);
   });
   win.once("ready-to-show", () => win.show());
+
+  // 自訂標題列的 DOM 是注入進去的，每次頁面（重新）載入完都要重插一次，
+  // 不然 reload/導覽一次就被洗掉了。
+  win.webContents.on("did-finish-load", () => injectTitleBar(win));
+
+  // 把視窗「有沒有最大化」的狀態轉發給頁面，讓標題列的放大/還原鈕圖示能對上。
+  win.on("maximize", () => win.webContents.send("mapsky:maximized-changed", true));
+  win.on("unmaximize", () => win.webContents.send("mapsky:maximized-changed", false));
 
   // App 開著的時候背景檢查有沒有新版本，有的話跳出倒數提示條，
   // 不用整個重開軟體才吃得到最新版本。
@@ -288,6 +389,18 @@ app.whenReady().then(() => {
   // 通知權限則是給之後可能要接的天氣警特報推播用。
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(permission === "geolocation" || permission === "notifications");
+  });
+
+  // 自訂標題列的縮小／放大／關閉鈕實際動作：注入的頁面透過 preload.js 暴露的
+  // window.mapskyWindowControls 送 IPC 過來，這裡才是真的呼叫原生視窗方法的地方。
+  ipcMain.on("mapsky:window-control", (event, action) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
+    if (action === "minimize") win.minimize();
+    else if (action === "maximize") {
+      if (win.isMaximized()) win.unmaximize();
+      else win.maximize();
+    } else if (action === "close") win.close();
   });
 
   createWindow();

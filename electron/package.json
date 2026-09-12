@@ -18,6 +18,7 @@
     "asar": true,
     "files": [
       "main.js",
+      "preload.js",
       "package.json",
       "build-icon.ico",
       "icons/**/*"
