@@ -22,6 +22,64 @@ const { app, BrowserWindow, shell, session, screen } = require("electron");
 const path = require("path");
 
 const APP_URL = "https://mapskyapp.vercel.app/";
+const APP_ORIGIN = new URL(APP_URL).origin;
+
+// 登入按鈕在網頁裡是普通的 <a href="/api/auth/login?provider=...">，不是
+// window.open 開新分頁，所以預設會直接在主視窗裡導覽過去、繞去 Google/GitHub/
+// …等登入頁，登入完再繞回來。這裡改成攔截這個連結，改用另一個獨立視窗跑完
+// 整個登入流程，主視窗全程留在 App 畫面上，跟大部分桌面 App「登入另開視窗」
+// 的體驗一致。
+function isLoginUrl(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    return u.origin === APP_ORIGIN && u.pathname === "/api/auth/login";
+  } catch {
+    return false;
+  }
+}
+
+// 判斷「登入流程是不是跑完了」——OAuth 供應商登入完一定會導回
+// /api/auth/callback，這才是登入完成的訊號（session cookie 這時候已經設好）。
+// 不能只看「是不是回到自己網域」，因為登入視窗一開始載入的
+// /api/auth/login 本身就是自己網域，會誤判成一開始就登入完成。
+function isCallbackUrl(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    return u.origin === APP_ORIGIN && u.pathname.startsWith("/api/auth/callback");
+  } catch {
+    return false;
+  }
+}
+
+function openLoginWindow(parentWin, loginUrl) {
+  const loginWin = new BrowserWindow({
+    width: 480,
+    height: 720,
+    parent: parentWin,
+    modal: true,
+    title: "登入 MapSky",
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+
+  loginWin.loadURL(loginUrl);
+
+  let finished = false;
+  const checkDone = (url) => {
+    if (finished || !isCallbackUrl(url)) return;
+    finished = true;
+    loginWin.close();
+    if (!parentWin.isDestroyed()) parentWin.webContents.reload();
+  };
+
+  loginWin.webContents.on("will-navigate", (_event, url) => checkDone(url));
+  loginWin.webContents.on("will-redirect", (_event, url) => checkDone(url));
+  loginWin.webContents.on("did-navigate", (_event, url) => checkDone(url));
+}
 
 function createWindow() {
   // 依照使用者螢幕解析度算一個合理的視窗大小（小筆電開小一點、大螢幕開大一點），
@@ -57,6 +115,15 @@ function createWindow() {
 
   win.loadURL(APP_URL);
   win.once("ready-to-show", () => win.show());
+
+  // 點「使用 OO 登入」時，不要讓主視窗整個導覽去 Google/GitHub 這些登入頁，
+  // 改開一個獨立的登入視窗去跑，主視窗全程留在 App 畫面。
+  win.webContents.on("will-navigate", (event, url) => {
+    if (isLoginUrl(url)) {
+      event.preventDefault();
+      openLoginWindow(win, url);
+    }
+  });
 
   // 頁面裡任何「開新分頁」的連結（例如分享、外部說明連結）都改用系統瀏覽器開，
   // 不要在 App 裡再開一個 Electron 視窗。
