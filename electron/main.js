@@ -18,16 +18,71 @@
 // 沒有這個落差，登入流程跟網頁版一模一樣。
 // ------------------------------------------------------------------
 
-const { app, BrowserWindow, shell, session, screen } = require("electron");
+const { app, BrowserWindow, shell, session, screen, net } = require("electron");
 const path = require("path");
 
 const APP_URL = "https://mapskyapp.vercel.app/";
 const APP_ORIGIN = new URL(APP_URL).origin;
 
+// 多久檢查一次網站是不是有新版本（背景默默檢查，不是每次都重整畫面）。
+const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 分鐘
+
 // Electron 預設 UA 尾巴會帶「Electron/版本號」，某些服務（尤其 Google OAuth）
 // 看到這種內嵌瀏覽器字樣會擋掉或降級成舊版頁面。統一換成一般桌面版 Chrome 的
 // UA（版本號用這個 Electron 內建的實際 Chromium 版本），主視窗、登入視窗都套用。
 const CHROME_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+
+// 用 HEAD 請求拿首頁的 ETag / Last-Modified 當「版本指紋」。網站的 index.html
+// 本來就設了 Cache-Control: no-cache, must-revalidate，Vercel 對靜態檔案照慣例
+// 會回 ETag，內容一變這個值就會跟著變，不用額外改後端、也不用整包抓下來比對。
+function fetchVersionTag() {
+  return new Promise((resolve) => {
+    const request = net.request({ method: "HEAD", url: APP_URL });
+    request.on("response", (response) => {
+      const etag = response.headers["etag"];
+      const lastModified = response.headers["last-modified"];
+      const tag = etag || lastModified || null;
+      resolve(Array.isArray(tag) ? tag[0] : tag);
+    });
+    request.on("error", () => resolve(null));
+    request.end();
+  });
+}
+
+// 背景默默檢查有沒有新版本：
+//   - 使用者正在用視窗（有 focus）時偵測到新版本 → 先記著，等使用者切去別的視窗
+//     （blur）再偷偷重新整理，不要在使用者操作到一半時忽然把畫面刷掉。
+//   - 視窗本來就不在前景 → 偵測到就直接重新整理，反正使用者也沒在看。
+function watchForUpdates(win) {
+  let lastTag = null;
+  let pendingReload = false;
+
+  const applyReloadIfPending = () => {
+    if (pendingReload && !win.isDestroyed()) {
+      win.webContents.reload();
+      pendingReload = false;
+    }
+  };
+
+  const check = async () => {
+    if (win.isDestroyed()) return;
+    const tag = await fetchVersionTag();
+    if (!tag) return; // 拿不到指紋（例如網路暫時不通）就跳過這次，不誤判有更新
+    if (lastTag && tag !== lastTag) {
+      if (win.isFocused()) {
+        pendingReload = true;
+      } else {
+        win.webContents.reload();
+      }
+    }
+    lastTag = tag;
+  };
+
+  check(); // 開機先記一次基準值
+  const timer = setInterval(check, UPDATE_CHECK_INTERVAL_MS);
+  win.on("blur", applyReloadIfPending);
+  win.on("closed", () => clearInterval(timer));
+}
 
 // 登入按鈕在網頁裡是普通的 <a href="/api/auth/login?provider=...">，不是
 // window.open 開新分頁，所以預設會直接在主視窗裡導覽過去、繞去 Google/GitHub/
@@ -147,8 +202,17 @@ function createWindow() {
   });
 
   win.webContents.setUserAgent(CHROME_UA);
-  win.loadURL(APP_URL);
+
+  // 每次開軟體都保證是打網路拿最新內容，不要讓本地磁碟快取搶答
+  // （index.html 本來就設了 no-cache/must-revalidate，這裡是保險再做一次）。
+  win.webContents.session.clearCache().finally(() => {
+    win.loadURL(APP_URL);
+  });
   win.once("ready-to-show", () => win.show());
+
+  // App 開著的時候背景默默檢查有沒有新版本，有的話在使用者沒在看畫面的時候
+  // 偷偷重新整理，不用整個重開軟體才吃得到最新版本。
+  watchForUpdates(win);
 
   // 點「使用 OO 登入」時，不要讓主視窗整個導覽去 Google/GitHub 這些登入頁，
   // 改開一個獨立的登入視窗去跑，主視窗全程留在 App 畫面。
