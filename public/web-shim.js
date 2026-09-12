@@ -729,6 +729,7 @@
     const loginGate = el("loginGate");
     if (loginGate) loginGate.classList.add("hidden");
     if (gate) gate.classList.remove("hidden");
+    document.body.classList.add("maintenance-locked");
 
     // 這個畫面現在只會在「已經登入、但不是管理員」的情況出現，所以直接
     // 顯示登出按鈕；不用像以前那樣還要判斷有沒有登入、動態決定要不要
