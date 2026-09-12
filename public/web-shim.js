@@ -745,17 +745,6 @@
         });
       }
     }
-
-    const link = el("maintenanceAdminLoginBtn");
-    if (link && !link.dataset.bound) {
-      link.dataset.bound = "1";
-      link.addEventListener("click", () => {
-        if (gate) gate.classList.add("hidden");
-        if (loginGate) loginGate.classList.remove("hidden");
-        const statusEl = el("loginGateStatus");
-        if (statusEl) statusEl.textContent = "這個帳號不是管理員，維護模式期間無法使用。";
-      });
-    }
   }
 
   async function initAuthGate() {
