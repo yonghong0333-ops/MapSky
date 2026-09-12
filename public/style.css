@@ -2023,7 +2023,7 @@ button:hover { background: var(--accent-hover); }
   }
 
   .main {
-    padding: 40px 16px 96px;
+    padding: calc(40px + env(safe-area-inset-top)) 16px 96px;
     overflow-y: visible;
   }
 
@@ -2554,7 +2554,7 @@ button:hover { background: var(--accent-hover); }
 /* 更小的手機（如 iPhone SE）再收斂一次間距與字級 */
 @media (max-width: 380px) {
   .sidebar { padding: 12px; }
-  .main { padding: 14px 12px 32px; }
+  .main { padding: calc(14px + env(safe-area-inset-top)) 12px 32px; }
   .current-temp { font-size: 34px; }
   .current-card-top { gap: 10px; }
 }
