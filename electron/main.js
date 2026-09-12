@@ -18,19 +18,29 @@
 // 沒有這個落差，登入流程跟網頁版一模一樣。
 // ------------------------------------------------------------------
 
-const { app, BrowserWindow, shell, session } = require("electron");
+const { app, BrowserWindow, shell, session, screen } = require("electron");
 const path = require("path");
 
 const APP_URL = "https://mapskyapp.vercel.app/";
 
 function createWindow() {
+  // 依照使用者螢幕解析度算一個合理的視窗大小（小筆電開小一點、大螢幕開大一點），
+  // 而不是寫死固定尺寸。
+  //   下限 960x640 —— 寬度一定要超過網站判斷「桌面版」的 901px 門檻（見下面），
+  //   不然會誤跳手機版「加入主畫面」提示。
+  //   上限 1600x1000 —— App 內容本身是偏窄的單欄卡片式版面，視窗開太大兩側只會
+  //   留一堆空白，沒有意義。
+  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+  const winWidth = Math.min(Math.max(Math.round(screenWidth * 0.65), 960), 1600);
+  const winHeight = Math.min(Math.max(Math.round(screenHeight * 0.85), 640), 1000);
+
   const win = new BrowserWindow({
     // MapSky 網頁版自己會用 `matchMedia("(min-width: 901px)")` 判斷是不是「桌面」，
     // 沒過門檻就會當成手機瀏覽器，跳出「請用 Safari 開啟／加入主畫面」的提示
     // （這個提示只對手機有意義，桌面版不該看到）。所以這裡預設尺寸、最小尺寸都
     // 抓在 901px 以上，讓網站自己的判斷邏輯正確辨識成桌面，不用另外改網站程式碼。
-    width: 1200,
-    height: 820,
+    width: winWidth,
+    height: winHeight,
     minWidth: 960,
     minHeight: 640,
     title: "MapSky 天氣",
