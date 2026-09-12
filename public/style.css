@@ -317,6 +317,7 @@ body.auth-ok .login-gate {
   object-fit: cover;
   object-position: center 65%;
   display: block;
+  transform: scale(1.18);
 }
 /* 維護畫面顯示時，body 加上這個 class 鎖住捲動，避免手指滑動把整個
    畫面拖出去（iOS Safari 的 rubber-band 回彈特別容易看到這個問題）。 */
