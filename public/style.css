@@ -331,6 +331,21 @@ body.auth-ok .login-gate {
   text-decoration: none;
   cursor: pointer;
 }
+.maintenance-logout-btn {
+  position: absolute;
+  left: 50%;
+  bottom: max(60px, calc(env(safe-area-inset-bottom) + 36px));
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 999px;
+  color: #c0392b;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 16px;
+  cursor: pointer;
+}
+.maintenance-logout-btn.hidden { display: none; }
 .login-gate-sub {
   font-size: 13px;
   color: var(--text-muted);

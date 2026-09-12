@@ -727,6 +727,21 @@
     if (loginGate) loginGate.classList.add("hidden");
     if (gate) gate.classList.remove("hidden");
 
+    // 這個畫面現在只會在「已經登入、但不是管理員」的情況出現，所以直接
+    // 顯示登出按鈕；不用像以前那樣還要判斷有沒有登入、動態決定要不要
+    // 顯示登入按鈕清單。
+    const logoutBtn = el("maintenanceLogoutBtn");
+    if (logoutBtn) {
+      logoutBtn.classList.remove("hidden");
+      if (!logoutBtn.dataset.bound) {
+        logoutBtn.dataset.bound = "1";
+        logoutBtn.addEventListener("click", async () => {
+          await fetch("/api/auth/logout", { method: "POST" });
+          window.location.href = "/";
+        });
+      }
+    }
+
     const link = el("maintenanceAdminLoginBtn");
     if (link && !link.dataset.bound) {
       link.dataset.bound = "1";
@@ -734,16 +749,7 @@
         if (gate) gate.classList.add("hidden");
         if (loginGate) loginGate.classList.remove("hidden");
         const statusEl = el("loginGateStatus");
-        const buttonsEl = el("loginGateButtons");
-        if (!session.loggedIn) {
-          if (statusEl) statusEl.textContent = "請先登入管理員帳號：";
-          if (buttonsEl) {
-            buttonsEl.innerHTML = buildGateButtons(providers);
-            buttonsEl.classList.remove("hidden");
-          }
-        } else if (statusEl) {
-          statusEl.textContent = "這個帳號不是管理員，維護模式期間無法使用。";
-        }
+        if (statusEl) statusEl.textContent = "這個帳號不是管理員，維護模式期間無法使用。";
       });
     }
   }
@@ -761,11 +767,13 @@
       return;
     }
 
-    // 維護模式：後台開關打開時，除了管理員以外一律鎖住，連 App 本體
-    // （renderer.js）都不會載入，不只是畫面被蓋住而已。管理員登入後
-    // 這裡會是 false，正常往下走原本的流程。
+    // 維護模式：後台開關打開時，非管理員一律鎖住，連 App 本體
+    // （renderer.js）都不會載入，不只是畫面被蓋住而已。
+    // 但只有「已經登入、確認不是管理員」才會擋，還沒登入的人先讓他走
+    // 正常的登入流程（不然使用者連登入按鈕都看不到，沒辦法登入管理員
+    // 帳號，也沒辦法讓後台知道他到底是不是管理員）。
     const isAdminUser = Boolean(session.loggedIn && session.isAdmin);
-    if (session.maintenanceMode && !isAdminUser) {
+    if (session.maintenanceMode && session.loggedIn && !isAdminUser) {
       showMaintenanceScreen(session, providers);
       return;
     }
