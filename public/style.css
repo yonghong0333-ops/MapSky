@@ -307,7 +307,13 @@ body.auth-ok .login-gate {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: #000;
+  background: #eaf2fb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
 }
 .maintenance-gate.hidden { display: none; }
 .maintenance-gate-img {
@@ -315,7 +321,6 @@ body.auth-ok .login-gate {
   height: 100%;
   object-fit: contain;
   display: block;
-  background: #eaf2fb;
 }
 .maintenance-admin-link {
   position: absolute;
