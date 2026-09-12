@@ -628,17 +628,31 @@
   }
 
   // 加到主畫面、用獨立 App 模式打開時，如果使用者還沒表態過要不要通知
-  // （Notification.permission 還是預設值 "default"），自動幫他跳出系統的
-  // 允許通知彈窗，不用特地跑去設定頁找。使用者一旦選過允許/拒絕，
-  // permission 就不會再是 "default"，這裡也就不會再自動跳出來。
-  async function maybeAutoPromptPush(session) {
+  // （Notification.permission 還是預設值 "default"），趁使用者第一次點擊
+  // 畫面任何地方時，順便跳出系統的允許通知彈窗，不用特地跑去設定頁找。
+  //
+  // 注意：iOS Safari 規定 Notification.requestPermission() 一定要在「使用者
+  // 動作當下」呼叫才會顯示彈窗，網頁自己在背景（例如 window.onload）默默呼叫
+  // 是不會有任何反應的（官方訊息："Push notification prompting can only be
+  // done from a user gesture."）。所以這裡改成監聽使用者第一次的點擊/觸控，
+  // 不能真的做到「完全不用點就自動跳」。
+  function maybeAutoPromptPush(session) {
     if (!pushSupported()) return;
     if (!isStandalonePwa()) return;
-    if (Notification.permission !== "default") return;
     if (!session.vapidPublicKey) return;
-    const alreadySubscribed = await navigator.serviceWorker.ready.then((reg) => reg.pushManager.getSubscription());
-    if (alreadySubscribed) return;
-    await subscribeToPush(session, { silent: true });
+
+    const tryPrompt = async () => {
+      document.removeEventListener("pointerdown", tryPrompt);
+      if (Notification.permission !== "default") return; // 已經表態過了
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) return;
+      await subscribeToPush(session, { silent: true });
+    };
+
+    if (Notification.permission === "default") {
+      document.addEventListener("pointerdown", tryPrompt, { once: true });
+    }
   }
 
   // ---------------- 推播通知：訂閱／取消訂閱一條列表項目 ----------------
