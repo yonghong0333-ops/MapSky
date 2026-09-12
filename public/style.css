@@ -307,17 +307,15 @@ body.auth-ok .login-gate {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: #000;
+  background: #b9dcff;
   overflow: hidden;
 }
 .maintenance-gate.hidden { display: none; }
 .maintenance-gate-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: center 65%;
+  object-fit: contain;
   display: block;
-  transform: scale(1.18);
 }
 /* 維護畫面顯示時，body 加上這個 class 鎖住捲動，避免手指滑動把整個
    畫面拖出去（iOS Safari 的 rubber-band 回彈特別容易看到這個問題）。 */
