@@ -80,7 +80,7 @@
        直接全螢幕放使用者提供的那張圖，不用 CSS 另外拼卡片。 -->
   <div id="maintenanceGate" class="maintenance-gate hidden">
     <img class="maintenance-gate-img" src="images/maintenance.jpg" alt="伺服器維護中，敬請見諒" />
-    <button id="maintenanceLogoutBtn" class="maintenance-logout-btn hidden" type="button">登出</button>
+    <button id="maintenanceAdminLoginBtn" class="maintenance-admin-link" type="button">管理員登入</button>
   </div>
 
   <!-- 第一次登入才會出現的獨立引導畫面：取暱稱、選大頭貼，兩個都選填，
@@ -109,6 +109,7 @@
     <div id="sidebarDrawerOverlay" class="sidebar-drawer-overlay hidden"></div>
     <aside class="sidebar" id="sidebar">
       <button id="sidebarSettingsBtn" class="sidebar-settings-btn" type="button">⚙️ 帳號 / 設定</button>
+      <button id="sidebarAdminBtn" class="sidebar-settings-btn hidden" type="button">🛡️ 後台管理</button>
 
       <h1 class="brand">
         <img class="brand-logo" src="icons/logo-dark.png" alt="MapSky" />
@@ -154,15 +155,20 @@
 
       <nav class="tabs">
         <button class="tab-btn active" data-tab="forecast">未來 36 小時預報</button>
-        <button class="tab-btn" data-tab="weekly">📅 未來 7 天</button>
-        <button class="tab-btn" data-tab="chart">溫度趨勢圖</button>
-        <button class="tab-btn" data-tab="compare">多城市比較</button>
-        <button class="tab-btn" data-tab="map">地圖選點</button>
         <button class="tab-btn" data-tab="alerts">⚠️ 警特報<span id="alertTabBadge" class="alert-tab-badge hidden">0</span></button>
-        <button class="tab-btn" data-tab="typhoon">🌀 颱風</button>
+        <button class="tab-btn" id="toolsTabBtn" data-tab="tools">🧰 工具</button>
+        <!-- 下面這幾顆不在頂部導覽列露出，改從「工具」選單裡的項目、或側欄的
+             「帳號/設定」「後台管理」按鈕去點（它們就是去點這裡對應的按鈕），
+             留著是因為換頁邏輯（renderer.js 的 panelMap、tools-grid、bottom-nav）
+             都是靠 .tab-btn[data-tab="..."] 這個選擇器去找對應按鈕點擊，拿掉
+             按鈕本身會讓那些地方點了沒反應。 -->
+        <button class="tab-btn hidden" data-tab="weekly">📅 未來 7 天</button>
+        <button class="tab-btn hidden" data-tab="chart">溫度趨勢圖</button>
+        <button class="tab-btn hidden" data-tab="compare">多城市比較</button>
+        <button class="tab-btn hidden" data-tab="map">地圖選點</button>
+        <button class="tab-btn hidden" data-tab="typhoon">🌀 颱風</button>
         <button class="tab-btn hidden" id="adminTabBtn" data-tab="admin">🛡️ 後台管理</button>
-        <button class="tab-btn hidden" id="toolsTabBtn" data-tab="tools">🧰 工具</button>
-        <button class="tab-btn" data-tab="settings">⚙️ 設定</button>
+        <button class="tab-btn hidden" data-tab="settings">⚙️ 設定</button>
       </nav>
 
       <section id="forecastPanel" class="tab-panel active">
@@ -878,6 +884,7 @@
             <button class="tools-menu-item" data-tab="chart"><span class="tool-icon">📈</span><span class="tool-label">溫度趨勢圖</span></button>
             <button class="tools-menu-item" data-tab="compare"><span class="tool-icon">🏙️</span><span class="tool-label">多城市比較</span></button>
             <button class="tools-menu-item" data-tab="map"><span class="tool-icon">🗺️</span><span class="tool-label">地圖選點</span></button>
+            <button class="tools-menu-item" data-tab="typhoon"><span class="tool-icon">🌀</span><span class="tool-label">颱風</span></button>
             <button class="tools-menu-item" data-tab="alerts"><span class="tool-icon">⚠️</span><span class="tool-label">警特報</span><span id="toolsAlertBadge" class="alert-tab-badge hidden">0</span></button>
           </div>
         </div>

@@ -307,8 +307,13 @@ body.auth-ok .login-gate {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: #b9dcff;
-  overflow: hidden;
+  background: #eaf2fb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
 }
 .maintenance-gate.hidden { display: none; }
 .maintenance-gate-img {
@@ -317,31 +322,20 @@ body.auth-ok .login-gate {
   object-fit: contain;
   display: block;
 }
-/* 維護畫面顯示時，body 加上這個 class 鎖住捲動，避免手指滑動把整個
-   畫面拖出去（iOS Safari 的 rubber-band 回彈特別容易看到這個問題）。 */
-body.maintenance-locked,
-body.maintenance-locked html {
-  overflow: hidden !important;
-  height: 100% !important;
-  position: fixed;
-  width: 100%;
-}
-.maintenance-logout-btn {
+.maintenance-admin-link {
   position: absolute;
   left: 50%;
   bottom: max(24px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(0, 0, 0, 0.35);
   border: none;
   border-radius: 999px;
-  color: #c0392b;
-  font-size: 17px;
-  font-weight: 700;
-  padding: 14px 40px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  padding: 6px 14px;
+  text-decoration: none;
   cursor: pointer;
 }
-.maintenance-logout-btn.hidden { display: none; }
 .login-gate-sub {
   font-size: 13px;
   color: var(--text-muted);
@@ -1945,11 +1939,6 @@ button:hover { background: var(--accent-hover); }
   line-height: 1;
   flex-shrink: 0;
 }
-.settings-list-item-check {
-  width: 22px;
-  height: 22px;
-  display: block;
-}
 
 /* ---- 「暱稱與大頭貼」子頁面的返回按鈕 ---- */
 .settings-back-btn {
@@ -2024,7 +2013,7 @@ button:hover { background: var(--accent-hover); }
   }
 
   .main {
-    padding: calc(40px + env(safe-area-inset-top)) 16px 96px;
+    padding: 40px 16px 96px;
     overflow-y: visible;
   }
 
@@ -2407,6 +2396,17 @@ button:hover { background: var(--accent-hover); }
 #adminBottomBtn.hidden { display: none; }
 #adminTabBtn.hidden { display: none; }
 #adminStatusContent.hidden { display: none; }
+/* 頂部導覽列現在只想露出「未來36小時預報／警特報／工具」三顆，其餘（未來7天／
+   溫度趨勢圖／多城市比較／地圖選點／颱風／後台管理／設定）都標了 hidden，靠
+   這條通用規則真的藏起來——之前只有 #adminTabBtn.hidden 這種寫死 id 的規則，
+   #toolsTabBtn 標了 hidden 卻沒對應的 CSS，所以才會一直露出來、跟被藏起來的
+   其他按鈕擠在同一排，這是之前那團亂的根本原因。這幾顆按鈕本身還是留在
+   DOM 裡（不是刪除），因為 renderer.js 的分頁切換、工具選單裡的項目、側欄
+   「帳號/設定」「後台管理」按鈕、手機版底部導覽列，都是靠
+   .tab-btn[data-tab="..."] 這個選擇器去找到對應按鈕再幫它點一下，藏起來但
+   留著元素，這些地方才點得動。 */
+.tabs .tab-btn.hidden { display: none; }
+#sidebarAdminBtn.hidden { display: none; }
 
 .admin-card-hint {
   font-size: 12px;
@@ -2555,7 +2555,7 @@ button:hover { background: var(--accent-hover); }
 /* 更小的手機（如 iPhone SE）再收斂一次間距與字級 */
 @media (max-width: 380px) {
   .sidebar { padding: 12px; }
-  .main { padding: calc(14px + env(safe-area-inset-top)) 12px 32px; }
+  .main { padding: 14px 12px 32px; }
   .current-temp { font-size: 34px; }
   .current-card-top { gap: 10px; }
 }

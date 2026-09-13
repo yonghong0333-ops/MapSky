@@ -628,31 +628,17 @@
   }
 
   // 加到主畫面、用獨立 App 模式打開時，如果使用者還沒表態過要不要通知
-  // （Notification.permission 還是預設值 "default"），趁使用者第一次點擊
-  // 畫面任何地方時，順便跳出系統的允許通知彈窗，不用特地跑去設定頁找。
-  //
-  // 注意：iOS Safari 規定 Notification.requestPermission() 一定要在「使用者
-  // 動作當下」呼叫才會顯示彈窗，網頁自己在背景（例如 window.onload）默默呼叫
-  // 是不會有任何反應的（官方訊息："Push notification prompting can only be
-  // done from a user gesture."）。所以這裡改成監聽使用者第一次的點擊/觸控，
-  // 不能真的做到「完全不用點就自動跳」。
-  function maybeAutoPromptPush(session) {
+  // （Notification.permission 還是預設值 "default"），自動幫他跳出系統的
+  // 允許通知彈窗，不用特地跑去設定頁找。使用者一旦選過允許/拒絕，
+  // permission 就不會再是 "default"，這裡也就不會再自動跳出來。
+  async function maybeAutoPromptPush(session) {
     if (!pushSupported()) return;
     if (!isStandalonePwa()) return;
+    if (Notification.permission !== "default") return;
     if (!session.vapidPublicKey) return;
-
-    const tryPrompt = async () => {
-      document.removeEventListener("pointerdown", tryPrompt);
-      if (Notification.permission !== "default") return; // 已經表態過了
-      const reg = await navigator.serviceWorker.ready;
-      const existing = await reg.pushManager.getSubscription();
-      if (existing) return;
-      await subscribeToPush(session, { silent: true });
-    };
-
-    if (Notification.permission === "default") {
-      document.addEventListener("pointerdown", tryPrompt, { once: true });
-    }
+    const alreadySubscribed = await navigator.serviceWorker.ready.then((reg) => reg.pushManager.getSubscription());
+    if (alreadySubscribed) return;
+    await subscribeToPush(session, { silent: true });
   }
 
   // ---------------- 推播通知：訂閱／取消訂閱一條列表項目 ----------------
@@ -675,20 +661,21 @@
       }
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
-      stateEl.innerHTML = sub
-        ? '<img src="icons/check-green.png" alt="已開啟" class="settings-list-item-check" />'
-        : "點擊開啟";
+      stateEl.textContent = sub ? "已開啟 ✓" : "點擊開啟";
       return sub;
     }
 
     row.addEventListener("click", async () => {
       if (!pushSupported()) return;
-      const reg = await navigator.serviceWorker.ready;
-      const existing = await reg.pushManager.getSubscription();
-      if (existing) return; // 已經開啟了，點了沒反應
       row.disabled = true;
       try {
-        await subscribeToPush(session);
+        const reg = await navigator.serviceWorker.ready;
+        const existing = await reg.pushManager.getSubscription();
+        if (existing) {
+          await unsubscribeFromPush();
+        } else {
+          await subscribeToPush(session);
+        }
       } catch (e) {
         alert("設定推播時發生錯誤，請再試一次。");
       } finally {
@@ -710,6 +697,15 @@
     if (btn) {
       btn.addEventListener("click", () => {
         const tabBtn = document.querySelector('.tab-btn[data-tab="settings"]');
+        if (tabBtn) tabBtn.click();
+      });
+    }
+    // 「後台管理」現在也是同樣的做法：側欄按鈕本身只負責外觀跟入口，實際換頁
+    // 邏輯還是交給隱藏在頂部導覽列裡那顆真正的 .tab-btn[data-tab="admin"] 去做。
+    const adminBtn = el("sidebarAdminBtn");
+    if (adminBtn) {
+      adminBtn.addEventListener("click", () => {
+        const tabBtn = document.querySelector('.tab-btn[data-tab="admin"]');
         if (tabBtn) tabBtn.click();
       });
     }
@@ -739,21 +735,25 @@
     const loginGate = el("loginGate");
     if (loginGate) loginGate.classList.add("hidden");
     if (gate) gate.classList.remove("hidden");
-    document.body.classList.add("maintenance-locked");
 
-    // 這個畫面現在只會在「已經登入、但不是管理員」的情況出現，所以直接
-    // 顯示登出按鈕；不用像以前那樣還要判斷有沒有登入、動態決定要不要
-    // 顯示登入按鈕清單。
-    const logoutBtn = el("maintenanceLogoutBtn");
-    if (logoutBtn) {
-      logoutBtn.classList.remove("hidden");
-      if (!logoutBtn.dataset.bound) {
-        logoutBtn.dataset.bound = "1";
-        logoutBtn.addEventListener("click", async () => {
-          await fetch("/api/auth/logout", { method: "POST" });
-          window.location.href = "/";
-        });
-      }
+    const link = el("maintenanceAdminLoginBtn");
+    if (link && !link.dataset.bound) {
+      link.dataset.bound = "1";
+      link.addEventListener("click", () => {
+        if (gate) gate.classList.add("hidden");
+        if (loginGate) loginGate.classList.remove("hidden");
+        const statusEl = el("loginGateStatus");
+        const buttonsEl = el("loginGateButtons");
+        if (!session.loggedIn) {
+          if (statusEl) statusEl.textContent = "請先登入管理員帳號：";
+          if (buttonsEl) {
+            buttonsEl.innerHTML = buildGateButtons(providers);
+            buttonsEl.classList.remove("hidden");
+          }
+        } else if (statusEl) {
+          statusEl.textContent = "這個帳號不是管理員，維護模式期間無法使用。";
+        }
+      });
     }
   }
 
@@ -770,13 +770,11 @@
       return;
     }
 
-    // 維護模式：後台開關打開時，非管理員一律鎖住，連 App 本體
-    // （renderer.js）都不會載入，不只是畫面被蓋住而已。
-    // 但只有「已經登入、確認不是管理員」才會擋，還沒登入的人先讓他走
-    // 正常的登入流程（不然使用者連登入按鈕都看不到，沒辦法登入管理員
-    // 帳號，也沒辦法讓後台知道他到底是不是管理員）。
+    // 維護模式：後台開關打開時，除了管理員以外一律鎖住，連 App 本體
+    // （renderer.js）都不會載入，不只是畫面被蓋住而已。管理員登入後
+    // 這裡會是 false，正常往下走原本的流程。
     const isAdminUser = Boolean(session.loggedIn && session.isAdmin);
-    if (session.maintenanceMode && session.loggedIn && !isAdminUser) {
+    if (session.maintenanceMode && !isAdminUser) {
       showMaintenanceScreen(session, providers);
       return;
     }
@@ -800,14 +798,16 @@
           });
         }
       }
-      // 只有 ADMIN_IDS 白名單內的帳號才會看到「後台管理」按鈕。這裡只是
+      // 只有 ADMIN_IDS 白名單內的帳號才會看到「後台管理」入口。這裡只是
       // 決定要不要「顯示」，真正的權限檢查在後端 /api/weather/status?admin=1
       // 那邊做，藏起來只是體驗上不要讓一般使用者看到用不到的按鈕。
+      // 桌面版的入口現在改放在側欄（sidebarAdminBtn），不在頂部導覽列露出
+      // adminTabBtn 了；手機版底部導覽列（adminBottomBtn）維持原本邏輯不動。
       if (session.isAdmin) {
         const adminBtn = el("adminBottomBtn");
         if (adminBtn) adminBtn.classList.remove("hidden");
-        const adminTab = el("adminTabBtn");
-        if (adminTab) adminTab.classList.remove("hidden");
+        const sidebarAdminBtn = el("sidebarAdminBtn");
+        if (sidebarAdminBtn) sidebarAdminBtn.classList.remove("hidden");
       }
       initSettingsMenu();
       startAppAfterLogin();
