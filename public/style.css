@@ -1708,6 +1708,55 @@ button:hover { background: var(--accent-hover); }
 }
 .auth-logout-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
 
+/* 「軟體更新」卡片：只有桌面安裝版（window.mapskyAppUpdate 橋接存在）才會
+   被 JS 插進來，純網頁瀏覽器版看不到——網站本身不需要「安裝更新」這種
+   概念，重新整理就是最新版了。 */
+.app-update-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
+}
+.app-update-icon img {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: block;
+  object-fit: contain;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  padding: 4px;
+}
+.app-update-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.app-update-name { font-weight: 700; color: var(--text-main); font-size: 13px; }
+.app-update-version { color: var(--text-faint); font-size: 11px; }
+.app-update-status { color: var(--text-muted); font-size: 12px; }
+.app-update-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.app-update-btn:hover { opacity: 0.9; }
+.app-update-btn.hidden { display: none; }
+.app-update-btn[disabled] { opacity: 0.6; cursor: default; }
+
 /* 設定圖示（底部導覽列 + 桌面分頁列）換成大頭貼時使用 */
 .bottom-nav-avatar-img {
   width: 22px;

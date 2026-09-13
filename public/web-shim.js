@@ -688,6 +688,56 @@
     return row;
   }
 
+  // ---------------- 軟體更新（只有桌面安裝版才有）----------------
+  // window.mapskyAppUpdate 是桌面版 preload.js 才會注入的橋接，純網頁瀏覽器
+  // 版本沒有這個東西，這裡用它存不存在來判斷要不要顯示這張卡片——網站本身
+  // 沒有「安裝更新」的概念，重新整理就是最新版了，不需要在這裡多顯示什麼。
+  function buildAppUpdateEntry() {
+    if (!window.mapskyAppUpdate) return null;
+
+    const bar = document.createElement("div");
+    bar.className = "app-update-bar";
+    bar.innerHTML = `
+      <div class="app-update-icon"><img src="icons/logo-dark-64.png" alt="MapSky" /></div>
+      <div class="app-update-info">
+        <span class="app-update-name">MapSky 桌面版</span>
+        <span class="app-update-version" id="appUpdateVersion">目前版本 …</span>
+        <span class="app-update-status" id="appUpdateStatus">已是最新版本</span>
+      </div>
+      <button id="appUpdateBtn" class="app-update-btn hidden" type="button">立即更新並重新啟動</button>
+    `;
+
+    const versionEl = bar.querySelector("#appUpdateVersion");
+    const statusEl = bar.querySelector("#appUpdateStatus");
+    const btnEl = bar.querySelector("#appUpdateBtn");
+
+    if (window.mapskyAppUpdate.getVersion) {
+      window.mapskyAppUpdate.getVersion()
+        .then((v) => { versionEl.textContent = "目前版本 v" + v; })
+        .catch(() => {});
+    }
+
+    if (window.mapskyAppUpdate.onUpdateAvailable) {
+      window.mapskyAppUpdate.onUpdateAvailable((info) => {
+        statusEl.textContent = "發現新版本 v" + ((info && info.version) || "") + "，正在背景下載…";
+      });
+    }
+    if (window.mapskyAppUpdate.onDownloaded) {
+      window.mapskyAppUpdate.onDownloaded((version) => {
+        statusEl.textContent = "新版本 v" + version + " 已下載完成";
+        btnEl.classList.remove("hidden");
+      });
+    }
+
+    btnEl.addEventListener("click", () => {
+      btnEl.disabled = true;
+      btnEl.textContent = "重新啟動中…";
+      window.mapskyAppUpdate.installNow();
+    });
+
+    return bar;
+  }
+
   // ---------------- 設定入口（帳號資訊 + 登出）----------------
   // 「設定」跟其他分頁（未來 7 天／溫度趨勢圖…）一樣是真正的 tab-panel，
   // 頂部導覽列的「⚙️ 設定」本身就是那顆 .tab-btn[data-tab="settings"]，
@@ -779,6 +829,12 @@
             window.location.href = "/";
           });
         }
+      }
+      const updateSlot = el("appUpdateSlot");
+      if (updateSlot) {
+        updateSlot.innerHTML = "";
+        const updateBar = buildAppUpdateEntry();
+        if (updateBar) updateSlot.appendChild(updateBar);
       }
       // 只有 ADMIN_IDS 白名單內的帳號才會看到「後台管理」入口。這裡只是
       // 決定要不要「顯示」，真正的權限檢查在後端 /api/weather/status?admin=1
