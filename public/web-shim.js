@@ -689,27 +689,9 @@
   }
 
   // ---------------- 設定入口（帳號資訊 + 登出）----------------
-  // 現在「設定」已經是跟其他分頁（未來 7 天／溫度趨勢圖…）同一種真正的
-  // tab-panel，不再是另外浮出來的面板。側欄的「⚙️ 帳號 / 設定」按鈕
-  // 這裡只是幫忙點一下對應的分頁按鈕，換頁邏輯統一交給 renderer.js 處理。
-  function initSettingsMenu() {
-    const btn = el("sidebarSettingsBtn");
-    if (btn) {
-      btn.addEventListener("click", () => {
-        const tabBtn = document.querySelector('.tab-btn[data-tab="settings"]');
-        if (tabBtn) tabBtn.click();
-      });
-    }
-    // 「後台管理」現在也是同樣的做法：側欄按鈕本身只負責外觀跟入口，實際換頁
-    // 邏輯還是交給隱藏在頂部導覽列裡那顆真正的 .tab-btn[data-tab="admin"] 去做。
-    const adminBtn = el("sidebarAdminBtn");
-    if (adminBtn) {
-      adminBtn.addEventListener("click", () => {
-        const tabBtn = document.querySelector('.tab-btn[data-tab="admin"]');
-        if (tabBtn) tabBtn.click();
-      });
-    }
-  }
+  // 「設定」跟其他分頁（未來 7 天／溫度趨勢圖…）一樣是真正的 tab-panel，
+  // 頂部導覽列的「⚙️ 設定」本身就是那顆 .tab-btn[data-tab="settings"]，
+  // 換頁邏輯統一交給 renderer.js 處理，這裡不用再另外綁點擊轉發。
 
   const LOGIN_ERROR_LABEL = {
     access_denied: "已取消登入",
@@ -801,15 +783,14 @@
       // 只有 ADMIN_IDS 白名單內的帳號才會看到「後台管理」入口。這裡只是
       // 決定要不要「顯示」，真正的權限檢查在後端 /api/weather/status?admin=1
       // 那邊做，藏起來只是體驗上不要讓一般使用者看到用不到的按鈕。
-      // 桌面版的入口現在改放在側欄（sidebarAdminBtn），不在頂部導覽列露出
-      // adminTabBtn 了；手機版底部導覽列（adminBottomBtn）維持原本邏輯不動。
+      // 桌面版的入口就是頂部導覽列那顆 adminTabBtn；手機版底部導覽列
+      // （adminBottomBtn）維持原本邏輯不動。
       if (session.isAdmin) {
         const adminBtn = el("adminBottomBtn");
         if (adminBtn) adminBtn.classList.remove("hidden");
-        const sidebarAdminBtn = el("sidebarAdminBtn");
-        if (sidebarAdminBtn) sidebarAdminBtn.classList.remove("hidden");
+        const adminTabBtn = el("adminTabBtn");
+        if (adminTabBtn) adminTabBtn.classList.remove("hidden");
       }
-      initSettingsMenu();
       startAppAfterLogin();
       return;
     }

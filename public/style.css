@@ -2159,11 +2159,6 @@ button:hover { background: var(--accent-hover); }
      「工具」彈出選單裡。 */
   .tabs { display: none; }
 
-  /* 側欄的「設定」按鈕在手機版跟底部導覽列右邊的「設定」重複，
-     手機版只留底部那一顆，側欄這顆隱藏；桌面版沒有底部導覽列，
-     所以桌面版繼續保留側欄這顆當作唯一入口。 */
-  .sidebar-settings-btn { display: none; }
-
   /* 整個側欄（logo／已連線／城市選擇／查詢天氣／自動定位／收藏城市）
      手機版預設收起來，變成從左邊滑出的抽屜，點主畫面左上角的
      漢堡選單（☰）才打開，不再一直佔掉畫面最上面一大塊。 */
@@ -2316,19 +2311,6 @@ button:hover { background: var(--accent-hover); }
   }
 }
 
-.sidebar-settings-btn {
-  align-self: flex-start;
-  margin-bottom: 12px;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  color: var(--text-main);
-  border-radius: 10px;
-  padding: 8px 12px;
-  font-size: 13px;
-  cursor: pointer;
-}
-.sidebar-settings-btn:hover { border-color: var(--accent); color: var(--accent); }
-
 /* 「設定」現在是跟其他分頁一樣的真正 tab-panel，不再是浮出來的面板，
    所以樣式也比照其他分頁：標題 + 白色資訊卡（帳號資訊），不用另外處理
    遮罩背景、開關動畫這些浮動面板才需要的東西。 */
@@ -2401,12 +2383,10 @@ button:hover { background: var(--accent-hover); }
    這條通用規則真的藏起來——之前只有 #adminTabBtn.hidden 這種寫死 id 的規則，
    #toolsTabBtn 標了 hidden 卻沒對應的 CSS，所以才會一直露出來、跟被藏起來的
    其他按鈕擠在同一排，這是之前那團亂的根本原因。這幾顆按鈕本身還是留在
-   DOM 裡（不是刪除），因為 renderer.js 的分頁切換、工具選單裡的項目、側欄
-   「帳號/設定」「後台管理」按鈕、手機版底部導覽列，都是靠
-   .tab-btn[data-tab="..."] 這個選擇器去找到對應按鈕再幫它點一下，藏起來但
-   留著元素，這些地方才點得動。 */
+   DOM 裡（不是刪除），因為 renderer.js 的分頁切換、工具選單裡的項目、手機版
+   底部導覽列，都是靠 .tab-btn[data-tab="..."] 這個選擇器去找到對應按鈕再
+   幫它點一下，藏起來但留著元素，這些地方才點得動。 */
 .tabs .tab-btn.hidden { display: none; }
-#sidebarAdminBtn.hidden { display: none; }
 
 .admin-card-hint {
   font-size: 12px;
