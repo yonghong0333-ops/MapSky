@@ -96,6 +96,48 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ ok: true, total: subs.length, sent, expired, failed });
     }
 
+    // 觸發桌面版（.exe 外殼）重新編譯＋發佈到 GitHub Releases：只有超級
+    // 管理員能做，因為這會實際動到編譯/發版這種等級的操作。實際上是呼叫
+    // GitHub 的 workflow_dispatch API 去啟動 .github/workflows/build-desktop.yml，
+    // 真正的編譯在 GitHub Actions 的機器上跑，這支 API 只負責「觸發」，
+    // 呼叫完就回應，不會等編譯跑完（大概要幾分鐘）。
+    // 用的 token 存在伺服器端環境變數 GITHUB_ACTIONS_TOKEN，前端完全看不到。
+    if (action === "publish-desktop") {
+      if (!(await isSuperAdminSession(payload))) {
+        return res.status(403).json({ ok: false, reason: "not-super-admin" });
+      }
+      const token = process.env.GITHUB_ACTIONS_TOKEN;
+      if (!token) {
+        return res.status(400).json({ ok: false, reason: "github-token-not-configured" });
+      }
+      const bump = ["patch", "minor", "major"].includes(body.bump) ? body.bump : "patch";
+      // 觸發哪個分支：預設 main，之後這條分支合併到 main 之前，可以先用
+      // 環境變數 GITHUB_DESKTOP_BUILD_REF 覆蓋成目前這條開發分支。
+      const ref = process.env.GITHUB_DESKTOP_BUILD_REF || "main";
+      try {
+        const ghResp = await fetch(
+          "https://api.github.com/repos/yonghong0333-ops/MapSky/actions/workflows/build-desktop.yml/dispatches",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/vnd.github+json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ ref, inputs: { version_bump: bump } }),
+          }
+        );
+        // GitHub 這支 API 成功會回 204 No Content，沒有 body 可以解析。
+        if (ghResp.status !== 204) {
+          const detail = await ghResp.text().catch(() => "");
+          return res.status(502).json({ ok: false, reason: "github-dispatch-failed", detail: detail.slice(0, 300) });
+        }
+        return res.status(200).json({ ok: true });
+      } catch (e) {
+        return res.status(502).json({ ok: false, reason: "github-dispatch-error" });
+      }
+    }
+
     // 管理員名單的指派/踢除，只有超級管理員能做
     if (!(await isSuperAdminSession(payload))) {
       return res.status(403).json({ ok: false, reason: "not-super-admin" });

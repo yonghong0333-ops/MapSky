@@ -2496,6 +2496,33 @@ button:hover { background: var(--accent-hover); }
   color: var(--text-main);
 }
 .admin-cooldown-unit { font-size: 13px; color: var(--text-muted); }
+.admin-desktop-publish-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.admin-desktop-publish-row select {
+  flex: 1;
+  min-width: 160px;
+  padding: 8px 10px;
+  border: 1px solid var(--input-border, var(--card-border));
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--input-bg, var(--card-bg));
+  color: var(--text-main);
+}
+.admin-desktop-publish-row button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-desktop-publish-row button[disabled] { opacity: 0.6; cursor: default; }
 .admin-cooldown-form button {
   background: var(--accent);
   color: #fff;

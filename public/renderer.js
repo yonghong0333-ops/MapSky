@@ -749,6 +749,40 @@ async function loadAdminStatus() {
         }
       });
     }
+
+    // 觸發桌面版重新編譯＋發佈（只有超級管理員看得到這張卡片，見 renderAdminList）
+    const desktopBtn = el("adminDesktopPublishBtn");
+    const desktopMsg = el("adminDesktopPublishMsg");
+    if (desktopBtn && !desktopBtn.dataset.bound) {
+      desktopBtn.dataset.bound = "1";
+      desktopBtn.addEventListener("click", async () => {
+        const bumpSelect = el("adminDesktopBumpSelect");
+        const bump = bumpSelect ? bumpSelect.value : "patch";
+        if (!confirm("確定要觸發桌面版重新編譯＋發佈嗎？大約需要幾分鐘，且會實際發佈新版本給使用者。")) return;
+        desktopBtn.disabled = true;
+        if (desktopMsg) desktopMsg.textContent = "觸發中…";
+        try {
+          const resp = await fetch("/api/weather/status?admin=1&action=publish-desktop", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bump }),
+          });
+          const data = await resp.json();
+          if (!resp.ok || !data.ok) {
+            const reason = data.reason === "github-token-not-configured"
+              ? "尚未設定環境變數 GITHUB_ACTIONS_TOKEN"
+              : (data.reason || "觸發失敗");
+            if (desktopMsg) desktopMsg.textContent = `觸發失敗：${reason}`;
+            return;
+          }
+          if (desktopMsg) desktopMsg.textContent = "已觸發，GitHub Actions 開始編譯，完成後會自動發佈到 Releases。";
+        } catch (e) {
+          if (desktopMsg) desktopMsg.textContent = "觸發失敗：網路錯誤";
+        } finally {
+          desktopBtn.disabled = false;
+        }
+      });
+    }
   } catch (e) {
     if (emptyEl) emptyEl.textContent = "載入失敗，請重新整理再試一次。";
   }
@@ -758,6 +792,8 @@ async function loadAdminStatus() {
 // 這裡沒判斷成功也不代表繞得過去，是體驗上先擋一次而已）。
 function renderAdminList(data) {
   const card = el("adminManageCard");
+  const desktopCard = el("adminDesktopCard");
+  if (desktopCard) desktopCard.classList.toggle("hidden", !data.isSuperAdmin);
   if (!card) return;
   if (!data.isSuperAdmin || !data.admins) {
     card.classList.add("hidden");

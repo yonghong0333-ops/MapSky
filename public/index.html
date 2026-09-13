@@ -860,6 +860,24 @@
               </form>
               <p id="adminAssignMsg" class="admin-assign-msg"></p>
             </div>
+            <div id="adminDesktopCard" class="admin-card hidden">
+              <h3 class="admin-card-title">🖥️ 桌面版發佈</h3>
+              <p class="admin-card-hint">
+                按下去會觸發 GitHub Actions 重新編譯 Windows 桌面版安裝檔並發佈到 GitHub
+                Releases，已安裝的使用者會透過軟體內建的自動更新機制收到這個新版本，
+                不用重新發安裝檔給大家重灌。編譯大約需要幾分鐘，這裡按下去就會回應，
+                不會等它跑完，可以到 repo 的 Actions 分頁看進度。
+              </p>
+              <div class="admin-desktop-publish-row">
+                <select id="adminDesktopBumpSelect">
+                  <option value="patch">修訂版（例如 1.0.0 → 1.0.1）</option>
+                  <option value="minor">次要版（例如 1.0.0 → 1.1.0）</option>
+                  <option value="major">主要版（例如 1.0.0 → 2.0.0）</option>
+                </select>
+                <button id="adminDesktopPublishBtn" type="button">發佈新版桌面版</button>
+              </div>
+              <p id="adminDesktopPublishMsg" class="admin-assign-msg"></p>
+            </div>
           </div>
         </div>
       </section>

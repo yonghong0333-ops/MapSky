@@ -1,0 +1,67 @@
+# 編譯＋發佈 Windows 桌面版（electron/ 資料夾）。
+#
+# 這支只能用 workflow_dispatch 觸發，不會因為 push 到這個 repo 就自動跑——
+# 「軟體內部」（public/ 網站本體）跟「外殼」（electron/ 桌面殼）雖然放在
+# 同一個 repo，但發版時機是分開的兩件事，不希望改網站程式碼時意外觸發一次
+# 桌面版重新編譯。
+#
+# 實際觸發來源是後台管理頁的「發佈新版桌面版」按鈕：使用者點下去 →
+# api/weather/status.js 的 publish-desktop action → 用伺服器端環境變數
+# GITHUB_ACTIONS_TOKEN 呼叫 GitHub 的 workflow_dispatch API → 這支 workflow
+# 才會開始跑。也可以直接在 GitHub 網頁的 Actions 分頁手動觸發，不一定要
+# 透過後台管理。
+name: Build & Publish Desktop
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: "版本號遞增方式"
+        required: false
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write # 要能建立 Release、也要能把版號遞增的 commit push 回去
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: electron
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bump version（不建立 git tag，等下面一起 commit）
+        run: npm version ${{ github.event.inputs.version_bump }} --no-git-tag-version
+
+      - name: Build 並發佈到 GitHub Releases
+        run: npm run publish:win
+        env:
+          # electron-builder 認的是 GH_TOKEN 這個環境變數名稱；用 Actions 內建
+          # 的 GITHUB_TOKEN 就夠了（同一個 repo 建 Release），不用另外存一組
+          # Personal Access Token 在這裡。
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 把版號遞增後的 package.json 一起 commit 回去
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git diff --cached --quiet || git commit -m "chore(desktop): bump version [skip ci]"
+          git push origin HEAD:${{ github.ref_name }}
