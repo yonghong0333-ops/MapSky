@@ -35,8 +35,11 @@ async function refreshApiKeyStatus() {
   const status = await window.weatherAPI.getApiKeyStatus();
   apiKeyReady = status.hasKey;
   const keyStatusEl = el("keyStatus");
-  keyStatusEl.classList.toggle("disconnected", !status.hasKey);
-  keyStatusEl.querySelector(".key-status-text").textContent = status.hasKey ? "已連線" : "尚未連線";
+  if (keyStatusEl) {
+    keyStatusEl.classList.toggle("disconnected", !status.hasKey);
+    const textEl = keyStatusEl.querySelector(".key-status-text");
+    if (textEl) textEl.textContent = status.hasKey ? "已連線" : "尚未連線";
+  }
   return apiKeyReady;
 }
 
