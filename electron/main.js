@@ -161,6 +161,37 @@ function injectTitleBar(win) {
       var right = document.createElement("div");
       right.style.cssText = "display:flex;align-items:center;gap:6px;-webkit-app-region:no-drag;";
 
+      // 帳號頭像——跟網頁版讀同一支 /api/auth/session，同一個瀏覽環境（同一份
+      // cookie），登入狀態一定是同步的。有登入就顯示大頭貼，沒有就顯示預設
+      // 灰色人形。放在縮小/放大/關閉左邊，跟參考圖一樣靠右、但不搶走視窗按鈕
+      // 該在的最右側位置。
+      var accountSlot = document.createElement("div");
+      accountSlot.style.cssText = "display:flex;align-items:center;margin-right:6px;";
+      right.appendChild(accountSlot);
+
+      var DEFAULT_AVATAR_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>';
+
+      function renderAvatar(session) {
+        accountSlot.innerHTML = "";
+        var wrap = document.createElement("div");
+        wrap.style.cssText = "width:24px;height:24px;border-radius:50%;overflow:hidden;" +
+          "background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;flex-shrink:0;";
+        var loggedIn = session && session.loggedIn;
+        var profile = (loggedIn && session.profile) || {};
+        var avatarSrc = profile.avatarDataUrl || profile.avatarUrl || "";
+        var name = profile.nickname || profile.name || (loggedIn ? "已登入" : "未登入");
+        wrap.title = name;
+        wrap.innerHTML = avatarSrc
+          ? '<img src="' + avatarSrc + '" style="width:100%;height:100%;object-fit:cover;" />'
+          : DEFAULT_AVATAR_SVG;
+        accountSlot.appendChild(wrap);
+      }
+
+      renderAvatar(null);
+      fetch("/api/auth/session").then(function (r) { return r.json(); })
+        .then(renderAvatar)
+        .catch(function () {});
+
       var ICONS = {
         minimize: '<svg width="10" height="10" viewBox="0 0 10 10"><line x1="1" y1="5" x2="9" y2="5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
         maximize: '<svg width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>',
