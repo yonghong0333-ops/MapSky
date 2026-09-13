@@ -175,15 +175,26 @@ function injectTitleBar(win) {
         accountSlot.innerHTML = "";
         var wrap = document.createElement("div");
         wrap.style.cssText = "width:24px;height:24px;border-radius:50%;overflow:hidden;" +
-          "background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;flex-shrink:0;";
+          "background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;" +
+          "flex-shrink:0;cursor:pointer;transition:background .12s ease;";
         var loggedIn = session && session.loggedIn;
         var profile = (loggedIn && session.profile) || {};
         var avatarSrc = profile.avatarDataUrl || profile.avatarUrl || "";
         var name = profile.nickname || profile.name || (loggedIn ? "已登入" : "未登入");
-        wrap.title = name;
+        wrap.title = name + "（點一下開啟帳號 / 設定）";
         wrap.innerHTML = avatarSrc
           ? '<img src="' + avatarSrc + '" style="width:100%;height:100%;object-fit:cover;" />'
           : DEFAULT_AVATAR_SVG;
+        // 點頭像開「帳號/設定」：跟分頁列那顆「⚙️ 設定」按鈕（.tab-btn[data-tab="settings"]）
+        // 是同一個入口，這裡只是幫忙點一下真正的分頁按鈕，換頁邏輯還是統一交給
+        // renderer.js 處理。分頁列那顆本身也繼續保留，給純網頁瀏覽器版（沒裝
+        // Electron 桌面版、看不到這顆頭像）的桌面使用者用。
+        wrap.onmouseenter = function () { wrap.style.background = "rgba(255,255,255,.18)"; };
+        wrap.onmouseleave = function () { wrap.style.background = "rgba(255,255,255,.08)"; };
+        wrap.onclick = function () {
+          var tabBtn = document.querySelector('.tab-btn[data-tab="settings"]');
+          if (tabBtn) tabBtn.click();
+        };
         accountSlot.appendChild(wrap);
       }
 
