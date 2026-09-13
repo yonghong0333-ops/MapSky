@@ -134,9 +134,9 @@ function getLogoDataUri() {
 }
 
 // 隱藏系統原生標題列之後（frame:false），自己畫一列貼合 App 深色風格的標題列：
-// 左邊 App 圖示＋名稱，右邊縮小／放大還原／關閉三顆鈕。整段用注入的
-// HTML/CSS/JS 畫出來，不用改網站本身的程式碼；每次頁面（重新）載入完都要
-// 重插一次，因為 reload 會把注入的東西一起洗掉。
+// 左邊 App 圖示＋名稱，右邊縮小／放大還原／關閉三顆圓形圖示鈕，深色圓角卡片
+// 風格。整段用注入的 HTML/CSS/JS 畫出來，不用改網站本身的程式碼；每次頁面
+// （重新）載入完都要重插一次，因為 reload 會把注入的東西一起洗掉。
 function injectTitleBar(win) {
   if (win.isDestroyed()) return;
   const logoDataUri = getLogoDataUri();
@@ -147,36 +147,51 @@ function injectTitleBar(win) {
       var bar = document.createElement("div");
       bar.id = "__mapsky_titlebar__";
       bar.style.cssText = "position:fixed;top:0;left:0;right:0;height:${TITLEBAR_HEIGHT}px;" +
-        "background:#0b1220;color:#e5e7eb;display:flex;align-items:center;" +
-        "justify-content:space-between;z-index:2147483647;" +
-        "font:12px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;" +
-        "-webkit-app-region:drag;user-select:none;border-bottom:1px solid rgba(255,255,255,.08);";
+        "background:#15171c;color:#cbd5e1;display:flex;align-items:center;" +
+        "justify-content:space-between;z-index:2147483647;padding:0 8px 0 14px;" +
+        "box-sizing:border-box;border-radius:14px 14px 0 0;" +
+        "font:13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;" +
+        "-webkit-app-region:drag;user-select:none;";
 
       var left = document.createElement("div");
-      left.style.cssText = "display:flex;align-items:center;gap:8px;padding-left:12px;overflow:hidden;";
-      left.innerHTML = ${JSON.stringify('<img src="' + logoDataUri + '" style="width:16px;height:16px;border-radius:4px;" />')} +
-        "<span style='white-space:nowrap;'>MapSky 天氣</span>";
+      left.style.cssText = "display:flex;align-items:center;gap:9px;overflow:hidden;";
+      left.innerHTML = ${JSON.stringify('<img src="' + logoDataUri + '" style="width:20px;height:20px;border-radius:6px;display:block;" />')} +
+        "<span style='white-space:nowrap;font-weight:600;color:#e5e7eb;'>MapSky 天氣</span>";
 
       var right = document.createElement("div");
-      right.style.cssText = "display:flex;height:100%;-webkit-app-region:no-drag;";
+      right.style.cssText = "display:flex;align-items:center;gap:6px;-webkit-app-region:no-drag;";
 
-      function makeBtn(label, danger) {
+      var ICONS = {
+        minimize: '<svg width="10" height="10" viewBox="0 0 10 10"><line x1="1" y1="5" x2="9" y2="5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+        maximize: '<svg width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>',
+        restore: '<svg width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="2.6" width="6" height="6" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.1"/><rect x="3" y="0.6" width="6" height="6" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>',
+        close: '<svg width="10" height="10" viewBox="0 0 10 10"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'
+      };
+
+      // 圓形圖示鈕，跟參考圖裡那排格狀選單/通知/設定鈕同一種風格：
+      // 深色底、淺灰圖示，滑過時背景亮一點（關閉鈕滑過變紅）。
+      function makeBtn(iconSvg, danger) {
         var b = document.createElement("button");
-        b.textContent = label;
-        b.style.cssText = "width:44px;height:${TITLEBAR_HEIGHT}px;border:none;background:transparent;" +
-          "color:#e5e7eb;cursor:pointer;font-size:13px;line-height:1;";
+        b.innerHTML = iconSvg;
+        b.style.cssText = "width:28px;height:28px;padding:0;margin:0;box-sizing:border-box;" +
+          "border:none;border-radius:50%;font-size:0;line-height:0;" +
+          "background:rgba(255,255,255,.06);color:#cbd5e1;cursor:pointer;" +
+          "display:flex;align-items:center;justify-content:center;flex-shrink:0;" +
+          "transition:background .12s ease;";
         b.onmouseenter = function () {
-          b.style.background = danger ? "#dc2626" : "rgba(255,255,255,.12)";
+          b.style.background = danger ? "#dc2626" : "rgba(255,255,255,.14)";
+          b.style.color = "#fff";
         };
         b.onmouseleave = function () {
-          b.style.background = "transparent";
+          b.style.background = "rgba(255,255,255,.06)";
+          b.style.color = "#cbd5e1";
         };
         return b;
       }
 
-      var minBtn = makeBtn("—", false);
-      var maxBtn = makeBtn("▢", false);
-      var closeBtn = makeBtn("✕", true);
+      var minBtn = makeBtn(ICONS.minimize, false);
+      var maxBtn = makeBtn(ICONS.maximize, false);
+      var closeBtn = makeBtn(ICONS.close, true);
 
       minBtn.onclick = function () { window.mapskyWindowControls.minimize(); };
       maxBtn.onclick = function () { window.mapskyWindowControls.maximize(); };
@@ -198,7 +213,7 @@ function injectTitleBar(win) {
 
       if (window.mapskyWindowControls && window.mapskyWindowControls.onMaximizedChange) {
         window.mapskyWindowControls.onMaximizedChange(function (isMaximized) {
-          maxBtn.textContent = isMaximized ? "❐" : "▢";
+          maxBtn.innerHTML = isMaximized ? ICONS.restore : ICONS.maximize;
         });
       }
     })();
