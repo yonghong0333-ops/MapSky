@@ -770,9 +770,10 @@ async function loadAdminStatus() {
           });
           const data = await resp.json();
           if (!resp.ok || !data.ok) {
-            const reason = data.reason === "github-token-not-configured"
+            let reason = data.reason === "github-token-not-configured"
               ? "尚未設定環境變數 GITHUB_ACTIONS_TOKEN"
               : (data.reason || "觸發失敗");
+            if (data.detail) reason += `（${data.detail}）`;
             if (desktopMsg) desktopMsg.textContent = `觸發失敗：${reason}`;
             return;
           }
