@@ -48,7 +48,7 @@
         btn.disabled = false;
         btn.onclick = () => window.open(WIN_DOWNLOAD_URL, "_blank");
         if (fileInfo) {
-          fileInfo.textContent = "MapSky_Setup.exe ・約 75 MB";
+          fileInfo.textContent = "MapSky-Setup.exe ・約 75 MB";
           fileInfo.classList.remove("hidden");
         }
         if (perks) perks.classList.remove("hidden");

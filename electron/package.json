@@ -44,7 +44,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "MapSky"
+      "shortcutName": "MapSky",
+      "artifactName": "MapSky-Setup.${ext}"
     }
   }
 }
