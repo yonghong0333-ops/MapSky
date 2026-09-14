@@ -198,9 +198,52 @@ function showExeUpdateToast(win, version) {
 // 使用者自己跑去官網重新下載一次 exe。
 const APP_UPDATE_CHECK_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 小時
 
+// 更新頻道本機設定：存在 userData 資料夾一個小 JSON 檔裡，跟著這台電腦這個
+// 安裝走（不是跟著帳號走）。這裡只負責「這台電腦目前設成哪個頻道」，真正
+// 「這個帳號有沒有資格切到公開測試版/一般測試版」是網站那邊
+// （/api/auth/session 的 updateChannelAccess）判斷的——設定頁只會把選項
+// 顯示給有資格的帳號，這裡單純照收到的值執行，不重複做權限檢查。
+//
+// ⚠️ 這是體驗層面的頻道選擇，不是安全機制：GitHub Releases 如果是公開的，
+// 理論上任何人都能改這個檔案自己切到 alpha 頻道去抓「一般測試版」的安裝檔，
+// 只是網站不會把這個選項顯示給沒資格的帳號而已。
+const UPDATE_CHANNEL_FILE = () => path.join(app.getPath("userData"), "update-channel.json");
+// 對應 electron-updater 的 channel 字串：stable 頻道不用設 channel（用預設
+// 的 latest），public-beta/internal-beta 對應到 build 時 electron-builder
+// 依 prerelease 標籤自動產生的 beta / alpha 頻道檔名。
+const CHANNEL_MAP = { stable: null, "public-beta": "beta", "internal-beta": "alpha" };
+
+function readUpdateChannel() {
+  try {
+    const raw = fs.readFileSync(UPDATE_CHANNEL_FILE(), "utf8");
+    const data = JSON.parse(raw);
+    if (data && CHANNEL_MAP.hasOwnProperty(data.channel)) return data.channel;
+  } catch (e) {
+    // 檔案不存在或壞掉，當作預設值處理
+  }
+  return "stable";
+}
+
+function writeUpdateChannel(channel) {
+  try {
+    fs.writeFileSync(UPDATE_CHANNEL_FILE(), JSON.stringify({ channel }), "utf8");
+  } catch (e) {
+    console.error("[updateChannel] 寫入本機設定失敗", e);
+  }
+}
+
+function applyUpdateChannel(channel) {
+  const mapped = CHANNEL_MAP.hasOwnProperty(channel) ? CHANNEL_MAP[channel] : null;
+  autoUpdater.allowPrerelease = mapped !== null;
+  // electron-updater 沒設 channel 時用預設（正式版 latest.yml）；有設就去
+  // 抓對應頻道的 yml（beta.yml / alpha.yml）。
+  autoUpdater.channel = mapped || undefined;
+}
+
 function setupAutoUpdater(win) {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = false; // 我們自己用提示條問使用者，不要它自己默默裝
+  applyUpdateChannel(readUpdateChannel());
 
   autoUpdater.on("update-available", (info) => {
     if (!win.isDestroyed()) win.webContents.send("mapsky:update-available", info);
@@ -1037,6 +1080,16 @@ app.whenReady().then(() => {
   // 設定頁裡「軟體更新」卡片要顯示目前版本號，從 app.getVersion() 讀
   // package.json 的 version 欄位，跟 electron-updater 比版本用的是同一個值。
   ipcMain.handle("mapsky:get-version", () => app.getVersion());
+
+  // 更新頻道選擇器（設定頁，只有有資格的帳號才看得到選項）：讀取/切換這台
+  // 電腦目前訂閱的更新頻道，實際套用邏輯在 applyUpdateChannel。
+  ipcMain.handle("mapsky:get-update-channel", () => readUpdateChannel());
+  ipcMain.on("mapsky:set-update-channel", (event, channel) => {
+    if (!CHANNEL_MAP.hasOwnProperty(channel)) return;
+    writeUpdateChannel(channel);
+    applyUpdateChannel(channel);
+    autoUpdater.checkForUpdates().catch(() => {});
+  });
 
   createWindow();
 

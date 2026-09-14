@@ -5,28 +5,33 @@
 # 同一個 repo，但發版時機是分開的兩件事，不希望改網站程式碼時意外觸發一次
 # 桌面版重新編譯。
 #
-# 實際觸發來源是後台管理頁的「發佈新版桌面版」按鈕：使用者點下去 →
-# api/weather/status.js 的 publish-desktop action → 用伺服器端環境變數
-# GITHUB_ACTIONS_TOKEN 呼叫 GitHub 的 workflow_dispatch API → 這支 workflow
-# 才會開始跑。也可以直接在 GitHub 網頁的 Actions 分頁手動觸發，不一定要
-# 透過後台管理。
+# 實際觸發來源是後台管理頁的「發佈新版桌面版」按鈕：使用者選頻道（正式版／
+# 公開測試版／一般測試版）→ api/weather/status.js 的 publish-desktop action
+# → 用伺服器端環境變數 GITHUB_ACTIONS_TOKEN 呼叫 GitHub 的 workflow_dispatch
+# API → 這支 workflow 才會開始跑。也可以直接在 GitHub 網頁的 Actions 分頁
+# 手動觸發，不一定要透過後台管理。
+#
+# 版本號規則是 YY.N（YY = 年份末兩碼，N = 這個年度累計第幾版，三個頻道共用
+# 同一組流水號），實際計算在 scripts/compute-next-version.js，測試版頻道
+# 會多帶 -beta.N / -alpha.N 的 prerelease 標籤，electron-builder 看到就會
+# 自動發到對應的更新頻道（latest.yml / beta.yml / alpha.yml）。
 name: Build & Publish Desktop
 
 on:
   workflow_dispatch:
     inputs:
-      version_bump:
-        description: "版本號遞增方式"
-        required: false
-        default: patch
+      channel:
+        description: "發佈頻道"
+        required: true
+        default: stable
         type: choice
         options:
-          - patch
-          - minor
-          - major
+          - stable # 正式版：所有使用者都看得到
+          - public-beta # 公開測試版：後台指派過資格的使用者 + 超級管理員
+          - internal-beta # 一般測試版：只有超級管理員看得到
 
 permissions:
-  contents: write # 要能建立 Release、也要能把版號遞增的 commit push 回去
+  contents: write # 要能建立 Release、也要能把版號的 commit push 回去
 
 jobs:
   build:
@@ -47,8 +52,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Bump version（不建立 git tag，等下面一起 commit）
-        run: npm version ${{ github.event.inputs.version_bump }} --no-git-tag-version
+      - name: 計算下一個版本號（YY.N 規則）
+        id: version
+        shell: pwsh
+        run: |
+          $v = node scripts/compute-next-version.js ${{ github.event.inputs.channel }}
+          Write-Host "下一個版本號：$v"
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 套用版本號到 package.json（不建立 git tag，等下面一起 commit）
+        run: npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
 
       - name: Build 並發佈到 GitHub Releases
         run: npm run publish:win
@@ -58,10 +73,10 @@ jobs:
           # Personal Access Token 在這裡。
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 把版號遞增後的 package.json 一起 commit 回去
+      - name: 把版號更新後的 package.json 一起 commit 回去
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add package.json
-          git diff --cached --quiet || git commit -m "chore(desktop): bump version [skip ci]"
+          git diff --cached --quiet || git commit -m "chore(desktop): release ${{ steps.version.outputs.version }} [skip ci]"
           git push origin HEAD:${{ github.ref_name }}

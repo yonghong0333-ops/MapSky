@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld("mapskyWindowControls", {
 contextBridge.exposeInMainWorld("mapskyAppUpdate", {
   installNow: () => ipcRenderer.send("mapsky:install-update"),
   getVersion: () => ipcRenderer.invoke("mapsky:get-version"),
+  getChannel: () => ipcRenderer.invoke("mapsky:get-update-channel"),
+  setChannel: (channel) => ipcRenderer.send("mapsky:set-update-channel", channel),
   onUpdateAvailable: (callback) => {
     ipcRenderer.on("mapsky:update-available", (_event, info) => callback(info));
   },

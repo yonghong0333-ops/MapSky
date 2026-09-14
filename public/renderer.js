@@ -756,16 +756,17 @@ async function loadAdminStatus() {
     if (desktopBtn && !desktopBtn.dataset.bound) {
       desktopBtn.dataset.bound = "1";
       desktopBtn.addEventListener("click", async () => {
-        const bumpSelect = el("adminDesktopBumpSelect");
-        const bump = bumpSelect ? bumpSelect.value : "patch";
-        if (!confirm("確定要觸發桌面版重新編譯＋發佈嗎？大約需要幾分鐘，且會實際發佈新版本給使用者。")) return;
+        const channelSelect = el("adminDesktopChannelSelect");
+        const channel = channelSelect ? channelSelect.value : "stable";
+        const channelLabel = channelSelect ? channelSelect.options[channelSelect.selectedIndex].text : channel;
+        if (!confirm(`確定要發佈「${channelLabel}」嗎？大約需要幾分鐘，且會實際發佈新版本給使用者。`)) return;
         desktopBtn.disabled = true;
         if (desktopMsg) desktopMsg.textContent = "觸發中…";
         try {
           const resp = await fetch("/api/weather/status?admin=1&action=publish-desktop", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ bump }),
+            body: JSON.stringify({ channel }),
           });
           const data = await resp.json();
           if (!resp.ok || !data.ok) {
@@ -793,7 +794,32 @@ async function loadAdminStatus() {
 function renderAdminList(data) {
   const card = el("adminManageCard");
   const desktopCard = el("adminDesktopCard");
+  const betaCard = el("adminBetaCard");
   if (desktopCard) desktopCard.classList.toggle("hidden", !data.isSuperAdmin);
+  if (betaCard) betaCard.classList.toggle("hidden", !data.isSuperAdmin || !data.betaTesters);
+  if (betaCard && data.isSuperAdmin && data.betaTesters) {
+    const betaListEl = el("adminBetaList");
+    if (betaListEl) {
+      betaListEl.innerHTML = data.betaTesters.length
+        ? data.betaTesters
+            .map(
+              (t) =>
+                `<div class="admin-list-row">
+                  <span>🧪 ${t.name}（${t.key}）</span>
+                  <button class="admin-beta-revoke-btn" data-provider="${t.provider}" data-id="${t.id}" type="button">移除</button>
+                </div>`
+            )
+            .join("")
+        : "<p class=\"admin-list-empty\">目前沒有人在公開測試版名單裡</p>";
+
+      betaListEl.querySelectorAll(".admin-beta-revoke-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("確定要把這個帳號從公開測試版名單移除嗎？")) return;
+          await callBetaAction("remove-beta-tester", { provider: btn.dataset.provider, id: btn.dataset.id });
+        });
+      });
+    }
+  }
   if (!card) return;
   if (!data.isSuperAdmin || !data.admins) {
     card.classList.add("hidden");
@@ -847,6 +873,27 @@ async function callAdminAction(action, body) {
   }
 }
 
+async function callBetaAction(action, body) {
+  const msgEl = el("adminBetaAssignMsg");
+  try {
+    const resp = await fetch(`/api/weather/status?admin=1&action=${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      if (msgEl) msgEl.textContent = `失敗：${data.reason || "未知錯誤"}`;
+      return;
+    }
+    if (msgEl) msgEl.textContent = action === "add-beta-tester" ? "已加入名單" : "已移除";
+    adminStatusLoaded = false; // 名單變了，下次要重新載入
+    loadAdminStatus();
+  } catch (e) {
+    if (msgEl) msgEl.textContent = "失敗：網路錯誤";
+  }
+}
+
 const adminAssignForm = el("adminAssignForm");
 if (adminAssignForm) {
   adminAssignForm.addEventListener("submit", async (event) => {
@@ -855,6 +902,18 @@ if (adminAssignForm) {
     const memberId = midInput.value.trim();
     if (!memberId) return;
     await callAdminAction("assign", { memberId });
+    midInput.value = "";
+  });
+}
+
+const adminBetaAssignForm = el("adminBetaAssignForm");
+if (adminBetaAssignForm) {
+  adminBetaAssignForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const midInput = el("adminBetaAssignMid");
+    const memberId = midInput.value.trim();
+    if (!memberId) return;
+    await callBetaAction("add-beta-tester", { memberId });
     midInput.value = "";
   });
 }

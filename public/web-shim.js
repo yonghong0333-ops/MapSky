@@ -692,8 +692,18 @@
   // window.mapskyAppUpdate 是桌面版 preload.js 才會注入的橋接，純網頁瀏覽器
   // 版本沒有這個東西，這裡用它存不存在來判斷要不要顯示這張卡片——網站本身
   // 沒有「安裝更新」的概念，重新整理就是最新版了，不需要在這裡多顯示什麼。
-  function buildAppUpdateEntry() {
+  //
+  // 更新頻道選擇器只有「有資格」的帳號才會顯示對應選項（session 裡的
+  // updateChannelAccess，後台管理指派的公開測試版名單 / 超級管理員）——
+  // 這是體驗層面的引導，不是安全機制，真正決定使用者抓不抓得到某個頻道的
+  // 安裝檔還是看 GitHub Releases 本身公不公開。
+  function buildAppUpdateEntry(session) {
     if (!window.mapskyAppUpdate) return null;
+
+    const access = (session && session.updateChannelAccess) || {};
+    const channelOptions = [{ value: "stable", label: "正式版" }];
+    if (access.publicBeta) channelOptions.push({ value: "public-beta", label: "公開測試版" });
+    if (access.internalBeta) channelOptions.push({ value: "internal-beta", label: "一般測試版（僅自己）" });
 
     const bar = document.createElement("div");
     bar.className = "app-update-bar";
@@ -703,6 +713,14 @@
         <span class="app-update-name">MapSky 桌面版</span>
         <span class="app-update-version" id="appUpdateVersion">目前版本 …</span>
         <span class="app-update-status" id="appUpdateStatus">已是最新版本</span>
+        ${channelOptions.length > 1 ? `
+          <label class="app-update-channel-row">
+            更新頻道：
+            <select id="appUpdateChannelSelect">
+              ${channelOptions.map((o) => `<option value="${o.value}">${o.label}</option>`).join("")}
+            </select>
+          </label>
+        ` : ""}
       </div>
       <button id="appUpdateBtn" class="app-update-btn hidden" type="button">立即更新並重新啟動</button>
     `;
@@ -710,11 +728,22 @@
     const versionEl = bar.querySelector("#appUpdateVersion");
     const statusEl = bar.querySelector("#appUpdateStatus");
     const btnEl = bar.querySelector("#appUpdateBtn");
+    const channelSelect = bar.querySelector("#appUpdateChannelSelect");
 
     if (window.mapskyAppUpdate.getVersion) {
       window.mapskyAppUpdate.getVersion()
         .then((v) => { versionEl.textContent = "目前版本 v" + v; })
         .catch(() => {});
+    }
+
+    if (channelSelect && window.mapskyAppUpdate.getChannel) {
+      window.mapskyAppUpdate.getChannel()
+        .then((ch) => { channelSelect.value = ch || "stable"; })
+        .catch(() => {});
+      channelSelect.addEventListener("change", () => {
+        window.mapskyAppUpdate.setChannel(channelSelect.value);
+        statusEl.textContent = "已切換頻道，正在檢查更新…";
+      });
     }
 
     if (window.mapskyAppUpdate.onUpdateAvailable) {
@@ -833,7 +862,7 @@
       const updateSlot = el("appUpdateSlot");
       if (updateSlot) {
         updateSlot.innerHTML = "";
-        const updateBar = buildAppUpdateEntry();
+        const updateBar = buildAppUpdateEntry(session);
         if (updateBar) updateSlot.appendChild(updateBar);
       }
       // 只有 ADMIN_IDS 白名單內的帳號才會看到「後台管理」入口。這裡只是
