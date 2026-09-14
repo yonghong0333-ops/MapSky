@@ -33,22 +33,35 @@
 
       const btn = el("desktopAppRequiredBtn");
       if (!btn) return;
+      const fileInfo = el("desktopAppRequiredFileInfo");
+      const perks = el("desktopAppRequiredPerks");
 
       const platform = navigator.platform || "";
       const ua = navigator.userAgent || "";
       const isMac = /Mac/i.test(platform) || /Macintosh/i.test(ua);
       const isWindows = /Win/i.test(platform) || /Windows/i.test(ua);
 
+      const WIN_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="0" y="0" width="7" height="7"/><rect x="9" y="0" width="7" height="7"/><rect x="0" y="9" width="7" height="7"/><rect x="9" y="9" width="7" height="7"/></svg>';
+
       if (isWindows) {
-        btn.textContent = "⊞ 下載 Windows 版";
+        btn.innerHTML = WIN_ICON_SVG + "<span>下載 Windows 版</span><span aria-hidden=\"true\">→</span>";
         btn.disabled = false;
         btn.onclick = () => window.open(WIN_DOWNLOAD_URL, "_blank");
+        if (fileInfo) {
+          fileInfo.textContent = "MapSky_Setup.exe ・約 75 MB";
+          fileInfo.classList.remove("hidden");
+        }
+        if (perks) perks.classList.remove("hidden");
       } else if (isMac) {
         btn.textContent = "🍎 Mac 版即將推出";
         btn.disabled = true;
+        if (fileInfo) fileInfo.classList.add("hidden");
+        if (perks) perks.classList.add("hidden");
       } else {
         btn.textContent = "目前僅支援 Windows／Mac 桌面版";
         btn.disabled = true;
+        if (fileInfo) fileInfo.classList.add("hidden");
+        if (perks) perks.classList.add("hidden");
       }
     });
 
