@@ -887,6 +887,15 @@
         <div class="settings-page">
           <h2 class="settings-page-title">設定</h2>
           <div id="settingsAccountSlot"></div>
+
+          <!-- 只在電腦版瀏覽器顯示（不是我們自己的 Electron 桌面版本身），
+               依偵測到的作業系統決定按鈕文字/行為，實際顯示邏輯在 web-shim.js
+               的 initDesktopDownloadButton()。 -->
+          <div id="desktopAppDownload" class="desktop-download-card hidden">
+            <h3 class="desktop-download-title">下載桌面版</h3>
+            <p class="desktop-download-desc">把 MapSky 天氣裝成電腦上的獨立應用程式，開啟更快、有自己的視窗。</p>
+            <button type="button" id="desktopDownloadBtn" class="desktop-download-btn"></button>
+          </div>
         </div>
       </section>
 

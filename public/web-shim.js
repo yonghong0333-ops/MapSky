@@ -701,6 +701,48 @@
     return row;
   }
 
+  // ---------------- 設定頁：下載桌面版按鈕 ----------------
+  // 只在「電腦版瀏覽器」顯示（跟 guardBrowserGate 用同一個 901px 門檻判斷桌面），
+  // 而且要排除我們自己的 Electron 桌面版本身（不然桌面版裡面還會看到一個
+  // 「下載桌面版」的按鈕，很奇怪）。Electron 版特地把 UA 換成一般 Chrome 的
+  // 樣子（避免被 Google OAuth 擋），所以不能用 UA 判斷是不是 Electron，改用
+  // 「window.mapskyWindowControls 存不存在」判斷——這個是 Electron 那邊的
+  // preload.js 用 contextBridge 特地暴露出來的，只有在我們自己的桌面殼裡才有。
+  const WIN_DOWNLOAD_URL = "https://github.com/yonghong0333-ops/MapSky/releases/latest/download/MapSky-Setup.exe";
+
+  function initDesktopDownloadButton() {
+    const wrap = el("desktopAppDownload");
+    const btn = el("desktopDownloadBtn");
+    if (!wrap || !btn) return;
+
+    const isDesktopWidth = window.matchMedia && window.matchMedia("(min-width: 901px)").matches;
+    const isOwnDesktopApp = Boolean(window.mapskyWindowControls);
+    if (!isDesktopWidth || isOwnDesktopApp) {
+      wrap.classList.add("hidden");
+      return;
+    }
+
+    const platform = navigator.platform || "";
+    const ua = navigator.userAgent || "";
+    const isMac = /Mac/i.test(platform) || /Macintosh/i.test(ua);
+    const isWindows = /Win/i.test(platform) || /Windows/i.test(ua);
+
+    if (isWindows) {
+      btn.textContent = "⊞ 下載 Windows 版";
+      btn.disabled = false;
+      btn.onclick = () => window.open(WIN_DOWNLOAD_URL, "_blank");
+      wrap.classList.remove("hidden");
+    } else if (isMac) {
+      btn.textContent = "🍎 Mac 版即將推出";
+      btn.disabled = true;
+      btn.onclick = null;
+      wrap.classList.remove("hidden");
+    } else {
+      // 其他系統（Linux 等）目前沒有對應安裝檔，先不顯示，避免按了沒反應。
+      wrap.classList.add("hidden");
+    }
+  }
+
   // ---------------- 設定入口（帳號資訊 + 登出）----------------
   // 現在「設定」已經是跟其他分頁（未來 7 天／溫度趨勢圖…）同一種真正的
   // tab-panel，不再是另外浮出來的面板。側欄的「⚙️ 帳號 / 設定」按鈕
@@ -810,6 +852,7 @@
         if (adminTab) adminTab.classList.remove("hidden");
       }
       initSettingsMenu();
+      initDesktopDownloadButton();
       startAppAfterLogin();
       return;
     }

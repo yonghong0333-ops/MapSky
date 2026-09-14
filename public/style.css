@@ -2363,6 +2363,36 @@ button:hover { background: var(--accent-hover); }
   flex-wrap: wrap;
 }
 
+/* ---- 設定頁：下載桌面版 ---- */
+.desktop-download-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
+  margin-top: 14px;
+}
+.desktop-download-card.hidden { display: none; }
+.desktop-download-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0 0 6px;
+}
+.desktop-download-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+.desktop-download-btn { width: 100%; }
+.desktop-download-btn:disabled {
+  background: var(--card-border);
+  color: var(--text-muted);
+  cursor: default;
+}
+.desktop-download-btn:disabled:hover { background: var(--card-border); }
+
 /* ---- 後台管理 ---- */
 .admin-status-empty { color: var(--text-muted); font-size: 14px; }
 .admin-status-content {
