@@ -75,6 +75,19 @@
     </div>
   </div>
 
+  <!-- 電腦版瀏覽器直接打開網站一律擋在這裡，逼使用者下載桌面版才能用；
+       手機瀏覽器、以及我們自己的 Electron 桌面版本身都不受影響。判斷邏輯在
+       web-shim.js 的 guardDesktopAppRequired()，跑在最前面，擋到的話連
+       initAuthGate（登入、API 呼叫）都不會執行。 -->
+  <div id="desktopAppRequiredGate" class="desktop-app-gate hidden">
+    <div class="desktop-app-gate-card">
+      <img class="login-gate-logo" src="icons/logo-dark.png" alt="MapSky" />
+      <h1 class="login-gate-title">MapSky</h1>
+      <p class="login-gate-sub">電腦版請下載桌面應用程式使用</p>
+      <button type="button" id="desktopAppRequiredBtn" class="desktop-app-gate-btn"></button>
+    </div>
+  </div>
+
   <!-- 維護模式：後台開關打開時，非管理員的使用者一律看到這個畫面，
        整個網站功能都碰不到；管理員照常使用，由 web-shim.js 判斷。
        直接全螢幕放使用者提供的那張圖，不用 CSS 另外拼卡片。 -->
@@ -887,15 +900,6 @@
         <div class="settings-page">
           <h2 class="settings-page-title">設定</h2>
           <div id="settingsAccountSlot"></div>
-
-          <!-- 只在電腦版瀏覽器顯示（不是我們自己的 Electron 桌面版本身），
-               依偵測到的作業系統決定按鈕文字/行為，實際顯示邏輯在 web-shim.js
-               的 initDesktopDownloadButton()。 -->
-          <div id="desktopAppDownload" class="desktop-download-card hidden">
-            <h3 class="desktop-download-title">下載桌面版</h3>
-            <p class="desktop-download-desc">把 MapSky 天氣裝成電腦上的獨立應用程式，開啟更快、有自己的視窗。</p>
-            <button type="button" id="desktopDownloadBtn" class="desktop-download-btn"></button>
-          </div>
         </div>
       </section>
 

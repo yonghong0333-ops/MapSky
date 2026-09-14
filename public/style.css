@@ -2363,35 +2363,38 @@ button:hover { background: var(--accent-hover); }
   flex-wrap: wrap;
 }
 
-/* ---- 設定頁：下載桌面版 ---- */
-.desktop-download-card {
+/* ---- 電腦版瀏覽器：擋下來要求下載桌面版 ---- */
+.desktop-app-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1001; /* 蓋在 login-gate(1000) 上面，電腦瀏覽器一律先看到這個 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #eef2f8 0%, #dbe6fb 55%, #cddcf7 100%);
+  padding: 20px;
+}
+.desktop-app-gate.hidden { display: none; }
+.desktop-app-gate-card {
+  width: 100%;
+  max-width: 360px;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 14px;
-  padding: 14px 16px;
-  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
-  margin-top: 14px;
+  border-radius: 16px;
+  padding: 36px 28px 28px;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(30, 45, 80, 0.14);
 }
-.desktop-download-card.hidden { display: none; }
-.desktop-download-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text-main);
-  margin: 0 0 6px;
+.desktop-app-gate-btn {
+  width: 100%;
+  margin-top: 18px;
 }
-.desktop-download-desc {
-  font-size: 13px;
-  color: var(--text-muted);
-  line-height: 1.6;
-  margin: 0 0 12px;
-}
-.desktop-download-btn { width: 100%; }
-.desktop-download-btn:disabled {
+.desktop-app-gate-btn:disabled {
   background: var(--card-border);
   color: var(--text-muted);
   cursor: default;
 }
-.desktop-download-btn:disabled:hover { background: var(--card-border); }
+.desktop-app-gate-btn:disabled:hover { background: var(--card-border); }
 
 /* ---- 後台管理 ---- */
 .admin-status-empty { color: var(--text-muted); font-size: 14px; }

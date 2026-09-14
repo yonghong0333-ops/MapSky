@@ -9,6 +9,54 @@
 (function () {
   window.appInfo = { platform: "web" };
 
+  const WIN_DOWNLOAD_URL = "https://github.com/yonghong0333-ops/MapSky/releases/latest/download/MapSky-Setup.exe";
+
+  // 電腦版瀏覽器直接打開網站：一律擋住，逼使用者去下載桌面版，不放行到登入
+  // 畫面（也就不會跑 initAuthGate，不會打任何 /api/* ——不是只有畫面被蓋住
+  // 而已）。手機瀏覽器（isDesktopWidth 為 false）完全不受影響，跟以前一樣
+  // 正常使用；我們自己的 Electron 桌面版本身（window.mapskyWindowControls
+  // 存在）也正常放行，不然自己的桌面版會被自己擋住。
+  function guardDesktopAppRequired() {
+    const isDesktopWidth = window.matchMedia && window.matchMedia("(min-width: 901px)").matches;
+    if (!isDesktopWidth) return false;
+
+    const isOwnDesktopApp = Boolean(window.mapskyWindowControls);
+    if (isOwnDesktopApp) return false;
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const gate = el("desktopAppRequiredGate");
+      if (!gate) return;
+      gate.classList.remove("hidden");
+
+      const loginGate = el("loginGate");
+      if (loginGate) loginGate.classList.add("hidden");
+
+      const btn = el("desktopAppRequiredBtn");
+      if (!btn) return;
+
+      const platform = navigator.platform || "";
+      const ua = navigator.userAgent || "";
+      const isMac = /Mac/i.test(platform) || /Macintosh/i.test(ua);
+      const isWindows = /Win/i.test(platform) || /Windows/i.test(ua);
+
+      if (isWindows) {
+        btn.textContent = "⊞ 下載 Windows 版";
+        btn.disabled = false;
+        btn.onclick = () => window.open(WIN_DOWNLOAD_URL, "_blank");
+      } else if (isMac) {
+        btn.textContent = "🍎 Mac 版即將推出";
+        btn.disabled = true;
+      } else {
+        btn.textContent = "目前僅支援 Windows／Mac 桌面版";
+        btn.disabled = true;
+      }
+    });
+
+    return true;
+  }
+
+  const blockedByDesktopGate = guardDesktopAppRequired();
+
   // 手機瀏覽器打開、還沒加到主畫面就先鎖住畫面，逼使用者先加入主畫面
   // （或先換成 Safari）才能繼續用。桌面版（寬螢幕）不受影響，直接放行——
   // 「加入主畫面」本來就是行動裝置的概念，桌面瀏覽器沒有這回事。
@@ -701,48 +749,6 @@
     return row;
   }
 
-  // ---------------- 設定頁：下載桌面版按鈕 ----------------
-  // 只在「電腦版瀏覽器」顯示（跟 guardBrowserGate 用同一個 901px 門檻判斷桌面），
-  // 而且要排除我們自己的 Electron 桌面版本身（不然桌面版裡面還會看到一個
-  // 「下載桌面版」的按鈕，很奇怪）。Electron 版特地把 UA 換成一般 Chrome 的
-  // 樣子（避免被 Google OAuth 擋），所以不能用 UA 判斷是不是 Electron，改用
-  // 「window.mapskyWindowControls 存不存在」判斷——這個是 Electron 那邊的
-  // preload.js 用 contextBridge 特地暴露出來的，只有在我們自己的桌面殼裡才有。
-  const WIN_DOWNLOAD_URL = "https://github.com/yonghong0333-ops/MapSky/releases/latest/download/MapSky-Setup.exe";
-
-  function initDesktopDownloadButton() {
-    const wrap = el("desktopAppDownload");
-    const btn = el("desktopDownloadBtn");
-    if (!wrap || !btn) return;
-
-    const isDesktopWidth = window.matchMedia && window.matchMedia("(min-width: 901px)").matches;
-    const isOwnDesktopApp = Boolean(window.mapskyWindowControls);
-    if (!isDesktopWidth || isOwnDesktopApp) {
-      wrap.classList.add("hidden");
-      return;
-    }
-
-    const platform = navigator.platform || "";
-    const ua = navigator.userAgent || "";
-    const isMac = /Mac/i.test(platform) || /Macintosh/i.test(ua);
-    const isWindows = /Win/i.test(platform) || /Windows/i.test(ua);
-
-    if (isWindows) {
-      btn.textContent = "⊞ 下載 Windows 版";
-      btn.disabled = false;
-      btn.onclick = () => window.open(WIN_DOWNLOAD_URL, "_blank");
-      wrap.classList.remove("hidden");
-    } else if (isMac) {
-      btn.textContent = "🍎 Mac 版即將推出";
-      btn.disabled = true;
-      btn.onclick = null;
-      wrap.classList.remove("hidden");
-    } else {
-      // 其他系統（Linux 等）目前沒有對應安裝檔，先不顯示，避免按了沒反應。
-      wrap.classList.add("hidden");
-    }
-  }
-
   // ---------------- 設定入口（帳號資訊 + 登出）----------------
   // 現在「設定」已經是跟其他分頁（未來 7 天／溫度趨勢圖…）同一種真正的
   // tab-panel，不再是另外浮出來的面板。側欄的「⚙️ 帳號 / 設定」按鈕
@@ -852,7 +858,6 @@
         if (adminTab) adminTab.classList.remove("hidden");
       }
       initSettingsMenu();
-      initDesktopDownloadButton();
       startAppAfterLogin();
       return;
     }
@@ -878,5 +883,7 @@
     document.body.appendChild(script);
   }
 
-  document.addEventListener("DOMContentLoaded", initAuthGate);
+  if (!blockedByDesktopGate) {
+    document.addEventListener("DOMContentLoaded", initAuthGate);
+  }
 })();
