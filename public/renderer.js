@@ -35,8 +35,11 @@ async function refreshApiKeyStatus() {
   const status = await window.weatherAPI.getApiKeyStatus();
   apiKeyReady = status.hasKey;
   const keyStatusEl = el("keyStatus");
-  keyStatusEl.classList.toggle("disconnected", !status.hasKey);
-  keyStatusEl.querySelector(".key-status-text").textContent = status.hasKey ? "已連線" : "尚未連線";
+  if (keyStatusEl) {
+    keyStatusEl.classList.toggle("disconnected", !status.hasKey);
+    const textEl = keyStatusEl.querySelector(".key-status-text");
+    if (textEl) textEl.textContent = status.hasKey ? "已連線" : "尚未連線";
+  }
   return apiKeyReady;
 }
 
@@ -746,6 +749,42 @@ async function loadAdminStatus() {
         }
       });
     }
+
+    // 觸發桌面版重新編譯＋發佈（只有超級管理員看得到這張卡片，見 renderAdminList）
+    const desktopBtn = el("adminDesktopPublishBtn");
+    const desktopMsg = el("adminDesktopPublishMsg");
+    if (desktopBtn && !desktopBtn.dataset.bound) {
+      desktopBtn.dataset.bound = "1";
+      desktopBtn.addEventListener("click", async () => {
+        const channelSelect = el("adminDesktopChannelSelect");
+        const channel = channelSelect ? channelSelect.value : "stable";
+        const channelLabel = channelSelect ? channelSelect.options[channelSelect.selectedIndex].text : channel;
+        if (!confirm(`確定要發佈「${channelLabel}」嗎？大約需要幾分鐘，且會實際發佈新版本給使用者。`)) return;
+        desktopBtn.disabled = true;
+        if (desktopMsg) desktopMsg.textContent = "觸發中…";
+        try {
+          const resp = await fetch("/api/weather/status?admin=1&action=publish-desktop", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ channel }),
+          });
+          const data = await resp.json();
+          if (!resp.ok || !data.ok) {
+            let reason = data.reason === "github-token-not-configured"
+              ? "尚未設定環境變數 GITHUB_ACTIONS_TOKEN"
+              : (data.reason || "觸發失敗");
+            if (data.detail) reason += `（${data.detail}）`;
+            if (desktopMsg) desktopMsg.textContent = `觸發失敗：${reason}`;
+            return;
+          }
+          if (desktopMsg) desktopMsg.textContent = "已觸發，GitHub Actions 開始編譯，完成後會自動發佈到 Releases。";
+        } catch (e) {
+          if (desktopMsg) desktopMsg.textContent = "觸發失敗：網路錯誤";
+        } finally {
+          desktopBtn.disabled = false;
+        }
+      });
+    }
   } catch (e) {
     if (emptyEl) emptyEl.textContent = "載入失敗，請重新整理再試一次。";
   }
@@ -755,6 +794,33 @@ async function loadAdminStatus() {
 // 這裡沒判斷成功也不代表繞得過去，是體驗上先擋一次而已）。
 function renderAdminList(data) {
   const card = el("adminManageCard");
+  const desktopCard = el("adminDesktopCard");
+  const betaCard = el("adminBetaCard");
+  if (desktopCard) desktopCard.classList.toggle("hidden", !data.isSuperAdmin);
+  if (betaCard) betaCard.classList.toggle("hidden", !data.isSuperAdmin || !data.betaTesters);
+  if (betaCard && data.isSuperAdmin && data.betaTesters) {
+    const betaListEl = el("adminBetaList");
+    if (betaListEl) {
+      betaListEl.innerHTML = data.betaTesters.length
+        ? data.betaTesters
+            .map(
+              (t) =>
+                `<div class="admin-list-row">
+                  <span>🧪 ${t.name}（${t.key}）</span>
+                  <button class="admin-beta-revoke-btn" data-provider="${t.provider}" data-id="${t.id}" type="button">移除</button>
+                </div>`
+            )
+            .join("")
+        : "<p class=\"admin-list-empty\">目前沒有人在公開測試版名單裡</p>";
+
+      betaListEl.querySelectorAll(".admin-beta-revoke-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("確定要把這個帳號從公開測試版名單移除嗎？")) return;
+          await callBetaAction("remove-beta-tester", { provider: btn.dataset.provider, id: btn.dataset.id });
+        });
+      });
+    }
+  }
   if (!card) return;
   if (!data.isSuperAdmin || !data.admins) {
     card.classList.add("hidden");
@@ -808,6 +874,27 @@ async function callAdminAction(action, body) {
   }
 }
 
+async function callBetaAction(action, body) {
+  const msgEl = el("adminBetaAssignMsg");
+  try {
+    const resp = await fetch(`/api/weather/status?admin=1&action=${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      if (msgEl) msgEl.textContent = `失敗：${data.reason || "未知錯誤"}`;
+      return;
+    }
+    if (msgEl) msgEl.textContent = action === "add-beta-tester" ? "已加入名單" : "已移除";
+    adminStatusLoaded = false; // 名單變了，下次要重新載入
+    loadAdminStatus();
+  } catch (e) {
+    if (msgEl) msgEl.textContent = "失敗：網路錯誤";
+  }
+}
+
 const adminAssignForm = el("adminAssignForm");
 if (adminAssignForm) {
   adminAssignForm.addEventListener("submit", async (event) => {
@@ -816,6 +903,18 @@ if (adminAssignForm) {
     const memberId = midInput.value.trim();
     if (!memberId) return;
     await callAdminAction("assign", { memberId });
+    midInput.value = "";
+  });
+}
+
+const adminBetaAssignForm = el("adminBetaAssignForm");
+if (adminBetaAssignForm) {
+  adminBetaAssignForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const midInput = el("adminBetaAssignMid");
+    const memberId = midInput.value.trim();
+    if (!memberId) return;
+    await callBetaAction("add-beta-tester", { memberId });
     midInput.value = "";
   });
 }

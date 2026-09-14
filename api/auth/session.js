@@ -1,6 +1,7 @@
 const { parseCookies } = require("../_lib/cookies");
 const { verify } = require("../_lib/jwt");
-const { isAdminSession } = require("../_lib/admin");
+const { isAdminSession, isSuperAdminSession } = require("../_lib/admin");
+const { isBetaTester } = require("../_lib/beta-testers");
 const { getOrCreateMemberId } = require("../_lib/member-id");
 const { getUserProfile, setUserProfile } = require("../_lib/user-profile");
 const { getNicknameCooldownDays, isMaintenanceMode } = require("../_lib/app-settings");
@@ -113,13 +114,16 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  const [isAdmin, memberId, custom, nicknameCooldownDays, maintenanceMode] = await Promise.all([
+  const [isAdmin, memberId, custom, nicknameCooldownDays, maintenanceMode, betaTester] = await Promise.all([
     isAdminSession(payload),
     getOrCreateMemberId(payload),
     getUserProfile(payload.provider, payload.profile.id),
     getNicknameCooldownDays(),
     isMaintenanceMode(),
+    isBetaTester(payload),
   ]);
+
+  const isSuperAdmin = isSuperAdminSession(payload);
 
   res.status(200).json({
     loggedIn: true,
@@ -136,5 +140,12 @@ module.exports = async function handler(req, res) {
     nicknameCooldownDays,
     maintenanceMode,
     vapidPublicKey: getPublicKey(),
+    // 桌面版「軟體更新」卡片要依這個決定要不要顯示更新頻道選擇器：
+    // publicBeta —— 在公開測試版名單裡，或本身是超級管理員
+    // internalBeta —— 只有超級管理員（「一般測試版」只有我看得到）
+    updateChannelAccess: {
+      publicBeta: isSuperAdmin || betaTester,
+      internalBeta: isSuperAdmin,
+    },
   });
 };

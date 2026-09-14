@@ -13,6 +13,7 @@ const { PROVIDERS, isConfigured } = require("../_lib/providers");
 const { getNicknameCooldownDays, setNicknameCooldownDays, isMaintenanceMode, setMaintenanceMode } = require("../_lib/app-settings");
 const { getAllSubscriptions, removeSubscription } = require("../_lib/push-store");
 const { sendPush, ensureConfigured } = require("../_lib/web-push");
+const { getBetaTesters, addBetaTester, removeBetaTester } = require("../_lib/beta-testers");
 
 // 一般登入使用者打這支只會拿到 hasKey（給前端判斷要不要顯示「尚未設定授權碼」提示）。
 // 管理員加上 ?admin=1 才會多回傳後台管理要看的系統狀態，不是隨便誰都看得到。
@@ -96,6 +97,96 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ ok: true, total: subs.length, sent, expired, failed });
     }
 
+    // 觸發桌面版（.exe 外殼）重新編譯＋發佈到 GitHub Releases：只有超級
+    // 管理員能做，因為這會實際動到編譯/發版這種等級的操作。實際上是呼叫
+    // GitHub 的 workflow_dispatch API 去啟動 .github/workflows/build-desktop.yml，
+    // 真正的編譯在 GitHub Actions 的機器上跑，這支 API 只負責「觸發」，
+    // 呼叫完就回應，不會等編譯跑完（大概要幾分鐘）。版本號（YY.N 規則）是
+    // 在 workflow 裡面算的，這裡只決定要發哪個頻道。
+    // 用的 token 存在伺服器端環境變數 GITHUB_ACTIONS_TOKEN，前端完全看不到。
+    if (action === "publish-desktop") {
+      if (!(await isSuperAdminSession(payload))) {
+        return res.status(403).json({ ok: false, reason: "not-super-admin" });
+      }
+      const token = process.env.GITHUB_ACTIONS_TOKEN;
+      if (!token) {
+        return res.status(400).json({ ok: false, reason: "github-token-not-configured" });
+      }
+      // stable = 正式版（所有人）；public-beta = 公開測試版（名單裡的人+
+      // 超級管理員）；internal-beta = 一般測試版（只有超級管理員）。
+      const channel = ["stable", "public-beta", "internal-beta"].includes(body.channel)
+        ? body.channel
+        : "stable";
+      // 觸發哪個分支：預設 main，之後這條分支合併到 main 之前，可以先用
+      // 環境變數 GITHUB_DESKTOP_BUILD_REF 覆蓋成目前這條開發分支。
+      const ref = process.env.GITHUB_DESKTOP_BUILD_REF || "main";
+      try {
+        const ghResp = await fetch(
+          "https://api.github.com/repos/yonghong0333-ops/MapSky/actions/workflows/build-desktop.yml/dispatches",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/vnd.github+json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ ref, inputs: { channel } }),
+          }
+        );
+        // GitHub 這支 API 成功會回 204 No Content，沒有 body 可以解析。
+        if (ghResp.status !== 204) {
+          const detail = await ghResp.text().catch(() => "");
+          return res.status(502).json({ ok: false, reason: "github-dispatch-failed", detail: detail.slice(0, 300) });
+        }
+        return res.status(200).json({ ok: true });
+      } catch (e) {
+        return res.status(502).json({ ok: false, reason: "github-dispatch-error" });
+      }
+    }
+
+    // 公開測試版資格名單的指派/踢除，只有超級管理員能做——跟管理員名單
+    // 是分開的兩份名單：管理員管的是「後台管理」，這份管的是「桌面版能不能
+    // 切到公開測試版頻道」，兩者互不影響。
+    if (action === "list-beta-testers") {
+      if (!(await isSuperAdminSession(payload))) {
+        return res.status(403).json({ ok: false, reason: "not-super-admin" });
+      }
+      const testers = await getBetaTesters();
+      return res.status(200).json({ ok: true, testers });
+    }
+    if (action === "add-beta-tester") {
+      if (!(await isSuperAdminSession(payload))) {
+        return res.status(403).json({ ok: false, reason: "not-super-admin" });
+      }
+      try {
+        const { memberId } = body;
+        if (!memberId || typeof memberId !== "string") {
+          return res.status(400).json({ ok: false, reason: "missing-member-id" });
+        }
+        const resolved = await resolveMemberId(memberId.trim());
+        if (!resolved) {
+          return res.status(404).json({ ok: false, reason: "member-not-found" });
+        }
+        const testers = await addBetaTester(resolved);
+        return res.status(200).json({ ok: true, testers });
+      } catch (e) {
+        return res.status(400).json({ ok: false, reason: "action-failed", message: e.message });
+      }
+    }
+    if (action === "remove-beta-tester") {
+      if (!(await isSuperAdminSession(payload))) {
+        return res.status(403).json({ ok: false, reason: "not-super-admin" });
+      }
+      try {
+        const { provider, id } = body;
+        if (!provider || !id) return res.status(400).json({ ok: false, reason: "missing-provider-or-id" });
+        const testers = await removeBetaTester({ provider, id });
+        return res.status(200).json({ ok: true, testers });
+      } catch (e) {
+        return res.status(400).json({ ok: false, reason: "action-failed", message: e.message });
+      }
+    }
+
     // 管理員名單的指派/踢除，只有超級管理員能做
     if (!(await isSuperAdminSession(payload))) {
       return res.status(403).json({ ok: false, reason: "not-super-admin" });
@@ -136,11 +227,12 @@ module.exports = async function handler(req, res) {
     configured: isConfigured(id),
   }));
 
-  const [amSuperAdmin, dynamicAdmins, nicknameCooldownDays, maintenanceMode] = await Promise.all([
+  const [amSuperAdmin, dynamicAdmins, nicknameCooldownDays, maintenanceMode, betaTesters] = await Promise.all([
     isSuperAdminSession(payload),
     getDynamicAdmins(),
     getNicknameCooldownDays(),
     isMaintenanceMode(),
+    getBetaTesters(),
   ]);
 
   res.status(200).json({
@@ -163,5 +255,7 @@ module.exports = async function handler(req, res) {
           dynamicAdmins,
         }
       : null,
+    // 公開測試版資格名單，一樣只有超級管理員看得到/管得到。
+    betaTesters: amSuperAdmin ? betaTesters : null,
   });
 };
