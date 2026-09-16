@@ -100,7 +100,7 @@
        直接全螢幕放使用者提供的那張圖，不用 CSS 另外拼卡片。 -->
   <div id="maintenanceGate" class="maintenance-gate hidden">
     <img class="maintenance-gate-img" src="images/maintenance.jpg" alt="伺服器維護中，敬請見諒" />
-    <button id="maintenanceLogoutBtn" class="maintenance-logout-btn hidden" type="button">登出</button>
+    <button id="maintenanceAdminLoginBtn" class="maintenance-admin-link" type="button">管理員登入</button>
   </div>
 
   <!-- 第一次登入才會出現的獨立引導畫面：取暱稱、選大頭貼，兩個都選填，
@@ -128,18 +128,6 @@
   <div class="app">
     <div id="sidebarDrawerOverlay" class="sidebar-drawer-overlay hidden"></div>
     <aside class="sidebar" id="sidebar">
-      <button id="sidebarSettingsBtn" class="sidebar-settings-btn" type="button">⚙️ 帳號 / 設定</button>
-
-      <h1 class="brand">
-        <img class="brand-logo" src="icons/logo-dark.png" alt="MapSky" />
-        <span class="brand-name">MapSky</span>
-      </h1>
-
-      <div class="key-status" id="keyStatus">
-        <span class="key-status-dot"></span>
-        <span class="key-status-text">已連線</span>
-      </div>
-
       <button id="alertBanner" class="alert-banner hidden" type="button">
         <span class="alert-banner-dot"></span>
         <span id="alertBannerText" class="alert-banner-text">目前有警特報</span>
@@ -174,15 +162,21 @@
 
       <nav class="tabs">
         <button class="tab-btn active" data-tab="forecast">未來 36 小時預報</button>
-        <button class="tab-btn" data-tab="weekly">📅 未來 7 天</button>
-        <button class="tab-btn" data-tab="chart">溫度趨勢圖</button>
-        <button class="tab-btn" data-tab="compare">多城市比較</button>
-        <button class="tab-btn" data-tab="map">地圖選點</button>
         <button class="tab-btn" data-tab="alerts">⚠️ 警特報<span id="alertTabBadge" class="alert-tab-badge hidden">0</span></button>
-        <button class="tab-btn" data-tab="typhoon">🌀 颱風</button>
-        <button class="tab-btn hidden" id="adminTabBtn" data-tab="admin">🛡️ 後台管理</button>
-        <button class="tab-btn hidden" id="toolsTabBtn" data-tab="tools">🧰 工具</button>
+        <button class="tab-btn" id="toolsTabBtn" data-tab="tools">🧰 工具</button>
         <button class="tab-btn" data-tab="settings">⚙️ 設定</button>
+        <!-- 後台管理只有 ADMIN_IDS 白名單帳號才看得到，預設隱藏，登入後由
+             web-shim.js 判斷是否為管理員，是的話才拿掉這個 hidden。 -->
+        <button class="tab-btn hidden" id="adminTabBtn" data-tab="admin">🛡️ 後台管理</button>
+        <!-- 下面這幾顆不在頂部導覽列露出，改從「工具」選單裡的項目去點，
+             留著是因為換頁邏輯（renderer.js 的 panelMap、tools-grid、bottom-nav）
+             都是靠 .tab-btn[data-tab="..."] 這個選擇器去找對應按鈕點擊，拿掉
+             按鈕本身會讓那些地方點了沒反應。 -->
+        <button class="tab-btn hidden" data-tab="weekly">📅 未來 7 天</button>
+        <button class="tab-btn hidden" data-tab="chart">溫度趨勢圖</button>
+        <button class="tab-btn hidden" data-tab="compare">多城市比較</button>
+        <button class="tab-btn hidden" data-tab="map">地圖選點</button>
+        <button class="tab-btn hidden" data-tab="typhoon">🌀 颱風</button>
       </nav>
 
       <section id="forecastPanel" class="tab-panel active">
@@ -886,6 +880,35 @@
               </form>
               <p id="adminAssignMsg" class="admin-assign-msg"></p>
             </div>
+            <div id="adminBetaCard" class="admin-card hidden">
+              <h3 class="admin-card-title">🧪 公開測試版資格</h3>
+              <p class="admin-card-hint">名單裡的帳號（加上超級管理員）在桌面版設定頁會多看到「公開測試版」這個更新頻道選項可以切換。</p>
+              <div id="adminBetaList" class="admin-list"></div>
+              <form id="adminBetaAssignForm" class="admin-assign-form">
+                <input id="adminBetaAssignMid" type="text" placeholder="貼上對方的會員 ID（MID）" maxlength="8" required />
+                <button type="submit">加入公開測試版名單</button>
+              </form>
+              <p id="adminBetaAssignMsg" class="admin-assign-msg"></p>
+            </div>
+            <div id="adminDesktopCard" class="admin-card hidden">
+              <h3 class="admin-card-title">🖥️ 桌面版發佈</h3>
+              <p class="admin-card-hint">
+                按下去會觸發 GitHub Actions 重新編譯 Windows 桌面版安裝檔並發佈到 GitHub
+                Releases，已安裝的使用者會透過軟體內建的自動更新機制收到這個新版本，
+                不用重新發安裝檔給大家重灌。版本號格式是「年份末兩碼.流水號」（例如
+                26.3），編譯大約需要幾分鐘，這裡按下去就會回應，不會等它跑完，可以到
+                repo 的 Actions 分頁看進度。
+              </p>
+              <div class="admin-desktop-publish-row">
+                <select id="adminDesktopChannelSelect">
+                  <option value="stable">正式版（所有使用者）</option>
+                  <option value="public-beta">公開測試版（開放資格的使用者）</option>
+                  <option value="internal-beta">一般測試版（僅自己看得到）</option>
+                </select>
+                <button id="adminDesktopPublishBtn" type="button">發佈新版桌面版</button>
+              </div>
+              <p id="adminDesktopPublishMsg" class="admin-assign-msg"></p>
+            </div>
           </div>
         </div>
       </section>
@@ -898,6 +921,7 @@
             <button class="tools-menu-item" data-tab="chart"><span class="tool-icon">📈</span><span class="tool-label">溫度趨勢圖</span></button>
             <button class="tools-menu-item" data-tab="compare"><span class="tool-icon">🏙️</span><span class="tool-label">多城市比較</span></button>
             <button class="tools-menu-item" data-tab="map"><span class="tool-icon">🗺️</span><span class="tool-label">地圖選點</span></button>
+            <button class="tools-menu-item" data-tab="typhoon"><span class="tool-icon">🌀</span><span class="tool-label">颱風</span></button>
             <button class="tools-menu-item" data-tab="alerts"><span class="tool-icon">⚠️</span><span class="tool-label">警特報</span><span id="toolsAlertBadge" class="alert-tab-badge hidden">0</span></button>
           </div>
         </div>
@@ -907,6 +931,7 @@
         <div class="settings-page">
           <h2 class="settings-page-title">設定</h2>
           <div id="settingsAccountSlot"></div>
+          <div id="appUpdateSlot"></div>
         </div>
       </section>
 

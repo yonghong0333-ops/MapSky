@@ -17,3 +17,20 @@ contextBridge.exposeInMainWorld("mapskyWindowControls", {
     ipcRenderer.on("mapsky:maximized-changed", (_event, isMaximized) => callback(isMaximized));
   },
 });
+
+// 軟體本身（.exe）的自動更新橋接：electron-updater 在背景抓、在背景下載，
+// 下載完成後由 main.js 通知注入的標題列彈提示條；使用者按「立即重新啟動
+// 安裝」或倒數結束，頁面呼叫 installNow()，實際的 autoUpdater.quitAndInstall()
+// 還是在主行程做。
+contextBridge.exposeInMainWorld("mapskyAppUpdate", {
+  installNow: () => ipcRenderer.send("mapsky:install-update"),
+  getVersion: () => ipcRenderer.invoke("mapsky:get-version"),
+  getChannel: () => ipcRenderer.invoke("mapsky:get-update-channel"),
+  setChannel: (channel) => ipcRenderer.send("mapsky:set-update-channel", channel),
+  onUpdateAvailable: (callback) => {
+    ipcRenderer.on("mapsky:update-available", (_event, info) => callback(info));
+  },
+  onDownloaded: (callback) => {
+    ipcRenderer.on("mapsky:update-downloaded", (_event, version) => callback(version));
+  },
+});

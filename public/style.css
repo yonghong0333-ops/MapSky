@@ -307,8 +307,13 @@ body.auth-ok .login-gate {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: #b9dcff;
-  overflow: hidden;
+  background: #eaf2fb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
 }
 .maintenance-gate.hidden { display: none; }
 .maintenance-gate-img {
@@ -317,31 +322,20 @@ body.auth-ok .login-gate {
   object-fit: contain;
   display: block;
 }
-/* 維護畫面顯示時，body 加上這個 class 鎖住捲動，避免手指滑動把整個
-   畫面拖出去（iOS Safari 的 rubber-band 回彈特別容易看到這個問題）。 */
-body.maintenance-locked,
-body.maintenance-locked html {
-  overflow: hidden !important;
-  height: 100% !important;
-  position: fixed;
-  width: 100%;
-}
-.maintenance-logout-btn {
+.maintenance-admin-link {
   position: absolute;
   left: 50%;
   bottom: max(24px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(0, 0, 0, 0.35);
   border: none;
   border-radius: 999px;
-  color: #c0392b;
-  font-size: 17px;
-  font-weight: 700;
-  padding: 14px 40px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  padding: 6px 14px;
+  text-decoration: none;
   cursor: pointer;
 }
-.maintenance-logout-btn.hidden { display: none; }
 .login-gate-sub {
   font-size: 13px;
   color: var(--text-muted);
@@ -413,47 +407,6 @@ body.maintenance-locked html {
   display: flex;
   flex-direction: column;
 }
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 18px;
-}
-.brand-logo {
-  width: 32px;
-  height: 32px;
-  object-fit: contain;
-  flex-shrink: 0;
-}
-.brand-name {
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.3;
-  color: var(--accent);
-}
-
-.key-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 10px;
-  padding: 8px 12px;
-  margin-bottom: 16px;
-  font-size: 12px;
-  color: var(--text-main);
-}
-.key-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #22c55e; /* 綠色 = 已連線 */
-  flex-shrink: 0;
-}
-.key-status.disconnected .key-status-dot { background: #ef4444; /* 紅色 = 尚未連線 */ }
-.key-status-text { font-weight: 600; }
 
 .search-box {
   display: flex;
@@ -1767,6 +1720,71 @@ button:hover { background: var(--accent-hover); }
 }
 .auth-logout-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
 
+/* 「軟體更新」卡片：只有桌面安裝版（window.mapskyAppUpdate 橋接存在）才會
+   被 JS 插進來，純網頁瀏覽器版看不到——網站本身不需要「安裝更新」這種
+   概念，重新整理就是最新版了。 */
+.app-update-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
+}
+.app-update-icon img {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: block;
+  object-fit: contain;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  padding: 4px;
+}
+.app-update-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.app-update-name { font-weight: 700; color: var(--text-main); font-size: 13px; }
+.app-update-version { color: var(--text-faint); font-size: 11px; }
+.app-update-status { color: var(--text-muted); font-size: 12px; }
+.app-update-channel-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+.app-update-channel-row select {
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  color: var(--text-main);
+  font-size: 12px;
+}
+.app-update-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.app-update-btn:hover { opacity: 0.9; }
+.app-update-btn.hidden { display: none; }
+.app-update-btn[disabled] { opacity: 0.6; cursor: default; }
+
 /* 設定圖示（底部導覽列 + 桌面分頁列）換成大頭貼時使用 */
 .bottom-nav-avatar-img {
   width: 22px;
@@ -1957,11 +1975,6 @@ button:hover { background: var(--accent-hover); }
   line-height: 1;
   flex-shrink: 0;
 }
-.settings-list-item-check {
-  width: 22px;
-  height: 22px;
-  display: block;
-}
 
 /* ---- 「暱稱與大頭貼」子頁面的返回按鈕 ---- */
 .settings-back-btn {
@@ -2036,7 +2049,7 @@ button:hover { background: var(--accent-hover); }
   }
 
   .main {
-    padding: calc(40px + env(safe-area-inset-top)) 16px 96px;
+    padding: 40px 16px 96px;
     overflow-y: visible;
   }
 
@@ -2181,11 +2194,6 @@ button:hover { background: var(--accent-hover); }
      其餘 4 個（溫度趨勢圖／多城市比較／地圖選點／警特報）收進
      「工具」彈出選單裡。 */
   .tabs { display: none; }
-
-  /* 側欄的「設定」按鈕在手機版跟底部導覽列右邊的「設定」重複，
-     手機版只留底部那一顆，側欄這顆隱藏；桌面版沒有底部導覽列，
-     所以桌面版繼續保留側欄這顆當作唯一入口。 */
-  .sidebar-settings-btn { display: none; }
 
   /* 整個側欄（logo／已連線／城市選擇／查詢天氣／自動定位／收藏城市）
      手機版預設收起來，變成從左邊滑出的抽屜，點主畫面左上角的
@@ -2339,19 +2347,6 @@ button:hover { background: var(--accent-hover); }
   }
 }
 
-.sidebar-settings-btn {
-  align-self: flex-start;
-  margin-bottom: 12px;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  color: var(--text-main);
-  border-radius: 10px;
-  padding: 8px 12px;
-  font-size: 13px;
-  cursor: pointer;
-}
-.sidebar-settings-btn:hover { border-color: var(--accent); color: var(--accent); }
-
 /* 「設定」現在是跟其他分頁一樣的真正 tab-panel，不再是浮出來的面板，
    所以樣式也比照其他分頁：標題 + 白色資訊卡（帳號資訊），不用另外處理
    遮罩背景、開關動畫這些浮動面板才需要的東西。 */
@@ -2492,6 +2487,15 @@ button:hover { background: var(--accent-hover); }
 #adminBottomBtn.hidden { display: none; }
 #adminTabBtn.hidden { display: none; }
 #adminStatusContent.hidden { display: none; }
+/* 頂部導覽列現在只想露出「未來36小時預報／警特報／工具」三顆，其餘（未來7天／
+   溫度趨勢圖／多城市比較／地圖選點／颱風／後台管理／設定）都標了 hidden，靠
+   這條通用規則真的藏起來——之前只有 #adminTabBtn.hidden 這種寫死 id 的規則，
+   #toolsTabBtn 標了 hidden 卻沒對應的 CSS，所以才會一直露出來、跟被藏起來的
+   其他按鈕擠在同一排，這是之前那團亂的根本原因。這幾顆按鈕本身還是留在
+   DOM 裡（不是刪除），因為 renderer.js 的分頁切換、工具選單裡的項目、手機版
+   底部導覽列，都是靠 .tab-btn[data-tab="..."] 這個選擇器去找到對應按鈕再
+   幫它點一下，藏起來但留著元素，這些地方才點得動。 */
+.tabs .tab-btn.hidden { display: none; }
 
 .admin-card-hint {
   font-size: 12px;
@@ -2593,6 +2597,33 @@ button:hover { background: var(--accent-hover); }
   color: var(--text-main);
 }
 .admin-cooldown-unit { font-size: 13px; color: var(--text-muted); }
+.admin-desktop-publish-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.admin-desktop-publish-row select {
+  flex: 1;
+  min-width: 160px;
+  padding: 8px 10px;
+  border: 1px solid var(--input-border, var(--card-border));
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--input-bg, var(--card-bg));
+  color: var(--text-main);
+}
+.admin-desktop-publish-row button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-desktop-publish-row button[disabled] { opacity: 0.6; cursor: default; }
 .admin-cooldown-form button {
   background: var(--accent);
   color: #fff;
@@ -2640,7 +2671,7 @@ button:hover { background: var(--accent-hover); }
 /* 更小的手機（如 iPhone SE）再收斂一次間距與字級 */
 @media (max-width: 380px) {
   .sidebar { padding: 12px; }
-  .main { padding: calc(14px + env(safe-area-inset-top)) 12px 32px; }
+  .main { padding: 14px 12px 32px; }
   .current-temp { font-size: 34px; }
   .current-card-top { gap: 10px; }
 }
