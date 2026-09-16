@@ -2049,7 +2049,7 @@ button:hover { background: var(--accent-hover); }
   }
 
   .main {
-    padding: 40px 16px 96px;
+    padding: calc(env(safe-area-inset-top, 0px) + 40px) 16px 96px;
     overflow-y: visible;
   }
 
