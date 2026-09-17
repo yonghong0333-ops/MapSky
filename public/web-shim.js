@@ -9,7 +9,12 @@
 (function () {
   window.appInfo = { platform: "web" };
 
-  const WIN_DOWNLOAD_URL = "https://github.com/yonghong0333-ops/MapSky/releases/latest/download/MapSky_Installbox.exe";
+  // 這個路徑指向 public/downloads/MapSky_Installbox.exe，是使用者自己包好、
+  // 手動放上去的安裝檔，跟後台「發佈新版桌面版」觸發的 GitHub Actions 自動化
+  // 流程完全脫鉤——那條線只負責「已安裝使用者的背景自動更新」，跟這個「網站
+  // 首次下載」的按鈕互不影響，也不會互相覆蓋。要換掉使用者下載到的安裝檔，
+  // 直接換掉 public/downloads/ 裡的這個檔案即可。
+  const WIN_DOWNLOAD_URL = "/downloads/MapSky_Installbox.exe";
 
   // 電腦版瀏覽器直接打開網站：一律擋住，逼使用者去下載桌面版，不放行到登入
   // 畫面（也就不會跑 initAuthGate，不會打任何 /api/* ——不是只有畫面被蓋住
@@ -41,7 +46,7 @@
       const isMac = /Mac/i.test(platform) || /Macintosh/i.test(ua);
       const isWindows = /Win/i.test(platform) || /Windows/i.test(ua);
 
-      const WIN_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="0" y="0" width="7" height="7"/><rect x="9" y="0" width="7" height="7"/><rect x="0" y="9" width="7" height="7"/><rect x="9" y="9" width="7" height="7"/></svg>';
+      const WIN_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 88 88"><path fill="#ffffff" d="M0 0h42v42H0zM46 0h42v42H46zM0 46h42v42H0zM46 46h42v42H46z"/></svg>';
 
       if (isWindows) {
         btn.innerHTML = WIN_ICON_SVG + "<span>下載 Windows 版</span><span aria-hidden=\"true\">→</span>";
