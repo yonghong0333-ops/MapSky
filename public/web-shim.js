@@ -9,7 +9,12 @@
 (function () {
   window.appInfo = { platform: "web" };
 
-  const WIN_DOWNLOAD_URL = "https://github.com/yonghong0333-ops/MapSky/releases/latest/download/MapSky-Setup.exe";
+  // 這個路徑指向 public/downloads/MapSky-Setup.exe，是使用者自己包好、手動
+  // 放上去的安裝檔（例如自訂 UI 的 Inno Setup 版本），跟後台「發佈新版桌面版」
+  // 觸發的 GitHub Actions 自動化流程完全脫鉤——那條線只負責「已安裝使用者的
+  // 背景自動更新」，跟這個「網站首次下載」的按鈕互不影響，也不會互相覆蓋。
+  // 要換掉使用者下載到的安裝檔，直接換掉 public/downloads/ 裡的這個檔案即可。
+  const WIN_DOWNLOAD_URL = "/downloads/MapSky-Setup.exe";
 
   // 電腦版瀏覽器直接打開網站：一律擋住，逼使用者去下載桌面版，不放行到登入
   // 畫面（也就不會跑 initAuthGate，不會打任何 /api/* ——不是只有畫面被蓋住
