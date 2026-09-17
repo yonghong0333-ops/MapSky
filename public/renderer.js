@@ -74,6 +74,13 @@ function iconImg(key, altText) {
   return `<img class="wx-icon-img" src="${WX_ICON_FILES[key]}" alt="${altText}">`;
 }
 
+// 晚上用的月亮圖示：自己畫的新月形狀，顏色跟 sunny.png 那顆太陽用同一個
+// 顏色（#FFCC00，用滴管從那張圖直接量出來的），這樣白天／晚上圖示的用色
+// 是一致的，只是形狀換掉，不會有「晚上突然變別的色系」的違和感。
+function moonIcon() {
+  return '<svg class="wx-icon-img" viewBox="0 0 24 24" fill="#FFCC00" xmlns="http://www.w3.org/2000/svg"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+}
+
 function iconForWx(text, night) {
   if (!text) return "❓";
   if (text.includes("雪")) return "❄️";       // 無對應自訂圖示，沿用 emoji
@@ -85,12 +92,12 @@ function iconForWx(text, night) {
   if (text.includes("雷")) return iconImg("dryThunder", text);
   if (text.includes("雨")) return iconImg("rain", text);
   // 「多雲時晴」「晴天」這兩種圖示本身畫的是太陽，晚上時段還顯示太陽不合理，
-  // 沒有對應的月亮 PNG 素材，先用月亮 emoji 頂著，比一直顯示太陽正確。
-  if (night && text.includes("多雲") && text.includes("晴")) return "🌙";
+  // 改用上面自畫的月亮圖示（同色系），比一直顯示太陽正確。
+  if (night && text.includes("多雲") && text.includes("晴")) return moonIcon();
   if (text.includes("多雲") && text.includes("晴")) return iconImg("partlyCloudy", text);
   if (text.includes("陰")) return iconImg("overcast", text);
   if (text.includes("多雲")) return iconImg("overcast", text); // 無專屬圖示，沿用陰天圖示
-  if (night && text.includes("晴")) return "🌙";
+  if (night && text.includes("晴")) return moonIcon();
   if (text.includes("晴")) return iconImg("sunny", text);
   return "🌡️";
 }
