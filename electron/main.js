@@ -119,7 +119,75 @@ function showUpdateToast(win) {
   win.webContents.executeJavaScript(script).catch(() => {});
 }
 
-// 跟 showUpdateToast 是同一套外觀，但這個是「.exe 本體」有新版本、已經在背景
+// 判斷「這是不是安裝後第一次打開」：userData 資料夾（每個使用者、每台電腦
+// 都不一樣，安裝程式不會去動它）裡寫一個標記檔，找不到就是第一次，寫完之後
+// 之後每次開啟都找得到，不會再跳。跟自動更新完全是兩回事——這裡只在乎
+// 「這台電腦、這個使用者，第一次打開」，跟目前裝的是哪個版本無關。
+function isFirstRun() {
+  try {
+    const marker = path.join(app.getPath("userData"), ".mapsky-first-run-done");
+    if (fs.existsSync(marker)) return false;
+    fs.mkdirSync(path.dirname(marker), { recursive: true });
+    fs.writeFileSync(marker, new Date().toISOString());
+    return true;
+  } catch {
+    return false; // 寫入失敗（例如權限問題）就保守當作不是第一次，避免每次開都彈
+  }
+}
+
+// 安裝完成後第一次打開跳一個「感謝安裝」的歡迎卡片，跟 showUpdateToast 同一套
+// 注入手法，但畫面正中央、要手動按「開始使用」才會關掉（不像更新提示條那樣
+// 會自動倒數消失，畢竟這個只出現一次，不急著讓它自己不見）。
+function showWelcomeToast(win) {
+  if (win.isDestroyed()) return;
+  const logoDataUri = getLogoDataUri();
+  const script = `
+    (function () {
+      if (document.getElementById("__mapsky_welcome__")) return;
+
+      var overlay = document.createElement("div");
+      overlay.id = "__mapsky_welcome__";
+      overlay.style.cssText = "position:fixed;inset:0;z-index:2147483647;" +
+        "background:rgba(11,18,32,.55);display:flex;align-items:center;justify-content:center;" +
+        "font:14px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;";
+
+      var card = document.createElement("div");
+      card.style.cssText = "background:#111827;color:#fff;border-radius:18px;" +
+        "padding:32px 28px 26px;max-width:320px;width:calc(100% - 40px);text-align:center;" +
+        "box-shadow:0 20px 50px rgba(0,0,0,.45);";
+
+      var logo = document.createElement("img");
+      logo.src = ${JSON.stringify(logoDataUri)};
+      logo.style.cssText = "width:56px;height:56px;border-radius:14px;margin-bottom:14px;";
+      card.appendChild(logo);
+
+      var title = document.createElement("div");
+      title.textContent = "感謝你安裝 MapSky！";
+      title.style.cssText = "font-size:17px;font-weight:700;margin-bottom:8px;";
+      card.appendChild(title);
+
+      var desc = document.createElement("div");
+      desc.textContent = "歡迎使用 MapSky 天氣桌面版，之後有新版本會自動幫你更新，隨時打開就是最新內容。";
+      desc.style.cssText = "font-size:13px;color:#cbd5e1;line-height:1.7;margin-bottom:20px;";
+      card.appendChild(desc);
+
+      var btn = document.createElement("button");
+      btn.textContent = "開始使用";
+      btn.style.cssText = "width:100%;padding:11px;border:none;border-radius:10px;" +
+        "background:#3b82f6;color:#fff;font-weight:700;font-size:14px;cursor:pointer;";
+      btn.onmouseenter = function () { btn.style.background = "#2563eb"; };
+      btn.onmouseleave = function () { btn.style.background = "#3b82f6"; };
+      btn.onclick = function () { overlay.remove(); };
+      card.appendChild(btn);
+
+      overlay.appendChild(card);
+      document.body.appendChild(overlay);
+    })();
+  `;
+  win.webContents.executeJavaScript(script).catch(() => {});
+}
+
+
 // 下載完成時跳出來的提示（跟上面那個「網站內容有新版本」是兩回事，分開處理：
 // 網站內容用 reload 就好，.exe 本體要整個重開安裝）。倒數結束或按「立即重新
 // 啟動安裝」都是呼叫 preload 橋接的 window.mapskyAppUpdate.installNow()，
@@ -1022,6 +1090,12 @@ function createWindow() {
   // 自訂標題列的 DOM 是注入進去的，每次頁面（重新）載入完都要重插一次，
   // 不然 reload/導覽一次就被洗掉了。
   win.webContents.on("did-finish-load", () => injectTitleBar(win));
+
+  // 安裝後第一次打開才跳「感謝安裝」歡迎卡片，只跳這一次，跟標題列分開注入
+  // （標題列每次載入都要重插，這個只在真正第一次打開時插一次就好）。
+  if (isFirstRun()) {
+    win.webContents.once("did-finish-load", () => showWelcomeToast(win));
+  }
 
   // 把視窗「有沒有最大化」的狀態轉發給頁面，讓標題列的放大/還原鈕圖示能對上。
   win.on("maximize", () => win.webContents.send("mapsky:maximized-changed", true));
