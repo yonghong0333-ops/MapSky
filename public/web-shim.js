@@ -41,7 +41,7 @@
       const isMac = /Mac/i.test(platform) || /Macintosh/i.test(ua);
       const isWindows = /Win/i.test(platform) || /Windows/i.test(ua);
 
-      const WIN_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="0" y="0" width="7" height="7"/><rect x="9" y="0" width="7" height="7"/><rect x="0" y="9" width="7" height="7"/><rect x="9" y="9" width="7" height="7"/></svg>';
+      const WIN_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 88 88"><path fill="#0078d4" d="M0 0h42v42H0zM46 0h42v42H46zM0 46h42v42H0zM46 46h42v42H46z"/></svg>';
 
       if (isWindows) {
         btn.innerHTML = WIN_ICON_SVG + "<span>下載 Windows 版</span><span aria-hidden=\"true\">→</span>";
