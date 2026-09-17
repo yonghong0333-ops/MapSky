@@ -74,7 +74,7 @@ function iconImg(key, altText) {
   return `<img class="wx-icon-img" src="${WX_ICON_FILES[key]}" alt="${altText}">`;
 }
 
-function iconForWx(text) {
+function iconForWx(text, night) {
   if (!text) return "❓";
   if (text.includes("雪")) return "❄️";       // 無對應自訂圖示，沿用 emoji
   if (text.includes("霧")) return "🌫️";       // 無對應自訂圖示，沿用 emoji
@@ -84,9 +84,13 @@ function iconForWx(text) {
   if (text.includes("雷") && text.includes("雨")) return iconImg("thunderstorm", text);
   if (text.includes("雷")) return iconImg("dryThunder", text);
   if (text.includes("雨")) return iconImg("rain", text);
+  // 「多雲時晴」「晴天」這兩種圖示本身畫的是太陽，晚上時段還顯示太陽不合理，
+  // 沒有對應的月亮 PNG 素材，先用月亮 emoji 頂著，比一直顯示太陽正確。
+  if (night && text.includes("多雲") && text.includes("晴")) return "🌙";
   if (text.includes("多雲") && text.includes("晴")) return iconImg("partlyCloudy", text);
   if (text.includes("陰")) return iconImg("overcast", text);
   if (text.includes("多雲")) return iconImg("overcast", text); // 無專屬圖示，沿用陰天圖示
+  if (night && text.includes("晴")) return "🌙";
   if (text.includes("晴")) return iconImg("sunny", text);
   return "🌡️";
 }
@@ -1117,7 +1121,7 @@ function renderWeather(location) {
   const maxNow = maxT ? maxT.time[0].parameter.parameterName : "--";
   const ciNow = ci ? ci.time[0].parameter.parameterName : "--";
 
-  el("currentIcon").innerHTML = iconForWx(wxNow);
+  el("currentIcon").innerHTML = iconForWx(wxNow, isNightTime(wx.time[0].startTime));
   el("currentTemp").textContent = `${minNow}–${maxNow}°C`;
   el("currentDesc").textContent = wxNow;
   el("currentDetail").textContent =
@@ -1159,7 +1163,7 @@ function renderForecast(wx, pop, minT, maxT) {
     card.className = "forecast-card";
     card.innerHTML = `
       <div class="fdate">${label}</div>
-      <div class="ficon">${iconForWx(wxText)}</div>
+      <div class="ficon">${iconForWx(wxText, isNightTime(wx.time[i].startTime))}</div>
       <div class="fdesc">${wxText}</div>
       <div class="ftemp">${maxText}° / ${minText}°</div>
       <div class="fpop">降雨機率 ${popText}%</div>
@@ -1302,9 +1306,11 @@ async function renderCompareView(labels) {
     const minNow = minT && minT.time && minT.time[0] ? minT.time[0].parameter.parameterName : "--";
     const maxNow = maxT && maxT.time && maxT.time[0] ? maxT.time[0].parameter.parameterName : "--";
 
+    const wxStartNow = wx && wx.time && wx.time[0] ? wx.time[0].startTime : null;
+
     card.innerHTML = `
       <div class="ccity">${label}</div>
-      <div class="cicon">${iconForWx(wxNow)}</div>
+      <div class="cicon">${iconForWx(wxNow, isNightTime(wxStartNow))}</div>
       <div class="cdesc">${wxNow}</div>
       <div class="ctemp">${minNow}–${maxNow}°C</div>
       <div class="cpop">降雨機率 ${popNow}%</div>
