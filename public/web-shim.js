@@ -9,7 +9,7 @@
 (function () {
   window.appInfo = { platform: "web" };
 
-  const WIN_DOWNLOAD_URL = "https://github.com/yonghong0333-ops/MapSky/releases/latest/download/MapSky-Setup.exe";
+  const WIN_DOWNLOAD_URL = "https://github.com/yonghong0333-ops/MapSky/releases/latest/download/MapSky_Installbox.exe";
 
   // 電腦版瀏覽器直接打開網站：一律擋住，逼使用者去下載桌面版，不放行到登入
   // 畫面（也就不會跑 initAuthGate，不會打任何 /api/* ——不是只有畫面被蓋住
@@ -48,7 +48,7 @@
         btn.disabled = false;
         btn.onclick = () => window.open(WIN_DOWNLOAD_URL, "_blank");
         if (fileInfo) {
-          fileInfo.textContent = "MapSky-Setup.exe ・約 75 MB";
+          fileInfo.textContent = "MapSky_Installbox.exe ・約 78 MB";
           fileInfo.classList.remove("hidden");
         }
         if (perks) perks.classList.remove("hidden");
