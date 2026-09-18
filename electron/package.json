@@ -1,6 +1,6 @@
 {
   "name": "mapsky-desktop",
-  "version": "1.0.0",
+  "version": "26.1.0-alpha.1",
   "private": true,
   "description": "MapSky —— 桌面版（載入線上 map-sky.vercel.app 的原生視窗殼）",
   "main": "main.js",
@@ -37,7 +37,12 @@
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build-icon.ico"
     },
@@ -52,8 +57,18 @@
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["universal"] },
-        { "target": "zip", "arch": ["universal"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
       ],
       "icon": "build-icon.icns",
       "category": "public.app-category.weather",
@@ -68,8 +83,17 @@
       "icon": "build-icon.icns",
       "artifactName": "MapSky_Installbox.${ext}",
       "contents": [
-        { "x": 130, "y": 220, "type": "file" },
-        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+        {
+          "x": 130,
+          "y": 220,
+          "type": "file"
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
       ]
     }
   }
