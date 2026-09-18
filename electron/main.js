@@ -26,6 +26,15 @@ const { autoUpdater } = require("electron-updater");
 const APP_URL = "https://mapskyapp.vercel.app/";
 const APP_ORIGIN = new URL(APP_URL).origin;
 
+// 視窗圖示：Windows 用 .ico，macOS 用 .icns（Linux 沒有專用格式，退回 .ico
+// 也能顯示）。macOS 上 Dock 圖示實際吃的是 app bundle 裡 Info.plist 指定的
+// build-icon.icns（package.json 的 build.mac.icon），這裡只影響視窗本身
+// （例如 alt-tab／Mission Control 縮圖），但設對格式沒有壞處。
+const APP_ICON_PATH = path.join(
+  __dirname,
+  process.platform === "darwin" ? "build-icon.icns" : "build-icon.ico"
+);
+
 // 自訂標題列的高度（隱藏系統原生框之後，這段空間由我們自己畫）。
 const TITLEBAR_HEIGHT = 36;
 
@@ -989,9 +998,9 @@ function getProviderIconPath(urlStr) {
   try {
     const provider = new URL(urlStr).searchParams.get("provider");
     const file = PROVIDER_ICON[provider];
-    return file ? path.join(__dirname, "icons", file) : path.join(__dirname, "build-icon.ico");
+    return file ? path.join(__dirname, "icons", file) : APP_ICON_PATH;
   } catch {
-    return path.join(__dirname, "build-icon.ico");
+    return APP_ICON_PATH;
   }
 }
 
@@ -1061,7 +1070,7 @@ function createWindow() {
     minWidth: 960,
     minHeight: 640 + TITLEBAR_HEIGHT,
     title: "MapSky",
-    icon: path.join(__dirname, "build-icon.ico"),
+    icon: APP_ICON_PATH,
     backgroundColor: "#0b1220",
     frame: false, // 隱藏系統原生標題列，改用注入的自訂標題列（見 injectTitleBar）
     // Windows 11 原生的 Mica 毛玻璃效果——讓標題列（跟整個視窗背景）透出桌面
@@ -1127,6 +1136,13 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // 開發模式（`npm start`）在 macOS 上跑的是 Electron 本體的圖示，不是打包後
+  // app bundle 裡的 icon；手動設一次 Dock 圖示純粹是開發時好看，正式打包
+  // （electron-builder）出來的 .app 本身就會用 build.mac.icon，不受影響。
+  if (process.platform === "darwin" && app.dock) {
+    app.dock.setIcon(APP_ICON_PATH);
+  }
+
   // App 有「自動定位目前位置」功能，桌面版也要能拿到定位權限；
   // 通知權限則是給之後可能要接的天氣警特報推播用。
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {

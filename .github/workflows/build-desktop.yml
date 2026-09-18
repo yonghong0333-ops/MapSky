@@ -1,4 +1,4 @@
-# 編譯＋發佈 Windows 桌面版（electron/ 資料夾）。
+# 編譯＋發佈桌面版（electron/ 資料夾），Windows 跟 macOS 都會建。
 #
 # 這支只能用 workflow_dispatch 觸發，不會因為 push 到這個 repo 就自動跑——
 # 「軟體內部」（public/ 網站本體）跟「外殼」（electron/ 桌面殼）雖然放在
@@ -12,9 +12,25 @@
 # 手動觸發，不一定要透過後台管理。
 #
 # 版本號規則是 YY.N（YY = 年份末兩碼，N = 這個年度累計第幾版，三個頻道共用
-# 同一組流水號），實際計算在 scripts/compute-next-version.js，測試版頻道
-# 會多帶 -beta.N / -alpha.N 的 prerelease 標籤，electron-builder 看到就會
-# 自動發到對應的更新頻道（latest.yml / beta.yml / alpha.yml）。
+# 同一組流水號，Windows／macOS 也共用同一個版號、同一個 GitHub Release），
+# 實際計算在 scripts/compute-next-version.js，測試版頻道會多帶 -beta.N /
+# -alpha.N 的 prerelease 標籤，electron-builder 看到就會自動發到對應的更新
+# 頻道（latest.yml / beta.yml / alpha.yml，Windows／macOS 各自一份）。
+#
+# 四個 job 的分工：
+#   version      —— 只算版本號，不用建置環境，跑最快，其他 job 都要等它。
+#   build-win    —— 編出 .exe，發佈到 GitHub Release，成功後 build-mac 才開始
+#                    （刻意排順序、不平行跑，避免兩個 job 同時搶著建立同一個
+#                    Release 造成衝突）。
+#   build-mac    —— 編出 .dmg/.zip，上傳到 build-win 剛剛建好的同一個 Release。
+#                    未申請 Apple Developer Program（沒有簽章憑證），所以是
+#                    未簽章版本：使用者第一次打開會被 Gatekeeper 擋，需要右鍵
+#                    「打開」或執行 `xattr -cr`；也因為沒簽章，macOS 上的
+#                    自動更新（electron-updater／Squirrel.Mac）可能無法正常
+#                    完成安裝，之後如果要解決，需要加入 Apple Developer
+#                    Program（年費 US$99）做簽章＋公證。
+#   commit-version —— 等兩個平台都建完才把版號更新後的 package.json 一次
+#                    commit 回去，不要讓兩個平台各自 commit 互相衝突。
 name: Build & Publish Desktop
 
 on:
@@ -34,7 +50,30 @@ permissions:
   contents: write # 要能建立 Release、也要能把版號的 commit push 回去
 
 jobs:
-  build:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 計算下一個版本號（YY.N 規則）
+        id: version
+        run: |
+          V=$(node electron/scripts/compute-next-version.js ${{ github.event.inputs.channel }})
+          echo "下一個版本號：$V"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-win:
+    needs: version
     runs-on: windows-latest
     defaults:
       run:
@@ -52,18 +91,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: 計算下一個版本號（YY.N 規則）
-        id: version
-        shell: pwsh
-        run: |
-          $v = node scripts/compute-next-version.js ${{ github.event.inputs.channel }}
-          Write-Host "下一個版本號：$v"
-          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 套用版本號到 package.json（不建立 git tag，等下面一起 commit）
-        run: npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
+      - name: 套用版本號到 package.json（只在建置時套用，不 commit）
+        run: npm version ${{ needs.version.outputs.version }} --no-git-tag-version --allow-same-version
 
       - name: Build 並發佈到 GitHub Releases
         run: npm run publish:win
@@ -73,10 +102,55 @@ jobs:
           # Personal Access Token 在這裡。
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  build-mac:
+    needs: [version, build-win] # 等 Windows 先把 Release 建好，mac 只是往同一個 Release 加檔案
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: electron
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: 套用版本號到 package.json（只在建置時套用，不 commit）
+        run: npm version ${{ needs.version.outputs.version }} --no-git-tag-version --allow-same-version
+
+      - name: Build 並發佈到 GitHub Releases（未簽章）
+        run: npm run publish:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 沒有 Apple Developer Program 憑證，明確告訴 electron-builder 不要
+          # 嘗試去找簽章身分（不設的話，遇到本機剛好有殘留憑證會誤觸發簽章，
+          # 反而建置失敗）。package.json 裡 build.mac.identity 已經設 null，
+          # 這裡是雙重保險。
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+  commit-version:
+    needs: [version, build-win, build-mac]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: 套用版本號到 package.json
+        working-directory: electron
+        run: npm version ${{ needs.version.outputs.version }} --no-git-tag-version --allow-same-version
+
       - name: 把版號更新後的 package.json 一起 commit 回去
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json
-          git diff --cached --quiet || git commit -m "chore(desktop): release ${{ steps.version.outputs.version }} [skip ci]"
+          git add electron/package.json
+          git diff --cached --quiet || git commit -m "chore(desktop): release ${{ needs.version.outputs.version }} [skip ci]"
           git push origin HEAD:${{ github.ref_name }}

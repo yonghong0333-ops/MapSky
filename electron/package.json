@@ -2,12 +2,14 @@
   "name": "mapsky-desktop",
   "version": "1.0.0",
   "private": true,
-  "description": "MapSky —— Windows 桌面版（載入線上 map-sky.vercel.app 的原生視窗殼）",
+  "description": "MapSky —— 桌面版（載入線上 map-sky.vercel.app 的原生視窗殼）",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dist:win": "electron-builder --win --x64",
-    "publish:win": "electron-builder --win --x64 --publish always"
+    "publish:win": "electron-builder --win --x64 --publish always",
+    "dist:mac": "electron-builder --mac --universal",
+    "publish:mac": "electron-builder --mac --universal --publish always"
   },
   "dependencies": {
     "electron-updater": "^6.3.0"
@@ -25,6 +27,7 @@
       "preload.js",
       "package.json",
       "build-icon.ico",
+      "build-icon.icns",
       "icons/**/*"
     ],
     "publish": {
@@ -46,6 +49,28 @@
       "createStartMenuShortcut": true,
       "shortcutName": "MapSky",
       "artifactName": "MapSky_Installbox.${ext}"
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["universal"] },
+        { "target": "zip", "arch": ["universal"] }
+      ],
+      "icon": "build-icon.icns",
+      "category": "public.app-category.weather",
+      "identity": null,
+      "extendInfo": {
+        "NSLocationWhenInUseUsageDescription": "MapSky 需要使用您的位置來顯示所在地的天氣資訊。",
+        "NSLocationUsageDescription": "MapSky 需要使用您的位置來顯示所在地的天氣資訊。"
+      }
+    },
+    "dmg": {
+      "title": "MapSky",
+      "icon": "build-icon.icns",
+      "artifactName": "MapSky_Installbox.${ext}",
+      "contents": [
+        { "x": 130, "y": 220, "type": "file" },
+        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+      ]
     }
   }
 }
