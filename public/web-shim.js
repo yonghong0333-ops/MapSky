@@ -15,6 +15,12 @@
   // 首次下載」的按鈕互不影響，也不會互相覆蓋。要換掉使用者下載到的安裝檔，
   // 直接換掉 public/downloads/ 裡的這個檔案即可。
   const WIN_DOWNLOAD_URL = "/downloads/MapSky_Installbox.exe";
+  // 跟 Windows 那份是同一套手動維護邏輯（見 public/downloads/README.md），
+  // 檔名故意跟 Windows 版共用同一個前綴 MapSky_Installbox，只有副檔名不同，
+  // 方便一眼看出是同一組安裝檔、只是不同平台。mac 版沒有簽章（沒有 Apple
+  // Developer Program 憑證），使用者第一次打開會被 Gatekeeper 擋，需要右鍵
+  // 「打開」，下面按鈕點下去之後順便帶一次提示文字說明這件事。
+  const MAC_DOWNLOAD_URL = "/downloads/MapSky_Installbox.dmg";
 
   // 電腦版瀏覽器直接打開網站：一律擋住，逼使用者去下載桌面版，不放行到登入
   // 畫面（也就不會跑 initAuthGate，不會打任何 /api/* ——不是只有畫面被蓋住
@@ -58,10 +64,15 @@
         }
         if (perks) perks.classList.remove("hidden");
       } else if (isMac) {
-        btn.textContent = "🍎 Mac 版即將推出";
-        btn.disabled = true;
-        if (fileInfo) fileInfo.classList.add("hidden");
-        if (perks) perks.classList.add("hidden");
+        const MAC_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24"><path fill="#ffffff" d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-3.014 1.57-.12 0-.23-.02-.3-.03-.014-.1-.04-.4-.04-.7 0-1.14.572-2.27 1.207-2.98.81-.94 2.16-1.64 3.28-1.68.03.24.044.35.044.74zm4.396 16.39c-.24.57-.53 1.13-.87 1.66-.65 1-1.32 1.98-2.38 2-.98.02-1.35-.65-2.51-.65-1.17 0-1.57.63-2.48.67-1.02.05-1.8-1.05-2.46-2.04-1.34-2.02-2.36-5.7-.98-8.19.68-1.24 1.9-2.02 3.23-2.04 1-.02 1.94.68 2.55.68.6 0 1.75-.84 2.95-.72.5.02 1.9.2 2.8 1.53-.07.05-1.67.98-1.65 2.92.02 2.32 2.03 3.09 2.06 3.1z"/></svg>';
+        btn.innerHTML = MAC_ICON_SVG + "<span>下載 Mac 版</span><span aria-hidden=\"true\">→</span>";
+        btn.disabled = false;
+        btn.onclick = () => window.open(MAC_DOWNLOAD_URL, "_blank");
+        if (fileInfo) {
+          fileInfo.textContent = "MapSky_Installbox.dmg ・未簽章版本，第一次打開需右鍵「打開」";
+          fileInfo.classList.remove("hidden");
+        }
+        if (perks) perks.classList.remove("hidden");
       } else {
         btn.textContent = "目前僅支援 Windows／Mac 桌面版";
         btn.disabled = true;
