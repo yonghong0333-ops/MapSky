@@ -11,9 +11,20 @@
 
 這兩個檔案都是**手動維護**的，跟後台「發佈新版桌面版」觸發的 GitHub Actions
 自動化流程完全無關——那條線只負責幫已安裝的使用者做背景自動更新，不會
-動到這個資料夾裡的檔案，兩邊不會互相覆蓋。目前這個資料夾裡還沒有
-`MapSky_Installbox.dmg`，Mac 訪客點下載按鈕會是 404，要先照下面的方法上傳
-一份才會生效。
+動到這個資料夾裡的檔案，兩邊不會互相覆蓋。**更新（2026-09-18）：`MapSky_Installbox.dmg` 改用導向方式提供，不再直接放在
+這個資料夾裡。** 原因是這個檔案目前約 170MB，超過 GitHub 對單一 git 檔案的
+100MB 硬性上限，沒辦法像 `.exe` 一樣直接 commit 進 repo。改成：檔案本體上傳到
+一個專門的 GitHub Release（tag：`downloads-mac-installer`），`vercel.json`
+裡加了一條 redirect，把 `/downloads/MapSky_Installbox.dmg` 導到該 Release
+的附件網址。網站按鈕本身（`web-shim.js` 裡的 `MAC_DOWNLOAD_URL`）完全沒有
+改動，因為那個相對路徑本來就是靠 Vercel 解析，現在只是多一層轉址。
+
+## 之後要換掉 Mac 版安裝檔，怎麼做
+
+去這個 Release 頁面：
+`https://github.com/yonghong0333-ops/MapSky/releases/edit/downloads-mac-installer`
+把新的 `MapSky_Installbox.dmg` 拖上去覆蓋掉舊的附件（檔名要完全一樣），存檔
+即可，`vercel.json` 不用再改，因為 redirect 目標網址不會變。
 
 Mac 版**沒有簽章**（沒有申請 Apple Developer Program，年費 US$99），使用者
 第一次打開會被 Gatekeeper 擋住，畫面會顯示「無法打開，因為 Apple 無法檢查
