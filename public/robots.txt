@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://map-sky.vercel.app/sitemap.xml
