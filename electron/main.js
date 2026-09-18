@@ -1139,8 +1139,11 @@ app.whenReady().then(() => {
   // 開發模式（`npm start`）在 macOS 上跑的是 Electron 本體的圖示，不是打包後
   // app bundle 裡的 icon；手動設一次 Dock 圖示純粹是開發時好看，正式打包
   // （electron-builder）出來的 .app 本身就會用 build.mac.icon，不受影響。
-  if (process.platform === "darwin" && app.dock) {
-    app.dock.setIcon(APP_ICON_PATH);
+  // 注意：nativeImage 不支援解析 .icns，只能吃 png/jpg，所以這裡改用
+  // icons/app-logo.png，且只在「非打包」時執行——正式版本完全不跑這段，
+  // 避免又對著 .icns 路徑呼叫 setIcon 而炸出 UnhandledPromiseRejectionWarning。
+  if (process.platform === "darwin" && app.dock && !app.isPackaged) {
+    app.dock.setIcon(path.join(__dirname, "icons", "app-logo.png"));
   }
 
   // App 有「自動定位目前位置」功能，桌面版也要能拿到定位權限；

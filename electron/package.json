@@ -28,6 +28,8 @@
       "package.json",
       "build-icon.ico",
       "build-icon.icns",
+      "installbox.ico",
+      "installbox.icns",
       "icons/**/*"
     ],
     "publish": {
@@ -53,7 +55,9 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "MapSky",
-      "artifactName": "MapSky_Installbox.${ext}"
+      "artifactName": "MapSky_Installbox.${ext}",
+      "installerIcon": "installbox.ico",
+      "uninstallerIcon": "installbox.ico"
     },
     "mac": {
       "target": [
@@ -80,7 +84,7 @@
     },
     "dmg": {
       "title": "MapSky",
-      "icon": "build-icon.icns",
+      "icon": "installbox.icns",
       "artifactName": "MapSky_Installbox.${ext}",
       "contents": [
         {
