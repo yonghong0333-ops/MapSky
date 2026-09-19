@@ -18,7 +18,7 @@
 // 沒有這個落差，登入流程跟網頁版一模一樣。
 // ------------------------------------------------------------------
 
-const { app, BrowserWindow, Menu, shell, session, screen, net, ipcMain, nativeTheme } = require("electron");
+const { app, BrowserWindow, Menu, shell, session, screen, net, ipcMain, nativeTheme, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
@@ -1269,6 +1269,68 @@ function applyLiquidGlass(win) {
   }
 }
 
+// ---------------- macOS 定位服務 ----------------
+// Electron 沒有「主動向系統要定位權限」的 API：系統的授權視窗只會在 App 第一次真的
+// 去讀定位時（navigator.geolocation）才跳出來，而且 App 得有正確簽章才會出現在
+// 「定位服務」清單。所以這裡做兩件事：
+//   1. 網頁定位失敗時（被拒絕／系統沒開／逾時），跳出說明並一鍵開啟系統設定。
+//   2. 選單「檔案 → 定位服務設定…」隨時可以手動開。
+// 定位失敗時網站本身會退回 IP 定位（只準到縣市），所以不會整個不能用。
+const LOCATION_SETTINGS_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices";
+let locationHelpShown = false;
+
+function openLocationSettings() {
+  shell.openExternal(LOCATION_SETTINGS_URL).catch(() => {});
+}
+
+async function showLocationHelp(win) {
+  if (process.platform !== "darwin" || locationHelpShown) return;
+  locationHelpShown = true; // 每次開啟 App 只提醒一次，避免一直被打擾
+  const opts = {
+    type: "info",
+    buttons: ["開啟定位服務設定", "稍後再說"],
+    defaultId: 0,
+    cancelId: 1,
+    message: "MapSky 無法取得系統定位",
+    detail:
+      "請到「系統設定 → 隱私權與安全性 → 定位服務」，確認最上方的「定位服務」已開啟，" +
+      "並把清單裡的 MapSky 打開。\n\n" +
+      "如果清單裡找不到 MapSky，請完全結束 MapSky 後重新開啟，再按一次「自動定位目前位置」。\n\n" +
+      "在那之前，MapSky 會改用網路 IP 概略定位（只能判斷到縣市）。",
+  };
+  try {
+    const r = win && !win.isDestroyed() ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+    if (r.response === 0) openLocationSettings();
+  } catch (_) { /* 視窗已關閉，忽略 */ }
+}
+
+// 在網頁裡包一層 getCurrentPosition：把等待上限縮到 6 秒（原本 15 秒，使用者會以為
+// 沒反應），失敗時通知外殼跳出說明。網站原本的失敗處理（退回 IP 定位）照常執行。
+function injectGeolocationHelper(win) {
+  if (process.platform !== "darwin" || win.isDestroyed()) return;
+  const script = `
+    (function () {
+      if (window.__mapskyGeoWrapped || !navigator.geolocation || !window.mapskyLocation) return;
+      window.__mapskyGeoWrapped = true;
+      var geo = navigator.geolocation;
+      var orig = geo.getCurrentPosition.bind(geo);
+      var reported = false;
+      geo.getCurrentPosition = function (ok, fail, opts) {
+        var o = Object.assign({}, opts || {});
+        if (!o.timeout || o.timeout > 6000) o.timeout = 6000;
+        return orig(ok, function (err) {
+          if (err && !reported) {
+            reported = true;
+            try { window.mapskyLocation.reportFailure(err.code); } catch (e) {}
+          }
+          if (fail) fail(err);
+        }, o);
+      };
+    })();
+  `;
+  win.webContents.executeJavaScript(script).catch(() => {});
+}
+
 // macOS 上方選單列（MapSky／檔案／編輯…）。Electron 預設選單是英文，這裡整份換成
 // 繁體中文，用詞照 Apple 在繁體中文 macOS 上的慣例（拷貝、顯示方式、輔助說明…）。
 // 每個項目都用 role 保留系統行為（快捷鍵、複製貼上、結束、全螢幕等），label 只是
@@ -1293,7 +1355,11 @@ function setupMacMenu() {
     },
     {
       label: "檔案",
-      submenu: [{ role: "close", label: "關閉視窗" }],
+      submenu: [
+        { label: "定位服務設定…", click: () => openLocationSettings() },
+        { type: "separator" },
+        { role: "close", label: "關閉視窗" },
+      ],
     },
     {
       label: "編輯",
@@ -1418,6 +1484,7 @@ function createWindow() {
 
   // 自訂標題列的 DOM 是注入進去的，每次頁面（重新）載入完都要重插一次，
   // 不然 reload/導覽一次就被洗掉了。
+  win.webContents.on("dom-ready", () => injectGeolocationHelper(win));
   win.webContents.on("did-finish-load", () => {
     injectTitleBar(win);
     injectMacGlassCSS(win);
@@ -1511,6 +1578,10 @@ app.whenReady().then(() => {
     writeUpdateChannel(channel);
     applyUpdateChannel(channel);
     autoUpdater.checkForUpdates().catch(() => {});
+  });
+
+  ipcMain.on("mapsky:location-failed", (event) => {
+    showLocationHelp(BrowserWindow.fromWebContents(event.sender));
   });
 
   setupMacMenu();

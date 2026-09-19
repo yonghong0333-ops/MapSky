@@ -34,3 +34,9 @@ contextBridge.exposeInMainWorld("mapskyAppUpdate", {
     ipcRenderer.on("mapsky:update-downloaded", (_event, version) => callback(version));
   },
 });
+
+// 定位失敗回報（macOS）：main.js 注入的 getCurrentPosition 包裝在定位失敗時呼叫這個，
+// 由主行程跳出說明並引導使用者到系統設定開啟定位服務。
+contextBridge.exposeInMainWorld("mapskyLocation", {
+  reportFailure: (code) => ipcRenderer.send("mapsky:location-failed", code),
+});
