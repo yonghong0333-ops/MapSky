@@ -58,6 +58,70 @@ function findMachOFiles(dir, out = []) {
   return out;
 }
 
+// ------------------------------------------------------------------
+// 把主程式的「建置 SDK 版本」標記改成較新的 macOS（實驗性）
+//
+// macOS 只有在 App 是用新版 SDK 建置（Mach-O 的 LC_BUILD_VERSION 記錄的 sdk 欄位）時，
+// 才會套用該版本的新視窗樣式（紅綠燈、圓角…）。Electron 官方預built 的執行檔是用舊
+// SDK（macOS 15.5）建置的，所以在 macOS 26／27 上紅綠燈仍是舊樣式。
+// 這裡用 Apple 的 vtool 只改那個版本欄位（不動程式碼），讓系統以為它是新 SDK 建置的。
+//
+// 這是取巧做法：Electron 沒有針對新 SDK 測試過，可能出現視窗圓角／玻璃效果跑掉。所以：
+//   * 任何一步失敗都只警告、照常打包（不會讓整個建置失敗）。
+//   * 環境變數 MAPSKY_MAC_SDK 可以指定版本（預設 27.0）；設成 off 就整個關掉。
+// 一定要在 codesign 之前做——改過執行檔，原本的簽章就失效了，後面會重簽。
+// ------------------------------------------------------------------
+function parseBuildVersions(vtoolOutput) {
+  // vtool -show-build 的輸出裡，每個架構都有一段 "minos X.Y" / "sdk X.Y"
+  const minos = [...vtoolOutput.matchAll(/^\s*minos\s+([\d.]+)/gm)].map((m) => m[1]);
+  const sdk = [...vtoolOutput.matchAll(/^\s*sdk\s+([\d.]+)/gm)].map((m) => m[1]);
+  return { minos, sdk };
+}
+
+function versionCompare(a, b) {
+  const pa = String(a).split(".").map(Number);
+  const pb = String(b).split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
+function patchSdkVersion(appPath) {
+  const target = String(process.env.MAPSKY_MAC_SDK === undefined ? "27.0" : process.env.MAPSKY_MAC_SDK).trim();
+  if (!target || target.toLowerCase() === "off") {
+    console.log("[adhoc-sign] MAPSKY_MAC_SDK=off，略過 SDK 版本標記");
+    return;
+  }
+  try {
+    const plist = path.join(appPath, "Contents", "Info.plist");
+    const exeName = run("plutil", ["-extract", "CFBundleExecutable", "raw", "-o", "-", plist]).trim();
+    const exe = path.join(appPath, "Contents", "MacOS", exeName);
+
+    const before = run("xcrun", ["vtool", "-show-build", exe]);
+    const { minos, sdk } = parseBuildVersions(before);
+    if (!minos.length) throw new Error("讀不到 minos：\n" + before);
+    // 有多個架構（universal）時取最高的 minos，避免把最低系統需求改低。
+    const minosMax = minos.reduce((a, b) => (versionCompare(a, b) >= 0 ? a : b));
+    console.log(`[adhoc-sign] 目前 SDK=${sdk.join(",")} minos=${minos.join(",")}，改標記為 SDK ${target}`);
+
+    const tmp = exe + ".sdkpatched";
+    run("xcrun", ["vtool", "-set-build-version", "macos", minosMax, target, "-replace", "-output", tmp, exe]);
+    fs.chmodSync(tmp, fs.statSync(exe).mode);
+    fs.renameSync(tmp, exe);
+
+    const after = run("xcrun", ["vtool", "-show-build", exe]);
+    const got = parseBuildVersions(after).sdk;
+    if (!got.length || got.some((v) => versionCompare(v, target) !== 0)) {
+      throw new Error("改完後 SDK 不是預期值：" + got.join(","));
+    }
+    console.log(`[adhoc-sign] SDK 版本標記完成：${got.join(",")}`);
+  } catch (err) {
+    console.warn("[adhoc-sign] 警告：SDK 版本標記失敗，維持原樣繼續打包：", err && err.message ? err.message : err);
+  }
+}
+
 exports.default = async function adhocSign(context) {
   if (context.electronPlatformName !== "darwin") return;
 
@@ -79,6 +143,9 @@ exports.default = async function adhocSign(context) {
   }
 
   console.log(`[adhoc-sign] ad-hoc 簽章：${appPath}`);
+
+  // 先改 SDK 版本標記（會讓舊簽章失效，所以必須在下面的 codesign 之前）。
+  patchSdkVersion(appPath);
 
   // 先簽 app.asar.unpacked 裡的原生模組（若有）。
   const unpackedDir = path.join(appPath, "Contents", "Resources", "app.asar.unpacked");
