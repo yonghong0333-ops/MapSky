@@ -957,6 +957,31 @@ function injectTitleBar(win) {
       function detectWeatherFromPage() {
         var result = { city: null, temp: null, condition: null, conditionLabel: null };
         try {
+          // 優先直接讀網站主畫面「現在天氣」卡片的專用欄位（#currentTemp／#currentDesc／
+          // 縣市下拉選單），不再用整塊文字去猜。舊做法會把鄰近的「降雨機率」也掃進去，
+          // 「雨」字一命中就永遠判成下雨。
+          var tempEl = document.getElementById("currentTemp");
+          var descEl = document.getElementById("currentDesc");
+          var citySel = document.getElementById("citySelect");
+          var descText = descEl ? (descEl.textContent || "").trim() : "";
+          if (descText && descText !== "—") {
+            var tm = tempEl ? (tempEl.textContent || "").match(/(-?\\d{1,2})\\s?°C/) : null;
+            if (tm) result.temp = tm[1];
+            for (var gi = 0; gi < CONDITION_GROUPS.length && !result.condition; gi++) {
+              var g = CONDITION_GROUPS[gi];
+              for (var wi = 0; wi < g.words.length; wi++) {
+                if (descText.indexOf(g.words[wi]) !== -1) {
+                  result.condition = g.key;
+                  result.conditionLabel = descText;
+                  break;
+                }
+              }
+            }
+            if (!result.condition) result.conditionLabel = descText;
+            var cv = citySel ? citySel.value : "";
+            if (cv && CITY_LIST.indexOf(cv) !== -1) result.city = cv;
+            return result;
+          }
           var tempRegex = /(-?\\d{1,2})\\s?°C/;
           var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
           var node;
@@ -972,6 +997,8 @@ function injectTitleBar(win) {
               scopeText += " " + (scope.textContent || "");
               scope = scope.parentElement;
             }
+            // 備援路徑也要排除「降雨機率」，避免單獨一個「雨」字誤判成下雨。
+            scopeText = scopeText.replace(/降雨機率|降雨/g, "");
             for (var i = 0; i < CONDITION_GROUPS.length && !result.condition; i++) {
               var grp = CONDITION_GROUPS[i];
               for (var j = 0; j < grp.words.length; j++) {
