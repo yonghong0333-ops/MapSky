@@ -1,6 +1,8 @@
 const { getAllCities } = require("../_lib/cwa");
+const { requireSession } = require("../_lib/require-session");
 
 module.exports = async function handler(req, res) {
+  if (!requireSession(req, res)) return;
   try {
     const result = await getAllCities({ forceRefresh: req.query.refresh === "1" });
     res.status(200).json(result);

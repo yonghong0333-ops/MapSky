@@ -1566,11 +1566,6 @@ button:hover { background: var(--accent-hover); }
   padding-bottom: 14px;
   border-bottom: 1px solid var(--sidebar-border);
 }
-.auth-guest-hint {
-  font-size: 13px;
-  color: var(--text-muted);
-  margin: 0 0 10px;
-}
 .auth-login-group {
   display: flex;
   flex-wrap: wrap;
