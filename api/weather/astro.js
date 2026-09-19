@@ -2,11 +2,8 @@
 // serverless function，用 ?type=sun|moon|uv 區分——Vercel Hobby 方案對
 // Serverless Functions 數量有上限（12 個），合併能省下名額。
 const { getSunTimes, getMoonTimes, getMoonPhaseImage, getUvIndexObservation, getWeeklyForecast } = require("../_lib/cwa");
-const { requireSession } = require("../_lib/require-session");
 
 module.exports = async function handler(req, res) {
-  if (!requireSession(req, res)) return;
-
   // 月相圖是二進位圖片，直接用 image/jpeg 回應（NASA 原圖格式，未去背），
   // 前端可以直接 <img src="/api/weather/astro?type=moonphase">。
   if (req.query.type === "moonphase") {

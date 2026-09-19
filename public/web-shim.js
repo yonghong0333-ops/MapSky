@@ -632,6 +632,18 @@
       .join("");
   }
 
+  // 訪客模式（沒登入）下，設定頁的帳號欄位改顯示這個小卡片，而不是整個蓋住
+  // 主畫面逼登入——天氣主畫面本身不登入也看得到，登入只是用來解鎖大頭貼／
+  // 暱稱、推播通知、後台管理這些跟「這個人是誰」有關的功能。
+  function buildGuestLoginEntry(providers) {
+    const bar = document.createElement("div");
+    bar.className = "auth-bar auth-bar-guest";
+    bar.innerHTML = `
+      <p class="auth-guest-hint">登入後可以設定大頭貼／暱稱、開啟推播通知。</p>
+      <div class="login-gate-buttons">${buildGateButtons(providers)}</div>`;
+    return bar;
+  }
+
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
@@ -917,8 +929,14 @@
       return;
     }
 
+    // 天氣主畫面（定位、目前天氣圖示、天氣特效、預報）訪客不登入也能看，
+    // 登入只用來解鎖「跟這個人是誰有關」的功能：大頭貼／暱稱、推播通知、
+    // 後台管理。所以不管有沒有登入，都直接放行讓 renderer.js 載入；
+    // /api/weather/* 那幾支後端也已經拿掉登入限制（見 api/weather/*.js），
+    // 這裡放行了、那邊沒跟著開也是白搭，兩邊要一起看。
+    document.body.classList.add("auth-ok");
+
     if (session.loggedIn) {
-      document.body.classList.add("auth-ok");
       if (!session.profile.onboarded) showOnboarding(session);
       const slot = el("settingsAccountSlot");
       if (slot) {
@@ -953,16 +971,16 @@
         const adminTabBtn = el("adminTabBtn");
         if (adminTabBtn) adminTabBtn.classList.remove("hidden");
       }
-      startAppAfterLogin();
-      return;
+    } else {
+      // 訪客：設定頁帳號欄位改顯示「登入解鎖更多功能」的小卡片，不擋主畫面。
+      const slot = el("settingsAccountSlot");
+      if (slot) {
+        slot.innerHTML = "";
+        slot.appendChild(buildGuestLoginEntry(providers));
+      }
     }
 
-    // 未登入：把主畫面繼續擋著，只在登入畫面上顯示可用的登入方式
-    if (statusEl) statusEl.textContent = "請先登入以下任一帳號：";
-    if (buttonsEl) {
-      buttonsEl.innerHTML = buildGateButtons(providers);
-      buttonsEl.classList.remove("hidden");
-    }
+    startAppAfterLogin();
   }
 
   // 只有登入成功才把真正的功能（renderer.js + 輪詢）載入進來，

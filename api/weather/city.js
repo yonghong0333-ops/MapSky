@@ -1,8 +1,6 @@
 const { getCity } = require("../_lib/cwa");
-const { requireSession } = require("../_lib/require-session");
 
 module.exports = async function handler(req, res) {
-  if (!requireSession(req, res)) return;
   const label = req.query.label;
   if (!label) return res.status(400).json({ ok: false, reason: "missing-label" });
   try {
