@@ -39,7 +39,10 @@ const APP_ORIGIN = new URL(APP_URL).origin;
 //      macOS 用 open-url 事件；Windows/Linux 是把網址塞進新程序的啟動參數，
 //      這裡用單一實例鎖（requestSingleInstanceLock）擋掉「新開一個一樣的
 //      視窗」，改成把網址轉給「原本那個」實例處理。
-//   4. 收到交換碼後，拿去跟 /api/auth/exchange 換回真正的 session token，
+//   4. 收到交換碼後，拿去跟 /api/auth/login?xchg=... 換回真正的 session token
+//      （沒有另外開一支 exchange.js——Vercel Hobby 方案一個部署最多 12 支
+//      function，這個交換邏輯併進 login.js 裡用 query string 分流，見
+//      api/auth/login.js 的 handleDesktopExchange），
 //      直接寫進桌面殼自己的 cookie，不用使用者做任何事，登入就完成了。
 const CUSTOM_PROTOCOL = "mapsky";
 
@@ -1071,7 +1074,7 @@ function fetchExchangeToken(xchg) {
   return new Promise((resolve) => {
     const request = net.request({
       method: "GET",
-      url: `${APP_ORIGIN}/api/auth/exchange?xchg=${encodeURIComponent(xchg)}`,
+      url: `${APP_ORIGIN}/api/auth/login?xchg=${encodeURIComponent(xchg)}`,
     });
     let body = "";
     request.on("response", (response) => {

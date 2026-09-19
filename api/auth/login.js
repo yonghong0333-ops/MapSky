@@ -1,8 +1,55 @@
 const crypto = require("crypto");
 const { PROVIDERS, isConfigured, redirectUriFor } = require("../_lib/providers");
 const { serializeCookie } = require("../_lib/cookies");
+const { getRedisClient } = require("../_lib/redis-client");
 
-module.exports = function handler(req, res) {
+// 桌面殼登入完成（api/auth/callback.js 換到短效交換碼、導回 mapsky://login-complete?xchg=...）
+// 之後，會回頭呼叫這支帶 xchg 參數，換回真正的 session token。跟改暱稱／
+// 推播訂閱塞進 session.js 是同一個理由：Vercel Hobby 方案一個部署最多 12 支
+// function，這支本來就是登入相關，直接沿用、不用另外多開一支 exchange.js。
+async function handleDesktopExchange(req, res) {
+  const xchg = req.query.xchg;
+  if (!xchg || typeof xchg !== "string") {
+    return res.status(400).json({ error: "缺少交換碼" });
+  }
+
+  let client;
+  try {
+    client = await getRedisClient();
+  } catch (e) {
+    return res.status(502).json({ error: `連線失敗：${e.message}` });
+  }
+  if (!client) {
+    return res.status(500).json({ error: "桌面版登入交換尚未設定（缺少 Redis 連線）" });
+  }
+
+  const key = `desktop_xchg:${xchg}`;
+  // 用 GETDEL 一次做完「讀取＋刪除」，讀一次就沒了，避免同一組交換碼被重放。
+  let token;
+  try {
+    token = client.getDel
+      ? await client.getDel(key)
+      : await (async () => {
+          const v = await client.get(key);
+          if (v !== null) await client.del(key);
+          return v;
+        })();
+  } catch (e) {
+    return res.status(502).json({ error: `讀取交換碼失敗：${e.message}` });
+  }
+
+  if (!token) {
+    return res.status(400).json({ error: "交換碼已過期或已使用過，請重新登入一次" });
+  }
+
+  return res.status(200).json({ token });
+}
+
+module.exports = async function handler(req, res) {
+  if (req.query.xchg !== undefined) {
+    return handleDesktopExchange(req, res);
+  }
+
   const providerId = req.query.provider;
   const provider = PROVIDERS[providerId];
 
