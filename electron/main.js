@@ -547,8 +547,14 @@ function injectTitleBar(win) {
         tint = document.createElement("div");
         tint.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:0;" +
           "opacity:" + GLASS_TINT_OPACITY + ";transition:background 1.2s ease;";
+        // 左邊紅黃綠按鈕那一塊完全不上色，讓系統玻璃直接露出來（跟「系統設定」一樣，
+        // 按鈕坐在玻璃上）；往右到放文字的地方才漸漸帶出天氣顏色，白字才看得清楚。
+        var glassMask = "linear-gradient(90deg, transparent 0px, transparent 88px, #000 260px)";
+        tint.style.webkitMaskImage = glassMask;
+        tint.style.maskImage = glassMask;
         bar.appendChild(tint);
         bar.style.background = "transparent";
+        bar.style.borderBottom = "none";
       }
 
       // 插畫層（太陽/月亮星空/雲/雨滴/雪花…），純裝飾、不接收滑鼠事件。
@@ -574,7 +580,9 @@ function injectTitleBar(win) {
       var scrim = document.createElement("div");
       scrim.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:0;" +
         "background:linear-gradient(90deg,rgba(0,0,0,.32) 0%,rgba(0,0,0,.12) 55%,rgba(0,0,0,0) 100%);";
-      bar.appendChild(scrim);
+      // 玻璃模式不要這層深色遮罩：它左邊最深，剛好蓋在紅黃綠按鈕後面，按鈕就會像
+      // 放在深色板子上，不像玻璃。
+      if (!IS_GLASS) bar.appendChild(scrim);
 
       var content = document.createElement("div");
       // 非 Mac：品牌／天氣放最左、網路狀態＋帳號＋縮放關閉鈕放最右，兩邊
