@@ -46,7 +46,21 @@ const UPDATE_TOAST_COUNTDOWN_SECONDS = 10;
 // Electron 預設 UA 尾巴會帶「Electron/版本號」，某些服務（尤其 Google OAuth）
 // 看到這種內嵌瀏覽器字樣會擋掉或降級成舊版頁面。統一換成一般桌面版 Chrome 的
 // UA（版本號用這個 Electron 內建的實際 Chromium 版本），主視窗、登入視窗都套用。
-const CHROME_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+//
+// 這裡的作業系統字串一定要跟著「實際跑的平台」走，不能不管三七二十一都寫死
+// Windows：Chromium 除了看得到的 UA 字串之外，還會另外自動帶一組
+// Sec-CH-UA-Platform 這類 Client Hints 標頭，裡面老實反映真正的作業系統
+// （在 Mac 上就是 "macOS"）。如果 UA 字串講的是 Windows、Client Hints 卻誠實
+// 招認是 macOS，兩邊對不起來，等於自己舉手告訴 Google「這是一個偽裝過的
+// 內嵌瀏覽器」，反而更容易被判定成「這個瀏覽器或應用程式可能有疑慮」而擋掉
+// 登入。所以 Mac 版就老實用 Mac 的 UA、Windows 版用 Windows 的 UA。
+const CHROME_UA_PLATFORM =
+  process.platform === "darwin"
+    ? "Macintosh; Intel Mac OS X 10_15_7"
+    : process.platform === "linux"
+    ? "X11; Linux x86_64"
+    : "Windows NT 10.0; Win64; x64";
+const CHROME_UA = `Mozilla/5.0 (${CHROME_UA_PLATFORM}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
 
 // 用 HEAD 請求拿首頁的 ETag / Last-Modified 當「版本指紋」。網站的 index.html
 // 本來就設了 Cache-Control: no-cache, must-revalidate，Vercel 對靜態檔案照慣例
@@ -373,6 +387,12 @@ function injectTitleBar(win) {
     (function () {
       if (document.getElementById("__mapsky_titlebar__")) return;
 
+      // Mac 用系統原生三顆燈（見 createWindow 的 titleBarStyle:"hidden" +
+      // trafficLightPosition），這條自訂標題列上就不用再畫一組假的縮小／
+      // 放大／關閉鈕；品牌名稱、天氣資訊、帳號那些內容改成整組靠右塞，
+      // 留左邊那塊原生燈的位置空著。
+      var IS_MAC = ${process.platform === "darwin" ? "true" : "false"};
+
       // ---------- 共用 keyframes（雨滴/飄雪/閃爍星星/閃電/雲朵飄移）----------
       var styleTag = document.createElement("style");
       styleTag.id = "__mapsky_weather_keyframes__";
@@ -422,8 +442,12 @@ function injectTitleBar(win) {
       bar.appendChild(scrim);
 
       var content = document.createElement("div");
+      // 非 Mac：品牌／天氣放最左、網路狀態＋帳號＋縮放關閉鈕放最右，兩邊
+      // 用 space-between 撐開。Mac：原生三顆燈已經佔掉左邊那塊位置，這裡
+      // 全部內容改成一整組靠右塞（flex-end），左邊留白給原生燈。
       content.style.cssText = "position:relative;z-index:1;display:flex;align-items:center;" +
-        "justify-content:space-between;width:100%;height:100%;padding:0 0 0 14px;box-sizing:border-box;";
+        "justify-content:" + (IS_MAC ? "flex-end" : "space-between") + ";width:100%;height:100%;" +
+        "padding:" + (IS_MAC ? "0 14px" : "0 0 0 14px") + ";box-sizing:border-box;";
       bar.appendChild(content);
 
       var leftGroup = document.createElement("div");
@@ -655,17 +679,20 @@ function injectTitleBar(win) {
         return b;
       }
 
-      var minBtn = makeBtn(ICONS.minimize, false);
-      var maxBtn = makeBtn(ICONS.maximize, false);
-      var closeBtn = makeBtn(ICONS.close, true);
+      var maxBtn = null;
+      if (!IS_MAC) {
+        var minBtn = makeBtn(ICONS.minimize, false);
+        maxBtn = makeBtn(ICONS.maximize, false);
+        var closeBtn = makeBtn(ICONS.close, true);
 
-      minBtn.onclick = function () { window.mapskyWindowControls.minimize(); };
-      maxBtn.onclick = function () { window.mapskyWindowControls.maximize(); };
-      closeBtn.onclick = function () { window.mapskyWindowControls.close(); };
+        minBtn.onclick = function () { window.mapskyWindowControls.minimize(); };
+        maxBtn.onclick = function () { window.mapskyWindowControls.maximize(); };
+        closeBtn.onclick = function () { window.mapskyWindowControls.close(); };
 
-      rightGroup.appendChild(minBtn);
-      rightGroup.appendChild(maxBtn);
-      rightGroup.appendChild(closeBtn);
+        rightGroup.appendChild(minBtn);
+        rightGroup.appendChild(maxBtn);
+        rightGroup.appendChild(closeBtn);
+      }
 
       document.documentElement.appendChild(bar);
 
@@ -675,7 +702,7 @@ function injectTitleBar(win) {
       pushStyle.textContent = "html{margin-top:${TITLEBAR_HEIGHT}px !important;}";
       document.head.appendChild(pushStyle);
 
-      if (window.mapskyWindowControls && window.mapskyWindowControls.onMaximizedChange) {
+      if (maxBtn && window.mapskyWindowControls && window.mapskyWindowControls.onMaximizedChange) {
         window.mapskyWindowControls.onMaximizedChange(function (isMaximized) {
           maxBtn.innerHTML = isMaximized ? ICONS.restore : ICONS.maximize;
         });
@@ -1004,6 +1031,45 @@ function getProviderIconPath(urlStr) {
   }
 }
 
+// 登入視窗本身已經有系統原生的視窗框（Windows 標題列右上角、Mac 左上角三顆
+// 燈），理論上都能關；但登入流程會整段導覽到 Google/GitHub/…等外部網域好
+// 幾次（授權頁、二次驗證、選帳號…），畫面完全是對方的頁面，使用者有時會
+// 找不到／忘記原生關閉鈕在哪、或想中途放棄登入卻不敢亂點。這裡另外疊一顆
+// 固定在畫面右上角、不管導覽到哪一頁都會跟著重新出現的「✕」關閉鈕，讓使用者
+// 隨時都能明確地把整個登入視窗關掉，不用去找原生框。跟 preload.js 暴露的
+// window.mapskyWindowControls.close() 是同一套機制，main 行程那邊的
+// ipcMain.on("mapsky:window-control", ...) 已經是用 event.sender 反查是「哪一個」
+// 視窗送來的，所以在登入視窗裡呼叫會關到登入視窗本身，不會誤關到主視窗。
+function injectLoginCloseButton(win) {
+  if (win.isDestroyed()) return;
+  const script = `
+    (function () {
+      var OLD = document.getElementById("__mapsky_login_close__");
+      if (OLD) OLD.remove();
+
+      var btn = document.createElement("button");
+      btn.id = "__mapsky_login_close__";
+      btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+        'stroke-width="2.4" stroke-linecap="round"><line x1="4" y1="4" x2="20" y2="20"/><line x1="20" y1="4" x2="4" y2="20"/></svg>';
+      btn.title = "關閉登入視窗";
+      btn.style.cssText = "position:fixed;top:12px;right:12px;z-index:2147483647;" +
+        "width:30px;height:30px;border-radius:50%;border:none;padding:0;cursor:pointer;" +
+        "display:flex;align-items:center;justify-content:center;" +
+        "background:rgba(17,24,39,.55);color:#fff;backdrop-filter:blur(2px);" +
+        "box-shadow:0 1px 4px rgba(0,0,0,.35);transition:background .12s ease;";
+      btn.onmouseenter = function () { btn.style.background = "#c42b1c"; };
+      btn.onmouseleave = function () { btn.style.background = "rgba(17,24,39,.55)"; };
+      btn.onclick = function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (window.mapskyLoginControls) window.mapskyLoginControls.close();
+      };
+      document.documentElement.appendChild(btn);
+    })();
+  `;
+  win.webContents.executeJavaScript(script).catch(() => {});
+}
+
 function openLoginWindow(parentWin, loginUrl) {
   const loginWin = new BrowserWindow({
     width: 480,
@@ -1017,6 +1083,7 @@ function openLoginWindow(parentWin, loginUrl) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, "preload-login.js"),
     },
   });
 
@@ -1027,6 +1094,12 @@ function openLoginWindow(parentWin, loginUrl) {
   loginWin.webContents.setUserAgent(CHROME_UA);
 
   loginWin.loadURL(loginUrl);
+
+  // 每次（重新）導覽完都要重插一次，不然換一頁（例如從 Google 選帳號頁跳到
+  // 二次驗證頁）就被洗掉了，跟主視窗自訂標題列的 injectTitleBar 是同一個
+  // 邏輯（見上方）。
+  loginWin.webContents.on("did-finish-load", () => injectLoginCloseButton(loginWin));
+  loginWin.webContents.on("did-navigate-in-page", () => injectLoginCloseButton(loginWin));
 
   let finished = false;
   const checkDone = (url) => {
@@ -1072,7 +1145,14 @@ function createWindow() {
     title: "MapSky",
     icon: APP_ICON_PATH,
     backgroundColor: "#0b1220",
-    frame: false, // 隱藏系統原生標題列，改用注入的自訂標題列（見 injectTitleBar）
+    // Mac 版：保留系統原生的紅黃綠三顆燈（縮小／放大／關閉），只隱藏原生
+    // 標題文字列，位置照 Apple 預設留白（trafficLightPosition）算，不要自己
+    // 畫假的三顆燈——長得再像终究不是原生控制項，行為（例如按住綠燈選單、
+    // 深色模式配色）也對不起來。Windows／Linux 維持原本 frame:false，繼續用
+    // 注入的自訂標題列（見 injectTitleBar）。
+    ...(process.platform === "darwin"
+      ? { titleBarStyle: "hidden", trafficLightPosition: { x: 12, y: 11 } }
+      : { frame: false }),
     // Windows 11 原生的 Mica 毛玻璃效果——讓標題列（跟整個視窗背景）透出桌面
     // 底色，是目前公認最「現代 Windows」的視窗質感，不是自己用 CSS 半透明去
     // 模擬的假毛玻璃。只有 Windows 11 22H2 以上才會真的生效，舊版 Windows
@@ -1162,6 +1242,15 @@ app.whenReady().then(() => {
       if (win.isMaximized()) win.unmaximize();
       else win.maximize();
     } else if (action === "close") win.close();
+  });
+
+  // 登入視窗右上角疊的那顆「✕」關閉鈕（見 injectLoginCloseButton）走的是
+  // 專屬、只做得到「關閉」這一件事的最小化橋接（preload-login.js），跟主視窗
+  // 縮放/關閉那組 IPC 分開，同樣用 event.sender 反查出「是哪一個視窗」送來的，
+  // 只會關掉登入視窗本身。
+  ipcMain.on("mapsky:login-window-close", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) win.close();
   });
 
   // 使用者在「.exe 有新版本」提示條按了「立即重新啟動安裝」，或倒數結束，
