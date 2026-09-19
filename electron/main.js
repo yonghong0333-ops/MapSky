@@ -26,6 +26,60 @@ const { autoUpdater } = require("electron-updater");
 const APP_URL = "https://mapskyapp.vercel.app/";
 const APP_ORIGIN = new URL(APP_URL).origin;
 
+// ------------------------------------------------------------------
+// 桌面版登入改走「系統瀏覽器 + 自訂網址協定」：
+//   1. 使用者點登入時，不在 Electron 視窗裡開 Google/GitHub/…的頁面
+//      （這種內嵌瀏覽器，Google 那幾家近年會直接判定「不安全」擋掉或降級，
+//      詳見 createWindow 裡 will-navigate 那段），改用系統瀏覽器（Safari／
+//      Chrome…）開，讓使用者在「真正的」瀏覽器裡完成整個登入流程。
+//   2. 伺服器（callback.js）登入完成後，不是直接把 session cookie 設在系統
+//      瀏覽器上（那樣桌面殼看不到），而是導去 mapsky://login-complete?xchg=
+//      一組短效、只能用一次的交換碼。
+//   3. 作業系統看到 mapsky:// 開頭的網址會呼叫（或喚醒）這支 App：
+//      macOS 用 open-url 事件；Windows/Linux 是把網址塞進新程序的啟動參數，
+//      這裡用單一實例鎖（requestSingleInstanceLock）擋掉「新開一個一樣的
+//      視窗」，改成把網址轉給「原本那個」實例處理。
+//   4. 收到交換碼後，拿去跟 /api/auth/exchange 換回真正的 session token，
+//      直接寫進桌面殼自己的 cookie，不用使用者做任何事，登入就完成了。
+const CUSTOM_PROTOCOL = "mapsky";
+
+// 開發模式下用 `electron .` 直接跑，執行檔是 Electron 本體，要多帶執行參數
+// 系統才知道「點 mapsky:// 連結」該重新呼叫的是「這個專案」；打包後的正式版
+// （.exe/.app 本身就是它自己）不用這段，直接註冊即可。
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(CUSTOM_PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient(CUSTOM_PROTOCOL);
+}
+
+// 目前這個模組作用域下「主視窗」的參考，給 handleAuthCallbackUrl 用來換完
+// token 之後知道要重新整理／喚醒哪一個視窗；createWindow() 裡會賦值。
+let mainWindow = null;
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  // 已經有一個實例在跑了，這個新開的直接結束，不要真的開出第二個視窗。
+  app.quit();
+} else {
+  app.on("second-instance", (_event, argv) => {
+    const urlArg = argv.find((a) => a.startsWith(`${CUSTOM_PROTOCOL}://`));
+    if (urlArg) handleAuthCallbackUrl(urlArg);
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
+
+// macOS 走這個事件，不是命令列參數。
+app.on("open-url", (event, urlStr) => {
+  event.preventDefault();
+  handleAuthCallbackUrl(urlStr);
+});
+
+
 // 視窗圖示：Windows 用 .ico，macOS 用 .icns（Linux 沒有專用格式，退回 .ico
 // 也能顯示）。macOS 上 Dock 圖示實際吃的是 app bundle 裡 Info.plist 指定的
 // build-icon.icns（package.json 的 build.mac.icon），這裡只影響視窗本身
@@ -982,9 +1036,10 @@ function watchForUpdates(win) {
 
 // 登入按鈕在網頁裡是普通的 <a href="/api/auth/login?provider=...">，不是
 // window.open 開新分頁，所以預設會直接在主視窗裡導覽過去、繞去 Google/GitHub/
-// …等登入頁，登入完再繞回來。這裡改成攔截這個連結，改用另一個獨立視窗跑完
-// 整個登入流程，主視窗全程留在 App 畫面上，跟大部分桌面 App「登入另開視窗」
-// 的體驗一致。
+// …等登入頁。這裡攔下來改開系統瀏覽器（見下面 openLoginInSystemBrowser），
+// 不要在 Electron 視窗裡顯示這些外部登入頁——Google 這幾年對「內嵌瀏覽器
+// 做 OAuth」的偵測不只看 User-Agent，用假冒的 UA 也不保證能繞過去，唯一
+// 真正可靠的做法就是讓使用者在他自己「真正的」系統瀏覽器裡完成登入。
 function isLoginUrl(urlStr) {
   try {
     const u = new URL(urlStr);
@@ -994,132 +1049,94 @@ function isLoginUrl(urlStr) {
   }
 }
 
-// 判斷「登入流程是不是跑完了」——OAuth 供應商登入完，伺服器 /api/auth/callback
-// 會先把 session cookie 寫好，再用 302 導回站內某個頁面（通常是首頁）。要用
-// 「導覽已經整個跑完、又落在自己網域上」當完成的訊號；不能只看「是不是回到
-// 自己網域」，因為登入視窗一開始載入的 /api/auth/login 本身就是自己網域，
-// 會誤判成一開始就登入完成。也不能鎖死只認 /api/auth/callback 這個路徑——
-// callback 本身通常只是個會再被伺服器 redirect 走的中繼站，並不會單獨產生
-// 一次「導覽完成」的事件，最後真正落地的網址其實是 redirect 之後的那一個。
-function isBackInAppAfterLogin(urlStr) {
+// 打開系統瀏覽器讓使用者登入，額外帶一個 desktop=1 標記給 /api/auth/login，
+// 讓伺服器知道「這次登入完成後要導回桌面殼」，而不是網頁版預設的
+// 「導回首頁、把 session cookie 設在目前這個瀏覽器上」（那樣 session 會停在
+// 系統瀏覽器裡，桌面殼看不到）。真正的登入頁面（Google/GitHub/…）完全沒有
+// 被改動，使用者看到的是貨真價實的瀏覽器分頁，不會有任何「不安全」的警告。
+function openLoginInSystemBrowser(loginUrl) {
   try {
-    const u = new URL(urlStr);
-    return u.origin === APP_ORIGIN && u.pathname !== "/api/auth/login";
+    const u = new URL(loginUrl);
+    u.searchParams.set("desktop", "1");
+    shell.openExternal(u.toString());
   } catch {
-    return false;
+    shell.openExternal(loginUrl);
   }
 }
 
-// 每個登入視窗都換成當時登入的那家公司 logo（跟網頁版登入按鈕用的圖是同一份），
-// 而不是整個都用 MapSky 自己的圖示，比較看得出來現在是在登入哪個帳號。
-const PROVIDER_ICON = {
-  google: "google.png",
-  facebook: "facebook.png",
-  microsoft: "microsoft.png",
-  discord: "discord.png",
-  github: "github.png",
-  yahoo: "yahoo.png",
-};
-
-function getProviderIconPath(urlStr) {
-  try {
-    const provider = new URL(urlStr).searchParams.get("provider");
-    const file = PROVIDER_ICON[provider];
-    return file ? path.join(__dirname, "icons", file) : APP_ICON_PATH;
-  } catch {
-    return APP_ICON_PATH;
-  }
-}
-
-// 登入視窗本身已經有系統原生的視窗框（Windows 標題列右上角、Mac 左上角三顆
-// 燈），理論上都能關；但登入流程會整段導覽到 Google/GitHub/…等外部網域好
-// 幾次（授權頁、二次驗證、選帳號…），畫面完全是對方的頁面，使用者有時會
-// 找不到／忘記原生關閉鈕在哪、或想中途放棄登入卻不敢亂點。這裡另外疊一顆
-// 固定在畫面右上角、不管導覽到哪一頁都會跟著重新出現的「✕」關閉鈕，讓使用者
-// 隨時都能明確地把整個登入視窗關掉，不用去找原生框。跟 preload.js 暴露的
-// window.mapskyWindowControls.close() 是同一套機制，main 行程那邊的
-// ipcMain.on("mapsky:window-control", ...) 已經是用 event.sender 反查是「哪一個」
-// 視窗送來的，所以在登入視窗裡呼叫會關到登入視窗本身，不會誤關到主視窗。
-function injectLoginCloseButton(win) {
-  if (win.isDestroyed()) return;
-  const script = `
-    (function () {
-      var OLD = document.getElementById("__mapsky_login_close__");
-      if (OLD) OLD.remove();
-
-      var btn = document.createElement("button");
-      btn.id = "__mapsky_login_close__";
-      btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-        'stroke-width="2.4" stroke-linecap="round"><line x1="4" y1="4" x2="20" y2="20"/><line x1="20" y1="4" x2="4" y2="20"/></svg>';
-      btn.title = "關閉登入視窗";
-      btn.style.cssText = "position:fixed;top:12px;right:12px;z-index:2147483647;" +
-        "width:30px;height:30px;border-radius:50%;border:none;padding:0;cursor:pointer;" +
-        "display:flex;align-items:center;justify-content:center;" +
-        "background:rgba(17,24,39,.55);color:#fff;backdrop-filter:blur(2px);" +
-        "box-shadow:0 1px 4px rgba(0,0,0,.35);transition:background .12s ease;";
-      btn.onmouseenter = function () { btn.style.background = "#c42b1c"; };
-      btn.onmouseleave = function () { btn.style.background = "rgba(17,24,39,.55)"; };
-      btn.onclick = function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (window.mapskyLoginControls) window.mapskyLoginControls.close();
-      };
-      document.documentElement.appendChild(btn);
-    })();
-  `;
-  win.webContents.executeJavaScript(script).catch(() => {});
-}
-
-function openLoginWindow(parentWin, loginUrl) {
-  const loginWin = new BrowserWindow({
-    width: 480,
-    height: 720,
-    parent: parentWin,
-    modal: true,
-    title: "登入 MapSky",
-    icon: getProviderIconPath(loginUrl),
-    autoHideMenuBar: true,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      preload: path.join(__dirname, "preload-login.js"),
-    },
+// 用 Electron 內建的 net 模組（跟 fetchVersionTag 同一套），拿短效交換碼
+// （mapsky://login-complete?xchg=... 帶過來的那個）去跟伺服器換回真正的
+// session token；換到之後才知道要不要、以及要用哪個 token 寫進本機 cookie。
+function fetchExchangeToken(xchg) {
+  return new Promise((resolve) => {
+    const request = net.request({
+      method: "GET",
+      url: `${APP_ORIGIN}/api/auth/exchange?xchg=${encodeURIComponent(xchg)}`,
+    });
+    let body = "";
+    request.on("response", (response) => {
+      response.on("data", (chunk) => {
+        body += chunk;
+      });
+      response.on("end", () => {
+        try {
+          resolve(JSON.parse(body));
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+    request.on("error", () => resolve(null));
+    request.end();
   });
+}
 
-  // Electron 視窗預設的 User-Agent 尾巴會帶一段「Electron/版本號」，Google 的
-  // OAuth 登入頁看到這種內嵌瀏覽器的 UA 會直接判定不安全，跳出閹割過的舊版
-  // 登入頁（甚至直接擋掉），不是給一般瀏覽器看的那個正常畫面。換成一般桌面版
-  // Chrome 的 UA，登入頁才會正常顯示成目前的樣子。
-  loginWin.webContents.setUserAgent(CHROME_UA);
+// 拿交換碼換到 session token 之後，直接寫進桌面殼自己（session.defaultSession）
+// 的 cookie 裡——跟 api/auth/callback.js 網頁版流程最後 Set-Cookie 的
+// nexora_session 是同一個名字、同一個值，網站前端的邏輯完全不用區分「這個
+// session 是網頁版登入的還是桌面版換回來的」，寫法一致。
+async function finishDesktopLogin(xchg) {
+  const data = await fetchExchangeToken(xchg);
+  if (!data || !data.token) {
+    console.error("桌面版登入交換失敗：", data && data.error);
+    return;
+  }
+  try {
+    await session.defaultSession.cookies.set({
+      url: APP_ORIGIN,
+      name: "nexora_session",
+      value: data.token,
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      expirationDate: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7,
+    });
+  } catch (e) {
+    console.error("寫入 session cookie 失敗：", e);
+    return;
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.reload();
+  }
+}
 
-  loginWin.loadURL(loginUrl);
-
-  // 每次（重新）導覽完都要重插一次，不然換一頁（例如從 Google 選帳號頁跳到
-  // 二次驗證頁）就被洗掉了，跟主視窗自訂標題列的 injectTitleBar 是同一個
-  // 邏輯（見上方）。
-  loginWin.webContents.on("did-finish-load", () => injectLoginCloseButton(loginWin));
-  loginWin.webContents.on("did-navigate-in-page", () => injectLoginCloseButton(loginWin));
-
-  let finished = false;
-  const checkDone = (url) => {
-    if (finished || !isBackInAppAfterLogin(url)) return;
-    finished = true;
-    loginWin.close();
-    if (!parentWin.isDestroyed()) parentWin.webContents.reload();
-  };
-
-  // 只用「導覽已經真正完成」的事件來判斷，不要用 will-navigate / will-redirect
-  // 這種「即將要導覽」的事件——那兩個事件觸發時，/api/auth/callback 的請求
-  // 根本都還沒送出去，伺服器也還沒把 session cookie 寫回來。舊版在那兩個
-  // 事件一偵測到「即將導向 callback」就馬上關掉登入視窗、重整主視窗，等於
-  // 常常在 cookie 真的寫進去之前就把視窗（連同還在飛的那個請求）一起砍掉，
-  // 這就是為什麼登入常常要按好幾次才會剛好跑贏這個 race condition 才成功。
-  // did-navigate（以及 SPA 導覽用的 did-navigate-in-page）保證是整個導覽
-  // ——包含伺服器端所有的 redirect——都跑完、頁面真的載入之後才觸發，這時候
-  // callback 的 Set-Cookie 已經確定生效，關視窗、重整主視窗才不會撲空。
-  loginWin.webContents.on("did-navigate", (_event, url) => checkDone(url));
-  loginWin.webContents.on("did-navigate-in-page", (_event, url) => checkDone(url));
+// 解析系統瀏覽器導回來的 mapsky://login-complete?xchg=... 網址，拿到交換碼
+// 就去換 session；網址格式不對、或沒帶 xchg 就安靜地忽略（例如使用者手動
+// 亂打一個 mapsky:// 開頭的網址）。
+function handleAuthCallbackUrl(urlStr) {
+  let parsed;
+  try {
+    parsed = new URL(urlStr);
+  } catch {
+    return;
+  }
+  if (parsed.protocol !== `${CUSTOM_PROTOCOL}:`) return;
+  const xchg = parsed.searchParams.get("xchg");
+  if (!xchg) return;
+  finishDesktopLogin(xchg);
 }
 
 function createWindow() {
@@ -1197,11 +1214,12 @@ function createWindow() {
   setupAutoUpdater(win);
 
   // 點「使用 OO 登入」時，不要讓主視窗整個導覽去 Google/GitHub 這些登入頁，
-  // 改開一個獨立的登入視窗去跑，主視窗全程留在 App 畫面。
+  // 也不要在 Electron 視窗裡開（見 openLoginInSystemBrowser 說明），改開
+  // 系統瀏覽器去跑。
   win.webContents.on("will-navigate", (event, url) => {
     if (isLoginUrl(url)) {
       event.preventDefault();
-      openLoginWindow(win, url);
+      openLoginInSystemBrowser(url);
     }
   });
 
@@ -1212,6 +1230,7 @@ function createWindow() {
     return { action: "deny" };
   });
 
+  mainWindow = win;
   return win;
 }
 
@@ -1244,15 +1263,6 @@ app.whenReady().then(() => {
     } else if (action === "close") win.close();
   });
 
-  // 登入視窗右上角疊的那顆「✕」關閉鈕（見 injectLoginCloseButton）走的是
-  // 專屬、只做得到「關閉」這一件事的最小化橋接（preload-login.js），跟主視窗
-  // 縮放/關閉那組 IPC 分開，同樣用 event.sender 反查出「是哪一個視窗」送來的，
-  // 只會關掉登入視窗本身。
-  ipcMain.on("mapsky:login-window-close", (event) => {
-    const win = BrowserWindow.fromWebContents(event.sender);
-    if (win) win.close();
-  });
-
   // 使用者在「.exe 有新版本」提示條按了「立即重新啟動安裝」，或倒數結束，
   // 頁面透過 preload 橋接送這個訊息過來，這裡才真的重啟＋安裝。
   ipcMain.on("mapsky:install-update", () => {
@@ -1274,6 +1284,13 @@ app.whenReady().then(() => {
   });
 
   createWindow();
+
+  // 冷啟動就是這支 App 還沒開、使用者在系統瀏覽器登入完成後，作業系統才
+  // 第一次真正啟動它（不是喚醒已經在跑的實例，那個走的是上面的
+  // second-instance／open-url）——這種情況網址會直接出現在這次啟動的
+  // process.argv 裡，這裡補抓一次，不然這種「App 本來沒開」的情況會漏接。
+  const initialUrlArg = process.argv.find((a) => a.startsWith(`${CUSTOM_PROTOCOL}://`));
+  if (initialUrlArg) handleAuthCallbackUrl(initialUrlArg);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
