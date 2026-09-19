@@ -14,6 +14,9 @@
   "dependencies": {
     "electron-updater": "^6.3.0"
   },
+  "optionalDependencies": {
+    "electron-liquid-glass": "1.1.1"
+  },
   "devDependencies": {
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3"
@@ -22,6 +25,10 @@
     "appId": "com.mapsky.weather.desktop",
     "productName": "MapSky",
     "asar": true,
+    "afterPack": "scripts/adhoc-sign.js",
+    "asarUnpack": [
+      "**/node_modules/electron-liquid-glass/prebuilds/**/*"
+    ],
     "files": [
       "main.js",
       "preload.js",
@@ -77,6 +84,7 @@
       "icon": "build-icon.icns",
       "category": "public.app-category.weather",
       "identity": null,
+      "x64ArchFiles": "**/electron-liquid-glass/prebuilds/**",
       "extendInfo": {
         "NSLocationWhenInUseUsageDescription": "MapSky 需要使用您的位置來顯示所在地的天氣資訊。",
         "NSLocationUsageDescription": "MapSky 需要使用您的位置來顯示所在地的天氣資訊。"
