@@ -62,6 +62,14 @@ if (process.defaultApp) {
 // token 之後知道要重新整理／喚醒哪一個視窗；createWindow() 裡會賦值。
 let mainWindow = null;
 
+// macOS 定位：Chromium 在 Mac 上預設不用系統的 CoreLocation，而是走 Google 的網路定位
+// 服務——Electron 沒有 Google API 金鑰，所以 navigator.geolocation 一定失敗（也因此
+// 「定位服務」清單裡的 MapSky 從來沒有用過定位）。開啟 MacCoreLocationBackend 讓它改用
+// macOS 系統定位，才會真的向系統要權限、拿到真正的座標。必須在 app ready 之前設定。
+if (process.platform === "darwin") {
+  app.commandLine.appendSwitch("enable-features", "MacCoreLocationBackend");
+}
+
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   // 已經有一個實例在跑了，這個新開的直接結束，不要真的開出第二個視窗。
