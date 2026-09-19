@@ -18,9 +18,10 @@
 // 沒有這個落差，登入流程跟網頁版一模一樣。
 // ------------------------------------------------------------------
 
-const { app, BrowserWindow, shell, session, screen, net, ipcMain } = require("electron");
+const { app, BrowserWindow, Menu, shell, session, screen, net, ipcMain, nativeTheme } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const { autoUpdater } = require("electron-updater");
 
 const APP_URL = "https://mapskyapp.vercel.app/";
@@ -94,6 +95,62 @@ const APP_ICON_PATH = path.join(
 
 // 自訂標題列的高度（隱藏系統原生框之後，這段空間由我們自己畫）。
 const TITLEBAR_HEIGHT = 36;
+
+// macOS「玻璃」外觀（跟 Apple 內建 App 一樣，側邊欄／標題列會透出桌面桌布的
+// 毛玻璃）。做法是三件事一起：
+//   1. 視窗加 vibrancy（系統的 NSVisualEffectView，毛玻璃本體由系統畫）。
+//   2. 視窗背景改透明，網頁 html/body 也改透明（見 MAC_GLASS_CSS），不然網頁
+//      自己的實色／照片底會把毛玻璃整片蓋住，什麼都透不出來。
+//   3. 側邊欄、標題列改半透明，讓毛玻璃在這兩塊露出來。
+// 只在 macOS 生效，Windows／Linux 不受影響。若在某台 Mac 上看起來怪怪的，
+// 用環境變數 MAPSKY_NO_GLASS=1 啟動就能整個關掉退回原本外觀。
+const USE_MAC_GLASS = process.platform === "darwin" && process.env.MAPSKY_NO_GLASS !== "1";
+// 標題列的天氣顏色疊在毛玻璃上的濃度：越低越透明、越接近 Apple 原生質感，但白色
+// 文字的對比會變差（尤其白天／下雪這種偏淺的底圖）；越高越像原本的實色標題列。
+const MAC_GLASS_TINT_OPACITY = 0.7;
+
+// macOS 26（Tahoe）以上可以用真正的 Liquid Glass（AppKit 的 NSGlassEffectView），
+// 質感跟 Apple 內建 App 一樣；Electron 本身沒有這個選項，是靠 electron-liquid-glass
+// 這個原生模組把玻璃視圖塞到視窗網頁內容的後面。以下任何一步失敗（不是 macOS 26+、
+// 模組載入不了、addView 失敗）都會退回上面的傳統 vibrancy 毛玻璃，不會壞掉。
+// 要強制只用傳統毛玻璃：MAPSKY_NO_LIQUID_GLASS=1。
+const LIQUID_GLASS_CORNER_RADIUS = 0; // 視窗圓角若跟玻璃對不上，調這個
+const LIQUID_GLASS_TINT = "#FFFFFF26"; // 白色 15% 淡色調，讓側邊欄深色文字比較好讀
+
+function getMacMajorVersion() {
+  try {
+    const v = parseInt(String(process.getSystemVersion()).split(".")[0], 10);
+    if (Number.isFinite(v) && v >= 11) return v;
+  } catch (_) { /* 往下走備援 */ }
+  // 備援：用 Darwin 版本推算（Darwin 20–24 = macOS 11–15，Darwin 25 起 = macOS 26 起）
+  const d = parseInt(os.release(), 10);
+  if (!Number.isFinite(d)) return 0;
+  return d >= 25 ? d + 1 : d - 9;
+}
+
+let liquidGlass = null;
+if (USE_MAC_GLASS && process.env.MAPSKY_NO_LIQUID_GLASS !== "1" && getMacMajorVersion() >= 26) {
+  try {
+    liquidGlass = require("electron-liquid-glass");
+  } catch (err) {
+    // 這個模組是 optionalDependencies、只在 macOS 才會裝，載入失敗就退回 vibrancy。
+    console.error("[liquid-glass] 載入失敗，改用傳統毛玻璃：", err && err.message ? err.message : err);
+  }
+}
+// 網站本身的 CSS 沒有為透明視窗設計過（body 有一張實色照片背景、側邊欄是實色），
+// 所以由外殼在 macOS 上補一份覆蓋樣式，不用改網站本體，網頁版完全不受影響。
+// 照片背景從 body 搬到 .main 並用 fixed 定位，視覺上跟原本鋪滿視窗時一致，
+// 只是側邊欄那一塊不再有照片墊底，露出來的是系統毛玻璃。
+const MAC_GLASS_CSS = `
+  html, body { background: transparent !important; background-image: none !important; }
+  .main {
+    background: url("/backgrounds/app-bg.jpg") center / cover no-repeat fixed;
+  }
+  .sidebar {
+    background: rgba(255, 255, 255, 0.22) !important;
+    border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
+  }
+`;
 
 // 多久檢查一次網站是不是有新版本。
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 分鐘
@@ -449,6 +506,8 @@ function injectTitleBar(win) {
       // 放大／關閉鈕；品牌名稱、天氣資訊、帳號那些內容改成整組靠右塞，
       // 留左邊那塊原生燈的位置空著。
       var IS_MAC = ${process.platform === "darwin" ? "true" : "false"};
+      var IS_GLASS = ${USE_MAC_GLASS ? "true" : "false"};
+      var GLASS_TINT_OPACITY = ${MAC_GLASS_TINT_OPACITY};
 
       // ---------- 共用 keyframes（雨滴/飄雪/閃爍星星/閃電/雲朵飄移）----------
       var styleTag = document.createElement("style");
@@ -472,6 +531,17 @@ function injectTitleBar(win) {
         "font:13px 'Segoe UI Variable','Segoe UI',-apple-system,sans-serif;" +
         "border-bottom:1px solid rgba(255,255,255,.12);transition:background 1.2s ease;" +
         "background:linear-gradient(120deg,rgba(59,130,246,.55) 0%,rgba(99,102,241,.55) 100%);";
+
+      // macOS 玻璃模式：標題列本身不畫實色底，改用一層半透明的天氣色疊在系統
+      // 毛玻璃（視窗的 vibrancy）上面，桌面桌布才透得出來。
+      var tint = null;
+      if (IS_GLASS) {
+        tint = document.createElement("div");
+        tint.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:0;" +
+          "opacity:" + GLASS_TINT_OPACITY + ";transition:background 1.2s ease;";
+        bar.appendChild(tint);
+        bar.style.background = "transparent";
+      }
 
       // 插畫層（太陽/月亮星空/雲/雨滴/雪花…），純裝飾、不接收滑鼠事件。
       var bgArt = document.createElement("div");
@@ -987,7 +1057,8 @@ function injectTitleBar(win) {
 
       function applyTheme(key, detected) {
         var theme = THEMES[key];
-        bar.style.background = theme.bg;
+        if (tint) tint.style.background = theme.bg;
+        else bar.style.background = theme.bg;
         bgArtInner.innerHTML = theme.art;
         if (wicon) wicon.innerHTML = theme.icon;
         // 真正定位查到的地址優先；查不到之前，先用掃描頁面猜到的地名頂著。
@@ -1142,6 +1213,108 @@ function handleAuthCallbackUrl(urlStr) {
   finishDesktopLogin(xchg);
 }
 
+// macOS 玻璃模式的覆蓋樣式（見 MAC_GLASS_CSS 說明）。頁面每次（重新）載入
+// 都要重插一次，跟標題列一樣。
+function injectMacGlassCSS(win) {
+  if (!USE_MAC_GLASS || win.isDestroyed()) return;
+  win.webContents.insertCSS(MAC_GLASS_CSS).catch(() => {});
+}
+
+// 把 Liquid Glass 玻璃視圖塞進視窗（放在網頁內容後面，網頁透明的地方就是玻璃）。
+// 失敗（addView 丟例外或回傳 -1，例如原生模組沒載入成功）就改用傳統 vibrancy。
+function applyLiquidGlass(win) {
+  if (!liquidGlass || win.isDestroyed()) return;
+  let id = -1;
+  try {
+    win.setWindowButtonVisibility(true); // 套用玻璃後要重新確保原生三顆燈還在
+    id = liquidGlass.addView(win.getNativeWindowHandle(), {
+      cornerRadius: LIQUID_GLASS_CORNER_RADIUS,
+      tintColor: LIQUID_GLASS_TINT,
+    });
+  } catch (err) {
+    console.error("[liquid-glass] addView 失敗：", err && err.message ? err.message : err);
+  }
+  if (id < 0) {
+    console.error("[liquid-glass] 沒有成功套用，退回傳統毛玻璃");
+    try {
+      win.setVibrancy("sidebar");
+    } catch (_) { /* 舊系統或視窗已關閉，忽略 */ }
+  }
+}
+
+// macOS 上方選單列（MapSky／檔案／編輯…）。Electron 預設選單是英文，這裡整份換成
+// 繁體中文，用詞照 Apple 在繁體中文 macOS 上的慣例（拷貝、顯示方式、輔助說明…）。
+// 每個項目都用 role 保留系統行為（快捷鍵、複製貼上、結束、全螢幕等），label 只是
+// 換顯示文字。只在 macOS 套用：Windows／Linux 是無框視窗，看不到選單列，維持原樣。
+function setupMacMenu() {
+  if (process.platform !== "darwin") return;
+  const name = app.name || "MapSky";
+  const template = [
+    {
+      label: name,
+      submenu: [
+        { role: "about", label: `關於 ${name}` },
+        { type: "separator" },
+        { role: "services", label: "服務" },
+        { type: "separator" },
+        { role: "hide", label: `隱藏 ${name}` },
+        { role: "hideOthers", label: "隱藏其他" },
+        { role: "unhide", label: "全部顯示" },
+        { type: "separator" },
+        { role: "quit", label: `結束 ${name}` },
+      ],
+    },
+    {
+      label: "檔案",
+      submenu: [{ role: "close", label: "關閉視窗" }],
+    },
+    {
+      label: "編輯",
+      submenu: [
+        { role: "undo", label: "還原" },
+        { role: "redo", label: "重做" },
+        { type: "separator" },
+        { role: "cut", label: "剪下" },
+        { role: "copy", label: "拷貝" },
+        { role: "paste", label: "貼上" },
+        { role: "pasteAndMatchStyle", label: "貼上並符合樣式" },
+        { role: "delete", label: "刪除" },
+        { role: "selectAll", label: "全選" },
+      ],
+    },
+    {
+      label: "顯示方式",
+      submenu: [
+        { role: "reload", label: "重新載入" },
+        { role: "forceReload", label: "強制重新載入" },
+        { role: "toggleDevTools", label: "開發人員工具" },
+        { type: "separator" },
+        { role: "resetZoom", label: "實際大小" },
+        { role: "zoomIn", label: "放大" },
+        { role: "zoomOut", label: "縮小" },
+        { type: "separator" },
+        { role: "togglefullscreen", label: "切換全螢幕" },
+      ],
+    },
+    {
+      label: "視窗",
+      role: "window",
+      submenu: [
+        { role: "minimize", label: "最小化" },
+        { role: "zoom", label: "縮放" },
+        { type: "separator" },
+        { role: "front", label: "前置全部視窗" },
+      ],
+    },
+    {
+      label: "輔助說明",
+      role: "help",
+      submenu: [{ label: `${name} 網站`, click: () => shell.openExternal(APP_URL) }],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 function createWindow() {
   // 依照使用者螢幕解析度算一個合理的視窗大小（小筆電開小一點、大螢幕開大一點），
   // 而不是寫死固定尺寸。
@@ -1152,6 +1325,10 @@ function createWindow() {
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
   const winWidth = Math.min(Math.max(Math.round(screenWidth * 0.65), 960), 1600);
   const winHeight = Math.min(Math.max(Math.round(screenHeight * 0.85), 640), 1000);
+
+  // 網站沒有深色模式，側邊欄文字是為淺色底設計的。強制淺色外觀，避免使用者的
+  // Mac 開深色模式時，毛玻璃變成深色、深色文字整片看不見。
+  if (USE_MAC_GLASS) nativeTheme.themeSource = "light";
 
   const win = new BrowserWindow({
     // MapSky 網頁版自己會用 `matchMedia("(min-width: 901px)")` 判斷是不是「桌面」，
@@ -1173,6 +1350,22 @@ function createWindow() {
     ...(process.platform === "darwin"
       ? { titleBarStyle: "hidden", trafficLightPosition: { x: 12, y: 11 } }
       : { frame: false }),
+    // macOS 玻璃：vibrancy 是系統毛玻璃；要讓它透出來，視窗跟網頁背景都得是透明的
+    // （官方文件：backgroundColor 的 alpha 只有在 transparent: true 時才有效）。
+    // visualEffectState 用預設的 followWindow，視窗失焦時跟 Apple 內建 App 一樣
+    // 會退成灰色。
+    // Liquid Glass 模式：玻璃視圖是載入完成後由 addView 塞進去的，而且不能同時設
+    // vibrancy（會蓋掉 Liquid Glass、變得模糊），所以這裡只給透明視窗。
+    ...(USE_MAC_GLASS && liquidGlass
+      ? { transparent: true, backgroundColor: "#00000000" }
+      : USE_MAC_GLASS
+        ? {
+            vibrancy: "sidebar",
+            visualEffectState: "followWindow",
+            transparent: true,
+            backgroundColor: "#00000000",
+          }
+        : {}),
     // Windows 11 原生的 Mica 毛玻璃效果——讓標題列（跟整個視窗背景）透出桌面
     // 底色，是目前公認最「現代 Windows」的視窗質感，不是自己用 CSS 半透明去
     // 模擬的假毛玻璃。只有 Windows 11 22H2 以上才會真的生效，舊版 Windows
@@ -1198,7 +1391,14 @@ function createWindow() {
 
   // 自訂標題列的 DOM 是注入進去的，每次頁面（重新）載入完都要重插一次，
   // 不然 reload/導覽一次就被洗掉了。
-  win.webContents.on("did-finish-load", () => injectTitleBar(win));
+  win.webContents.on("did-finish-load", () => {
+    injectTitleBar(win);
+    injectMacGlassCSS(win);
+  });
+  // Liquid Glass 只要套一次（原生視圖會一直留在視窗上，重新整理網頁不會掉）。
+  if (USE_MAC_GLASS && liquidGlass) {
+    win.webContents.once("did-finish-load", () => applyLiquidGlass(win));
+  }
 
   // 安裝後第一次打開才跳「感謝安裝」歡迎卡片，只跳這一次，跟標題列分開注入
   // （標題列每次載入都要重插，這個只在真正第一次打開時插一次就好）。
@@ -1286,6 +1486,7 @@ app.whenReady().then(() => {
     autoUpdater.checkForUpdates().catch(() => {});
   });
 
+  setupMacMenu();
   createWindow();
 
   // 冷啟動就是這支 App 還沒開、使用者在系統瀏覽器登入完成後，作業系統才

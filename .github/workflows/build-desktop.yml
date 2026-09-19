@@ -23,12 +23,16 @@
 #                    （刻意排順序、不平行跑，避免兩個 job 同時搶著建立同一個
 #                    Release 造成衝突）。
 #   build-mac    —— 編出 .dmg/.zip，上傳到 build-win 剛剛建好的同一個 Release。
-#                    未申請 Apple Developer Program（沒有簽章憑證），所以是
-#                    未簽章版本：使用者第一次打開會被 Gatekeeper 擋，需要右鍵
-#                    「打開」或執行 `xattr -cr`；也因為沒簽章，macOS 上的
-#                    自動更新（electron-updater／Squirrel.Mac）可能無法正常
-#                    完成安裝，之後如果要解決，需要加入 Apple Developer
-#                    Program（年費 US$99）做簽章＋公證。
+#                    未申請 Apple Developer Program（沒有簽章憑證），所以用
+#                    ad-hoc 自簽（electron/scripts/adhoc-sign.js，在 afterPack
+#                    對最終的 universal .app 跑 codesign --sign -）。自簽只是讓
+#                    整包 .app 有一份有效簽章，避免 Apple Silicon 顯示「已損毀」；
+#                    Gatekeeper 還是會擋，使用者第一次打開要到「系統設定 →
+#                    隱私權與安全性 → 仍要打開」放行，或執行 `xattr -cr`。
+#                    ad-hoc 簽章每次建置的身分都不一樣，所以 macOS 上的自動更新
+#                    （electron-updater／Squirrel.Mac）仍可能無法正常完成安裝；
+#                    要根治需要加入 Apple Developer Program（年費 US$99）做
+#                    Developer ID 簽章＋公證。
 #   commit-version —— 等兩個平台都建完才把版號更新後的 package.json 一次
 #                    commit 回去，不要讓兩個平台各自 commit 互相衝突。
 name: Build & Publish Desktop
@@ -124,14 +128,15 @@ jobs:
       - name: 套用版本號到 package.json（只在建置時套用，不 commit）
         run: npm version ${{ needs.version.outputs.version }} --no-git-tag-version --allow-same-version
 
-      - name: Build 並發佈到 GitHub Releases（未簽章）
+      - name: Build 並發佈到 GitHub Releases（ad-hoc 自簽）
         run: npm run publish:mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 沒有 Apple Developer Program 憑證，明確告訴 electron-builder 不要
           # 嘗試去找簽章身分（不設的話，遇到本機剛好有殘留憑證會誤觸發簽章，
           # 反而建置失敗）。package.json 裡 build.mac.identity 已經設 null，
-          # 這裡是雙重保險。
+          # 這裡是雙重保險。ad-hoc 自簽不走 electron-builder 的簽章流程，
+          # 是由 build.afterPack 指到的 scripts/adhoc-sign.js 自己呼叫 codesign。
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
   commit-version:
