@@ -72,6 +72,11 @@
       "source": "/downloads/MapSky_Installbox.dmg",
       "destination": "https://github.com/yonghong0333-ops/MapSky/releases/download/downloads-mac-installer/MapSky_Installbox.dmg",
       "permanent": false
+    },
+    {
+      "source": "/downloads/MapSky_Installbox.exe",
+      "destination": "https://github.com/yonghong0333-ops/MapSky/releases/download/desktop-v1.0.0/MapSky_Installbox.exe",
+      "permanent": false
     }
   ]
 }
