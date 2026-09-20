@@ -273,6 +273,10 @@
     const hideSettingsTab = () => {
       const btn = document.querySelector('.tabs .tab-btn[data-tab="settings"]');
       if (btn) btn.classList.add("hidden");
+      // 桌面版的導覽已經改由標題列右上角大頭貼選單處理，整條頂部分頁列直接藏起來。
+      // 按鈕還留在 DOM 裡（選單、工具頁都是去 click 它們），只是不顯示。
+      const tabsNav = document.querySelector("nav.tabs");
+      if (tabsNav) tabsNav.style.display = "none";
     };
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", hideSettingsTab);
     else hideSettingsTab();
