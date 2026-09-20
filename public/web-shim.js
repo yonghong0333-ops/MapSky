@@ -349,6 +349,32 @@
     };
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupSidebarToggle);
     else setupSidebarToggle();
+
+    // 桌面版：點標題列左邊的「MapSky」logo 回首頁（未來 36 小時預報）。標題列是外殼
+    // （electron/main.js）在網頁載入後才動態插進來的，所以要等它出現再綁；整條標題列
+    // 又是視窗拖曳區，logo 這塊要設成 no-drag 才點得到。
+    const setupBrandHome = () => {
+      let observer = null;
+      const bind = () => {
+        const info = document.getElementById("__mapsky_weather_info__");
+        const brand = info ? info.previousElementSibling : null;
+        if (!brand) return;
+        if (observer) observer.disconnect();
+        if (brand.dataset.homeBound === "1") return;
+        brand.dataset.homeBound = "1";
+        brand.style.setProperty("-webkit-app-region", "no-drag");
+        brand.style.cursor = "pointer";
+        brand.title = "回首頁（未來 36 小時預報）";
+        brand.addEventListener("click", () => {
+          const home = document.querySelector('.tab-btn[data-tab="forecast"]');
+          if (home) home.click();
+        });
+      };
+      observer = new MutationObserver(bind);
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+      bind();
+    };
+    setupBrandHome();
   }
 
   // 把選好的圖片縮小成正方形小圖再轉成 base64，不然直接把原圖傳上去
