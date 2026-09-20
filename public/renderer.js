@@ -1168,6 +1168,10 @@ async function loadUvIndex(label) {
     const uv = uvIndexCache[label];
     if (!uv || uv.uvIndex === undefined || uv.uvIndex === null) return;
     valueEl.textContent = `${uv.uvIndex}（${uv.level}）`;
+    // 這個縣市自己沒有即時紫外線時，是借用最近測站的數值：滑鼠移上去會說明來源。
+    valueEl.title = uv.nearest
+      ? `此縣市沒有即時紫外線測站，取自最近的測站：${uv.stationName}（${uv.fromCounty}），約 ${uv.distanceKm} 公里`
+      : (uv.stationName ? `${uv.stationName}測站` : "");
     valueEl.style.color = uvIndexGradientColor(uv.uvIndex);
     valueEl.classList.remove("current-stat-empty");
   } catch (e) {

@@ -684,10 +684,43 @@ function parseUvValue(v) {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+// 各縣市的參考點（縣府所在地附近，WGS84）。某縣市自己沒有即時紫外線時，用它去找最近的測站。
+const COUNTY_CENTER = {
+  "臺北市": [25.0330, 121.5654], "新北市": [25.0120, 121.4650], "桃園市": [24.9937, 121.3010],
+  "臺中市": [24.1477, 120.6736], "臺南市": [22.9997, 120.2270], "高雄市": [22.6273, 120.3014],
+  "基隆市": [25.1276, 121.7392], "新竹市": [24.8138, 120.9675], "新竹縣": [24.8387, 121.0177],
+  "苗栗縣": [24.5602, 120.8214], "彰化縣": [24.0518, 120.5161], "南投縣": [23.9157, 120.6639],
+  "雲林縣": [23.7092, 120.4313], "嘉義市": [23.4801, 120.4491], "嘉義縣": [23.4518, 120.2555],
+  "屏東縣": [22.5519, 120.5487], "宜蘭縣": [24.7021, 121.7378], "花蓮縣": [23.9871, 121.6015],
+  "臺東縣": [22.7583, 121.1444], "澎湖縣": [23.5711, 119.5793], "金門縣": [24.4493, 118.3767],
+  "連江縣": [26.1608, 119.9517],
+};
+
+// 找最近測站的距離上限：太遠的測站（例如離島找到本島）數值沒有參考價值，寧可顯示「暫無資料」。
+const UV_NEAREST_MAX_KM = 100;
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const rad = (d) => (d * Math.PI) / 180;
+  const dLat = rad(lat2 - lat1);
+  const dLon = rad(lon2 - lon1);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(h));
+}
+
+// GeoInfo.Coordinates 會同時給 TWD67 和 WGS84 兩組，取 WGS84（沒有就取第一組）。
+function stationLatLon(s) {
+  const list = (s.GeoInfo && s.GeoInfo.Coordinates) || [];
+  const c = list.find((x) => x && x.CoordinateName === "WGS84") || list[0];
+  if (!c) return null;
+  const lat = parseFloat(c.StationLatitude);
+  const lon = parseFloat(c.StationLongitude);
+  return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
+}
+
 async function getUvIndexObservation({ forceRefresh = false } = {}) {
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false, reason: "no-api-key" };
-  const cacheKey = "uv-index-realtime";
+  const cacheKey = "uv-index-realtime-v2";
   if (!forceRefresh) {
     const cached = readCache(cacheKey);
     if (cached) return { ok: true, ...cached, cached: true };
@@ -703,21 +736,22 @@ async function getUvIndexObservation({ forceRefresh = false } = {}) {
 
   const stations = (data.records && data.records.Station) || [];
   const byCounty = {};
+  const withUv = []; // 所有「有即時紫外線數值」的測站（找最近測站時的候選）
+  const countyStationPoints = {}; // 每個縣市自己的測站座標（縣市不在 COUNTY_CENTER 時當參考點）
   let latestObs = null;
+  const noteObs = (t) => { if (t && (!latestObs || t > latestObs)) latestObs = t; };
+
   for (const s of stations) {
     const county = s.GeoInfo && s.GeoInfo.CountyName;
     if (!county) continue;
+    const pos = stationLatLon(s);
+    if (pos) (countyStationPoints[county] = countyStationPoints[county] || []).push(pos);
+
     const uv = parseUvValue(s.WeatherElement && s.WeatherElement.UVIndex);
     if (uv === null) continue; // 這個測站沒有紫外線儀器、儀器故障或缺值
     const isOfficial = /^\d{6}$/.test(s.StationId || "");
-    const existing = byCounty[county];
-    if (existing) {
-      // 同一縣市有多個測站：正式站優先；同等級取數值較高的（保守，寧可提醒多一點）。
-      const keepExisting = existing.isOfficial && !isOfficial ? true : !existing.isOfficial && isOfficial ? false : existing.uvIndex >= uv;
-      if (keepExisting) continue;
-    }
     const observedAt = (s.ObsTime && s.ObsTime.DateTime) || null;
-    byCounty[county] = {
+    const entry = {
       uvIndex: uv,
       level: uvIndexLevel(uv),
       stationName: s.StationName,
@@ -725,7 +759,41 @@ async function getUvIndexObservation({ forceRefresh = false } = {}) {
       isOfficial,
       observedAt,
     };
-    if (observedAt && (!latestObs || observedAt > latestObs)) latestObs = observedAt;
+    if (pos) withUv.push({ county, pos, entry });
+
+    const existing = byCounty[county];
+    if (existing) {
+      // 同一縣市有多個測站：正式站優先；同等級取數值較高的（保守，寧可提醒多一點）。
+      const keepExisting = existing.isOfficial && !isOfficial ? true : !existing.isOfficial && isOfficial ? false : existing.uvIndex >= uv;
+      if (keepExisting) continue;
+    }
+    byCounty[county] = entry;
+    noteObs(observedAt);
+  }
+
+  // 自己縣市沒有即時紫外線的（沒有儀器、故障、缺值），改用「離縣市參考點最近、而且有數值」的測站。
+  for (const county of CWA_CITIES) {
+    if (byCounty[county]) continue;
+    let ref = null;
+    if (COUNTY_CENTER[county]) {
+      ref = { lat: COUNTY_CENTER[county][0], lon: COUNTY_CENTER[county][1] };
+    } else if (countyStationPoints[county] && countyStationPoints[county].length) {
+      const pts = countyStationPoints[county];
+      ref = { lat: pts.reduce((a, p) => a + p.lat, 0) / pts.length, lon: pts.reduce((a, p) => a + p.lon, 0) / pts.length };
+    }
+    if (!ref) continue;
+    let best = null;
+    for (const c of withUv) {
+      const d = haversineKm(ref.lat, ref.lon, c.pos.lat, c.pos.lon);
+      if (!best || d < best.d) best = { d, c };
+    }
+    if (!best || best.d > UV_NEAREST_MAX_KM) continue;
+    byCounty[county] = Object.assign({}, best.c.entry, {
+      nearest: true, // 這個縣市自己沒有數值，是借用鄰近測站的
+      fromCounty: best.c.county,
+      distanceKm: Math.round(best.d),
+    });
+    noteObs(best.c.entry.observedAt);
   }
 
   const payload = {
