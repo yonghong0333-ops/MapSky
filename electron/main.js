@@ -1161,15 +1161,34 @@ function injectTitleBar(win) {
       // 外殼改用 IP 概略定位，所以登入畫面、沒給定位權限時標題列也不會是空的。
       var shellWeather = null;
 
-      function lookupShell(coords) {
+      // 上次「真正」定位成功的座標：系統定位這次拿不到時（授權還沒過、逾時…），標題列改顯示
+      // 這個位置，而不是用網路 IP 亂猜（IP 在台灣常常判成台北，跟實際所在地不一樣）。
+      var LAST_LOC_KEY = "mapsky_last_location";
+      function loadLastLocation() {
+        try {
+          var v = JSON.parse(localStorage.getItem(LAST_LOC_KEY) || "null");
+          if (v && isFinite(v.lat) && isFinite(v.lon)) return v;
+        } catch (e) {}
+        return null;
+      }
+      function saveLastLocation(lat, lon) {
+        try { localStorage.setItem(LAST_LOC_KEY, JSON.stringify({ lat: lat, lon: lon })); } catch (e) {}
+      }
+
+      // source："gps" = 這次系統定位成功；"last" = 用上次定位成功的座標；"ip" = 沒有任何紀錄才用網路概略位置
+      function lookupShell(coords, source) {
         if (!window.mapskyLocation || !window.mapskyLocation.lookup) return;
         window.mapskyLocation.lookup(coords).then(function (r) {
           if (!r) return;
+          if (source === "gps" && coords) saveLastLocation(coords.lat, coords.lon);
           if (r.place) {
             realLocationLabel = r.place;
             if (wcity) {
               wcity.textContent = r.place;
-              wcity.title = r.approx ? r.place + "（依網路位置概略判斷）" : r.place;
+              wcity.title =
+                source === "last" ? r.place + "（系統定位尚未取得，先顯示上次定位的位置）"
+                : source === "ip" ? r.place + "（依網路位置概略判斷，可能不準）"
+                : r.place;
             }
           }
           if (r.temp !== null && r.temp !== undefined) shellWeather = r;
@@ -1178,24 +1197,33 @@ function injectTitleBar(win) {
       }
 
       // macOS 上使用者還在看系統的定位權限視窗時，這個請求會一直等著（等待時間由 preload
-      // 拉長），按下允許後才有座標；只有真的失敗（不允許／系統定位關閉）才改用 IP 概略定位。
+      // 拉長），按下允許後才有座標；只有真的失敗（不允許／系統定位關閉）才退回備援。
       var geoPending = false;
       var geoFailedAt = 0;
 
+      function fallbackLocation() {
+        var last = loadLastLocation();
+        if (last) lookupShell({ lat: last.lat, lon: last.lon }, "last");
+        else lookupShell(null, "ip");
+      }
+
       function detectRealLocation() {
         if (geoPending) return; // 上一次還在等使用者回答，不要重複發請求
-        if (!navigator.geolocation) { lookupShell(null); return; }
+        if (!navigator.geolocation) { fallbackLocation(); return; }
         geoPending = true;
+        // 等系統回答的這段時間，先顯示上次定位的位置（沒有紀錄就先不顯示，不亂猜）。
+        var earlyLast = loadLastLocation();
+        if (earlyLast) lookupShell({ lat: earlyLast.lat, lon: earlyLast.lon }, "last");
         navigator.geolocation.getCurrentPosition(
           function (pos) {
             geoPending = false;
             geoFailedAt = 0;
-            lookupShell({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+            lookupShell({ lat: pos.coords.latitude, lon: pos.coords.longitude }, "gps");
           },
           function () {
             geoPending = false;
             geoFailedAt = Date.now();
-            lookupShell(null);
+            fallbackLocation();
           },
           { enableHighAccuracy: false, maximumAge: 10 * 60 * 1000, timeout: 8000 }
         );
