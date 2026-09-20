@@ -180,8 +180,10 @@
       </header>
 
       <nav class="tabs">
-        <button class="tab-btn active" data-tab="forecast">未來 36 小時預報</button>
-        <button class="tab-btn" data-tab="alerts">⚠️ 警特報<span id="alertTabBadge" class="alert-tab-badge hidden">0</span></button>
+        <button class="tab-btn active" data-tab="forecast" title="未來 36 小時預報">首頁</button>
+        <!-- 警特報分頁預設藏起來，renderer.js 的 renderAlertsBadge() 確認「目前有生效中的
+             警特報」才會拿掉 hidden；沒有警特報時整顆按鈕不出現。 -->
+        <button class="tab-btn hidden" data-tab="alerts">⚠️ 警特報<span id="alertTabBadge" class="alert-tab-badge hidden">0</span></button>
         <button class="tab-btn" id="toolsTabBtn" data-tab="tools">🧰 工具</button>
         <button class="tab-btn" data-tab="settings">⚙️ 設定</button>
         <!-- 後台管理只有 ADMIN_IDS 白名單帳號才看得到，預設隱藏，登入後由
@@ -941,7 +943,7 @@
             <button class="tools-menu-item" data-tab="compare"><span class="tool-icon">🏙️</span><span class="tool-label">多城市比較</span></button>
             <button class="tools-menu-item" data-tab="map"><span class="tool-icon">🗺️</span><span class="tool-label">地圖選點</span></button>
             <button class="tools-menu-item" data-tab="typhoon"><span class="tool-icon">🌀</span><span class="tool-label">颱風</span></button>
-            <button class="tools-menu-item" data-tab="alerts"><span class="tool-icon">⚠️</span><span class="tool-label">警特報</span><span id="toolsAlertBadge" class="alert-tab-badge hidden">0</span></button>
+            <button class="tools-menu-item hidden" data-tab="alerts"><span class="tool-icon">⚠️</span><span class="tool-label">警特報</span><span id="toolsAlertBadge" class="alert-tab-badge hidden">0</span></button>
           </div>
         </div>
       </section>

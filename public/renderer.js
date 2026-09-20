@@ -2173,6 +2173,20 @@ function renderAlertsBadge(alerts) {
   const banner = el("alertBanner");
   const bannerText = el("alertBannerText");
   const bottomNavWarningBtn = document.querySelector('.bottom-nav-btn[data-bottom="typhoon"]');
+  // 頂部導覽列的「警特報」分頁、工具選單裡的「警特報」項目：有生效中的警特報才出現。
+  const alertsTabBtn = document.querySelector('.tabs .tab-btn[data-tab="alerts"]');
+  const toolsAlertItem = document.querySelector('.tools-menu-item[data-tab="alerts"]');
+  [alertsTabBtn, toolsAlertItem].forEach((node) => {
+    if (node) node.classList.toggle("hidden", activeCount === 0);
+  });
+  // 使用者當下正停在警特報分頁、警特報卻剛好解除：切回首頁，不要停在入口已經消失的分頁。
+  if (activeCount === 0) {
+    const alertsPanel = el("alertsPanel");
+    if (alertsPanel && alertsPanel.classList.contains("active")) {
+      const homeBtn = document.querySelector('.tab-btn[data-tab="forecast"]');
+      if (homeBtn) homeBtn.click();
+    }
+  }
 
   if (activeCount > 0) {
     badge.textContent = String(activeCount);

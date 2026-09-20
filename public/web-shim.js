@@ -266,6 +266,18 @@
   }
   window.applySettingsAvatarIcon = applySettingsAvatarIcon;
 
+  // 桌面版：頂部導覽列只留「首頁／警特報／工具／後台管理」。設定的入口改成標題列右上角
+  // 的大頭貼（桌面殼會去點這顆 .tab-btn[data-tab="settings"]，所以按鈕留在 DOM 只是藏
+  // 起來）。純網頁瀏覽器沒有那顆大頭貼，所以網頁版仍然照舊顯示「設定」分頁。
+  if (window.mapskyWindowControls) {
+    const hideSettingsTab = () => {
+      const btn = document.querySelector('.tabs .tab-btn[data-tab="settings"]');
+      if (btn) btn.classList.add("hidden");
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", hideSettingsTab);
+    else hideSettingsTab();
+  }
+
   // 把選好的圖片縮小成正方形小圖再轉成 base64，不然直接把原圖傳上去
   // 存進 Redis 很容易一張圖就好幾 MB，這裡統一縮到最長邊 160px、JPEG 壓縮。
   function resizeImageFile(file, maxSize = 160, quality = 0.8) {

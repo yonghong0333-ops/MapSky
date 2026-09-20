@@ -2496,6 +2496,7 @@ button:hover { background: var(--accent-hover); }
    底部導覽列，都是靠 .tab-btn[data-tab="..."] 這個選擇器去找到對應按鈕再
    幫它點一下，藏起來但留著元素，這些地方才點得動。 */
 .tabs .tab-btn.hidden { display: none; }
+.tools-menu-item.hidden { display: none; }
 
 .admin-card-hint {
   font-size: 12px;
