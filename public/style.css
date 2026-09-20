@@ -2442,6 +2442,49 @@ button:hover { background: var(--accent-hover); }
   color: var(--text-muted);
 }
 .desktop-app-gate-perks.hidden { display: none; }
+.desktop-app-gate-mac-cmd {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--card-border);
+}
+.desktop-app-gate-mac-cmd.hidden { display: none; }
+.desktop-app-gate-mac-cmd-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.desktop-app-gate-mac-cmd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.desktop-app-gate-mac-cmd-row code {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--card-bg);
+  border: 1px solid var(--input-border);
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--text-main);
+}
+.desktop-app-gate-mac-cmd-copy-btn {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--input-border);
+  background: var(--card-bg);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.desktop-app-gate-mac-cmd-copy-btn:hover { border-color: var(--accent); background: #eef3ff; }
+.desktop-app-gate-mac-cmd-copy-btn:disabled { opacity: 0.6; cursor: default; }
 
 /* ---- 後台管理 ---- */
 .admin-status-empty { color: var(--text-muted); font-size: 14px; }
