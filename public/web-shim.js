@@ -295,6 +295,10 @@
   // 的大頭貼（桌面殼會去點這顆 .tab-btn[data-tab="settings"]，所以按鈕留在 DOM 只是藏
   // 起來）。純網頁瀏覽器沒有那顆大頭貼，所以網頁版仍然照舊顯示「設定」分頁。
   if (window.mapskyWindowControls) {
+    // 桌面殼在最上方自己畫了一條 36px 的標題列（網頁被 html margin-top 往下推）。固定定位的
+    // 全螢幕元素（例如颱風警報畫面）不會跟著被推下去，所以把這個高度告訴 CSS，讓它們避開標題列。
+    document.documentElement.style.setProperty("--mapsky-titlebar-h", "36px");
+
     // 桌面版：系統定位最多等 20 秒。外殼（electron/preload.js）為了讓使用者有時間按授權視窗的
     // 「允許」，把等待上限拉到 10 分鐘；但系統一直沒回應時（例如授權沒對上這一版），
     // 標題列和側邊欄就會卡上 10 分鐘。這裡在外面再包一層：超過 20 秒沒答覆就當逾時（code 3），
