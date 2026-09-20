@@ -313,11 +313,34 @@ async function autoLocateDesktop() {
   setStatus("正在讀取系統定位…");
   // 系統定位（尤其開機後第一次、或沒有 GPS 的桌機）有時要等十幾秒；先給個提示，
   // 避免看起來像當掉。第一次使用時 macOS 會跳出授權視窗，也要等使用者按允許。
+  let done = false;
+  let provisionalCity = null;
+  const hint = (text) => setStatus(provisionalCity ? `先用網路位置概略判斷為「${provisionalCity}」；${text}` : text);
   const slowTimers = [
-    setTimeout(() => setStatus("系統定位回應較慢，仍在等待…"), 8000),
-    setTimeout(() => setStatus("還在等系統定位；若跳出授權視窗請按「允許」，或到系統設定確認 MapSky 的定位權限"), 20000),
+    // 等了 5 秒系統還沒回，而且畫面上還沒有任何城市（沒有上次定位／收藏可以先顯示）時，
+    // 先用外殼的網路位置（座標反查，比只看地區名準）暫時顯示，不要讓主畫面一直空著；
+    // 系統定位一回來就會被準確的結果取代。畫面上已經有城市就不動它。
+    setTimeout(async () => {
+      if (done || currentCity) return;
+      try {
+        const r = await window.mapskyLocation.lookup(null);
+        if (done || currentCity || !r || !r.place) return;
+        let m = null;
+        for (const part of String(r.place).split(" ")) {
+          m = matchCwaCity(part);
+          if (m) break;
+        }
+        if (!m) return;
+        provisionalCity = m;
+        el("citySelect").value = m;
+        selectCity(m);
+        hint("仍在等系統定位…");
+      } catch (e) { /* 拿不到就維持等待 */ }
+    }, 5000),
+    setTimeout(() => hint("系統定位回應較慢，仍在等待…"), 8000),
+    setTimeout(() => hint("還在等系統定位；若跳出授權視窗請按「允許」，或到系統設定確認 MapSky 的定位權限"), 20000),
   ];
-  const clearSlow = () => slowTimers.forEach(clearTimeout);
+  const clearSlow = () => { done = true; slowTimers.forEach(clearTimeout); };
   let pos;
   try {
     pos = await new Promise((resolve, reject) => {
@@ -337,7 +360,8 @@ async function autoLocateDesktop() {
     let reason = "無法取得系統定位";
     if (e && e.code === 1) reason = "系統已拒絕 MapSky 使用定位";
     else if (e && e.code === 3) reason = "系統定位逾時";
-    setStatus(`${reason}，請到「系統設定 → 隱私權與安全性 → 定位服務」開啟 MapSky，或手動選擇縣市`);
+    const note = provisionalCity ? `（目前顯示的是網路位置概略判斷的「${provisionalCity}」）` : "";
+    setStatus(`${reason}，請到「系統設定 → 隱私權與安全性 → 定位服務」開啟 MapSky，或手動選擇縣市${note}`);
     return;
   }
 
