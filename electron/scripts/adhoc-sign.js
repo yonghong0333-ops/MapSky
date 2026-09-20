@@ -68,7 +68,8 @@ function findMachOFiles(dir, out = []) {
 //
 // 這是取巧做法：Electron 沒有針對新 SDK 測試過，可能出現視窗圓角／玻璃效果跑掉。所以：
 //   * 任何一步失敗都只警告、照常打包（不會讓整個建置失敗）。
-//   * 環境變數 MAPSKY_MAC_SDK 可以指定版本（預設 27.0）；設成 off 就整個關掉。
+//   * 環境變數 MAPSKY_MAC_SDK 指定版本（例如 27.0）；沒設或設成 off 就不做。
+//     發佈流程只在測試版頻道（public-beta／internal-beta）帶入，正式版不套用。
 // 一定要在 codesign 之前做——改過執行檔，原本的簽章就失效了，後面會重簽。
 // ------------------------------------------------------------------
 function parseBuildVersions(vtoolOutput) {
@@ -89,7 +90,7 @@ function versionCompare(a, b) {
 }
 
 function patchSdkVersion(appPath) {
-  const target = String(process.env.MAPSKY_MAC_SDK === undefined ? "27.0" : process.env.MAPSKY_MAC_SDK).trim();
+  const target = String(process.env.MAPSKY_MAC_SDK === undefined ? "off" : process.env.MAPSKY_MAC_SDK).trim();
   if (!target || target.toLowerCase() === "off") {
     console.log("[adhoc-sign] MAPSKY_MAC_SDK=off，略過 SDK 版本標記");
     return;

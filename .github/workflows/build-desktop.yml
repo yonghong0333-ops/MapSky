@@ -138,6 +138,9 @@ jobs:
           # 這裡是雙重保險。ad-hoc 自簽不走 electron-builder 的簽章流程，
           # 是由 build.afterPack 指到的 scripts/adhoc-sign.js 自己呼叫 codesign。
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          # 實驗：把主程式的 SDK 版本標記改成 macOS 27，讓新系統套用最新的視窗控制
+          # 按鈕（紅綠燈）樣式。只在測試版頻道啟用，正式版（stable）不套用。
+          MAPSKY_MAC_SDK: ${{ github.event.inputs.channel == 'stable' && 'off' || '27.0' }}
 
   commit-version:
     needs: [version, build-win, build-mac]
