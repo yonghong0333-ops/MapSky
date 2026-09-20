@@ -278,7 +278,9 @@
     if (navigator.geolocation && !navigator.geolocation.__mapskyCapped) {
       const geo = navigator.geolocation;
       const inner = geo.getCurrentPosition.bind(geo);
-      const CAP_MS = 20000;
+      // 2 分鐘：第一次要給使用者時間讀系統的定位授權視窗、按下「允許」（太短的話，還在看視窗
+      // 就會被當成逾時、改用 IP 定位）。系統已經明確回答（允許／不允許／取不到）時不受這個限制。
+      const CAP_MS = 120000;
       geo.getCurrentPosition = function (ok, fail, opts) {
         let settled = false;
         const timer = setTimeout(() => {

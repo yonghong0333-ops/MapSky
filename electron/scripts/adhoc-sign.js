@@ -157,6 +157,23 @@ exports.default = async function adhocSign(context) {
     }
   }
 
+  // 定位小工具（native/MapSkyLocate.app，由 native/build-locate.sh 編譯、electron-builder 的
+  // mac.extraResources 複製進來）：確保可以執行，並先單獨簽好，再簽整包。
+  // 它放在 Resources 底下，codesign --deep 不一定會逐一處理，所以自己簽。沒有這個資料夾
+  // （編譯失敗或本機沒編）就略過。
+  const locateApp = path.join(appPath, "Contents", "Resources", "native", "MapSkyLocate.app");
+  if (fs.existsSync(locateApp)) {
+    try {
+      fs.chmodSync(path.join(locateApp, "Contents", "MacOS", "MapSkyLocate"), 0o755);
+      console.log("[adhoc-sign] 定位小工具：" + path.relative(appPath, locateApp));
+      run("codesign", ["--force", "--sign", "-", "--timestamp=none", locateApp]);
+    } catch (err) {
+      console.warn("[adhoc-sign] 警告：定位小工具簽章失敗：", err && err.message ? err.message : err);
+    }
+  } else {
+    console.warn("[adhoc-sign] 找不到定位小工具，這一版不含它");
+  }
+
   // --force：覆蓋掉打包過程中已失效的舊簽章
   // --deep ：連 Frameworks、Helper.app 一起由內往外簽
   // --sign -：ad-hoc（不需要任何憑證）

@@ -22,6 +22,7 @@ const { app, BrowserWindow, Menu, shell, session, screen, net, ipcMain, nativeTh
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
+const { spawn } = require("child_process");
 const { autoUpdater } = require("electron-updater");
 
 const APP_URL = "https://mapskyapp.vercel.app/";
@@ -61,14 +62,6 @@ if (process.defaultApp) {
 // 目前這個模組作用域下「主視窗」的參考，給 handleAuthCallbackUrl 用來換完
 // token 之後知道要重新整理／喚醒哪一個視窗；createWindow() 裡會賦值。
 let mainWindow = null;
-
-// macOS 定位：Chromium 在 Mac 上預設不用系統的 CoreLocation，而是走 Google 的網路定位
-// 服務——Electron 沒有 Google API 金鑰，所以 navigator.geolocation 一定失敗（也因此
-// 「定位服務」清單裡的 MapSky 從來沒有用過定位）。開啟 MacCoreLocationBackend 讓它改用
-// macOS 系統定位，才會真的向系統要權限、拿到真正的座標。必須在 app ready 之前設定。
-if (process.platform === "darwin") {
-  app.commandLine.appendSwitch("enable-features", "MacCoreLocationBackend");
-}
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
@@ -1530,6 +1523,75 @@ async function lookupLocalWeather(input) {
   return Object.assign({}, data, { approx });
 }
 
+// ---------------- macOS 原生定位（MapSkyLocate 小工具）----------------
+// Electron 在 macOS 上的 navigator.geolocation 有已知問題：呼叫後會一直卡住，既不回傳位置
+// 也不報錯，系統的定位授權視窗也不會跳出來（electron/electron#45290、#46013）。
+// 所以桌面版改由 native/MapSkyLocate.swift 編出來的小工具直接呼叫 macOS 的 CoreLocation：
+// 第一次會跳出系統授權視窗，使用者按下允許後才回傳座標。preload.js 會把網頁的
+// navigator.geolocation.getCurrentPosition 換成呼叫這裡，所以網頁端的程式不用改。
+// 小工具是獨立的 .app（系統的「定位服務」清單裡會顯示成「MapSky 定位」）。
+const OS_POSITION_WAIT_MS = 10 * 60 * 1000; // 使用者還在看授權視窗時要等，最長 10 分鐘
+let osPositionCache = null; // { at, latitude, longitude, accuracy }
+let osPositionInFlight = null;
+
+function findLocateHelper() {
+  if (process.platform !== "darwin") return null;
+  const exe = path.join(process.resourcesPath, "native", "MapSkyLocate.app", "Contents", "MacOS", "MapSkyLocate");
+  return fs.existsSync(exe) ? exe : null;
+}
+
+function runLocateHelper(exe) {
+  return new Promise((resolve) => {
+    let out = "";
+    let settled = false;
+    let child = null;
+    const timer = setTimeout(() => {
+      try { if (child) child.kill(); } catch (_) {}
+      finish({ ok: false, error: "timeout" });
+    }, OS_POSITION_WAIT_MS);
+    function finish(r) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(r);
+    }
+    try {
+      child = spawn(exe, [], { stdio: ["ignore", "pipe", "ignore"] });
+    } catch (_) {
+      finish({ ok: false, error: "spawn" });
+      return;
+    }
+    child.stdout.on("data", (d) => { out += d.toString(); });
+    child.on("error", () => finish({ ok: false, error: "spawn" }));
+    child.on("close", () => {
+      const line = out.trim().split("\n").filter(Boolean).pop();
+      try { finish(JSON.parse(line)); } catch (_) { finish({ ok: false, error: "unavailable" }); }
+    });
+  });
+}
+
+// 回傳 { ok:true, latitude, longitude, accuracy } 或 { ok:false, error }：
+//   error = "unsupported"（這一版沒有小工具，呼叫端退回瀏覽器內建的）、"denied"、"timeout"、"unavailable"、"spawn"
+async function getOsPosition(maxAgeMs) {
+  const exe = findLocateHelper();
+  if (!exe) return { ok: false, error: "unsupported" };
+  if (osPositionCache && maxAgeMs > 0 && Date.now() - osPositionCache.at <= maxAgeMs) {
+    return { ok: true, latitude: osPositionCache.latitude, longitude: osPositionCache.longitude, accuracy: osPositionCache.accuracy };
+  }
+  if (!osPositionInFlight) {
+    // 同時多個地方（標題列、側邊欄）在要定位時共用同一次請求，不要重複跳授權視窗。
+    osPositionInFlight = runLocateHelper(exe)
+      .then((r) => {
+        if (r && r.ok) {
+          osPositionCache = { at: Date.now(), latitude: r.latitude, longitude: r.longitude, accuracy: r.accuracy };
+        }
+        return r;
+      })
+      .finally(() => { osPositionInFlight = null; });
+  }
+  return osPositionInFlight;
+}
+
 // ---------------- macOS 定位服務 ----------------
 // Electron 沒有「主動向系統要定位權限」的 API：系統的授權視窗只會在 App 第一次真的
 // 去讀定位時（navigator.geolocation）才跳出來，而且 App 得有正確簽章才會出現在
@@ -1555,8 +1617,8 @@ async function showLocationHelp(win) {
     message: "MapSky 無法取得系統定位",
     detail:
       "請到「系統設定 → 隱私權與安全性 → 定位服務」，確認最上方的「定位服務」已開啟，" +
-      "並把清單裡的 MapSky 打開。\n\n" +
-      "如果清單裡找不到 MapSky，請完全結束 MapSky 後重新開啟，再按一次「自動定位目前位置」。\n\n" +
+      "並把清單裡的「MapSky 定位」打開。\n\n" +
+      "如果清單裡找不到「MapSky 定位」，請完全結束 MapSky 後重新開啟，再按一次「自動定位目前位置」。\n\n" +
       "在那之前，MapSky 會改用網路 IP 概略定位（只能判斷到縣市）。",
   };
   try {
@@ -1813,6 +1875,7 @@ app.whenReady().then(() => {
     autoUpdater.checkForUpdates().catch(() => {});
   });
 
+  ipcMain.handle("mapsky:os-position", (_event, maxAgeMs) => getOsPosition(Number(maxAgeMs) || 0));
   ipcMain.handle("mapsky:local-weather", (_event, input) => lookupLocalWeather(input).catch(() => null));
 
   ipcMain.on("mapsky:location-failed", (event) => {

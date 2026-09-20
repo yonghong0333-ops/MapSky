@@ -8,8 +8,8 @@
     "start": "electron .",
     "dist:win": "electron-builder --win --x64",
     "publish:win": "electron-builder --win --x64 --publish always",
-    "dist:mac": "electron-builder --mac --universal",
-    "publish:mac": "electron-builder --mac --universal --publish always"
+    "dist:mac": "bash native/build-locate.sh && electron-builder --mac --universal",
+    "publish:mac": "bash native/build-locate.sh && electron-builder --mac --universal --publish always"
   },
   "dependencies": {
     "electron-updater": "^6.3.0"
@@ -84,11 +84,20 @@
       "icon": "build-icon.icns",
       "category": "public.app-category.weather",
       "identity": null,
-      "x64ArchFiles": "**/electron-liquid-glass/prebuilds/**",
+      "x64ArchFiles": "{**/electron-liquid-glass/prebuilds/**,**/MapSkyLocate.app/**}",
       "extendInfo": {
         "NSLocationWhenInUseUsageDescription": "MapSky 需要使用您的位置來顯示所在地的天氣資訊。",
         "NSLocationUsageDescription": "MapSky 需要使用您的位置來顯示所在地的天氣資訊。"
-      }
+      },
+      "extraResources": [
+        {
+          "from": "native/dist",
+          "to": "native",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     },
     "dmg": {
       "title": "MapSky",
