@@ -783,16 +783,16 @@ function injectTitleBar(win) {
 
       function buildNavItems() {
         var q = function (tab) { return document.querySelector('.tabs .tab-btn[data-tab="' + tab + '"]'); };
-        var items = [{ tab: "forecast", label: "首頁", icon: "🏠", btn: q("forecast") }];
+        var items = [{ tab: "forecast", label: "首頁", btn: q("forecast") }];
         var alertsBtn = q("alerts");
         if (navBtnVisible(alertsBtn)) {
           var badgeEl = document.getElementById("alertTabBadge");
-          items.push({ tab: "alerts", label: "警特報", icon: "⚠️", btn: alertsBtn, badge: badgeEl ? (badgeEl.textContent || "").trim() : "" });
+          items.push({ tab: "alerts", label: "警特報", btn: alertsBtn, badge: badgeEl ? (badgeEl.textContent || "").trim() : "" });
         }
-        items.push({ tab: "tools", label: "工具", icon: "🧰", btn: q("tools") });
+        items.push({ tab: "tools", label: "工具", btn: q("tools") });
         var adminBtn = document.getElementById("adminTabBtn");
-        if (navBtnVisible(adminBtn)) items.push({ tab: "admin", label: "後台管理", icon: "🛡️", btn: adminBtn });
-        items.push({ tab: "settings", label: "設定", icon: "⚙️", btn: q("settings") });
+        if (navBtnVisible(adminBtn)) items.push({ tab: "admin", label: "後台管理", btn: adminBtn });
+        items.push({ tab: "settings", label: "設定", btn: q("settings") });
         return items.filter(function (it) { return it.btn; });
       }
 
@@ -818,15 +818,11 @@ function injectTitleBar(win) {
           var isActive = activeTab === it.tab || (it.tab === "tools" && TOOL_TABS.indexOf(activeTab) !== -1);
           var row = document.createElement("div");
           row.style.cssText =
-            "display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;cursor:pointer;" +
+            "display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:9px;cursor:pointer;" +
             "user-select:none;-webkit-user-select:none;" + (isActive ? "background:" + activeBg + ";font-weight:600;" : "");
-          var ic = document.createElement("span");
-          ic.textContent = it.icon;
-          ic.style.cssText = "width:18px;text-align:center;font-size:14px;";
           var lb = document.createElement("span");
           lb.textContent = it.label;
           lb.style.cssText = "flex:1;";
-          row.appendChild(ic);
           row.appendChild(lb);
           if (it.badge && it.badge !== "0") {
             var bd = document.createElement("span");
