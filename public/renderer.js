@@ -304,7 +304,81 @@ function getGpsPosition() {
   });
 }
 
+// 桌面版：直接讀作業系統的定位，不退回 IP 定位。IP 只準到縣市，在台灣常被判成台北，
+// 會悄悄選到錯的縣市；抓不到系統定位時寧可明確告訴使用者原因，也不要亂猜。
+// window.mapskyLocation 只有 Electron 桌面版的 preload 才會提供，手機版／網頁版不會走這裡。
+async function autoLocateDesktop() {
+  setStatus("正在讀取系統定位…");
+  let pos;
+  try {
+    pos = await new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("no geolocation"));
+        return;
+      }
+      // 只要縣市層級，不需要高精度，用一般模式比較快（Wi-Fi 定位即可）
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: false,
+        timeout: 15000,
+        maximumAge: 5 * 60 * 1000,
+      });
+    });
+  } catch (e) {
+    let reason = "無法取得系統定位";
+    if (e && e.code === 1) reason = "系統已拒絕 MapSky 使用定位";
+    else if (e && e.code === 3) reason = "系統定位逾時";
+    setStatus(`${reason}，請到「系統設定 → 隱私權與安全性 → 定位服務」開啟 MapSky，或手動選擇縣市`);
+    return;
+  }
+
+  setStatus("定位成功，正在比對縣市…");
+  const { latitude, longitude } = pos.coords;
+  let matched = null;
+
+  // 1) 交給外殼（主行程）反查地名：標題列的所在地就是走這條路，有帶識別用的 User-Agent，
+  //    比網頁自己去打 Nominatim 穩定。回傳像「高雄市 前鎮區」，逐段去比對 22 縣市。
+  try {
+    const r = await window.mapskyLocation.lookup({ lat: latitude, lon: longitude });
+    if (r && r.place) {
+      for (const part of String(r.place).split(" ")) {
+        matched = matchCwaCity(part);
+        if (matched) break;
+      }
+    }
+  } catch (e) { /* 換下一種方式 */ }
+
+  // 2) 外殼查不到或對不上縣市，再用網頁端原本的反查方式（county 優先）
+  if (!matched) {
+    try {
+      const url = `${GEOCODE_URL}?format=jsonv2&lat=${latitude}&lon=${longitude}` +
+        `&accept-language=zh-TW&zoom=10`;
+      const resp = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const addr = data.address || {};
+      if (addr.country_code && addr.country_code !== "tw") {
+        setStatus("目前定位不在台灣，中央氣象署資料僅涵蓋台灣地區，請手動選擇縣市");
+        return;
+      }
+      matched = matchCwaCity(addr.county || addr.city || addr.state || addr.town || "");
+    } catch (e) {
+      setStatus(`定位成功，但地名比對失敗：${e.message}，請手動於下拉選單選擇縣市`);
+      return;
+    }
+  }
+
+  if (!matched) {
+    setStatus("定位成功，但無法比對到支援的縣市，請手動於下拉選單選擇縣市");
+    return;
+  }
+  el("citySelect").value = matched;
+  selectCity(matched);
+}
+
 async function autoLocate() {
+  if (window.mapskyLocation && window.mapskyLocation.lookup) {
+    return autoLocateDesktop();
+  }
   setStatus("正在取得 GPS 定位…");
   let pos;
   try {
