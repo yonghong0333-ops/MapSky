@@ -280,6 +280,57 @@
     };
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", hideSettingsTab);
     else hideSettingsTab();
+
+    // 桌面版：左邊側邊欄（城市選單／查詢／定位／收藏城市）的收合把手，貼在側邊欄右緣中間，
+    // 點一下隱藏、再點一下打開，狀態記在 localStorage。只在桌面殼裡建立，手機版不受影響；
+    // 視窗窄到 900px 以下時改走原本的漢堡抽屜，這顆把手會自動隱藏。
+    const setupSidebarToggle = () => {
+      const app = document.querySelector(".app");
+      if (!app || document.getElementById("sidebarCollapseHandle")) return;
+      const KEY = "mapsky_sidebar_collapsed";
+      const style = document.createElement("style");
+      style.textContent = `
+        #sidebarCollapseHandle {
+          position: fixed; top: 50%; left: 261px; transform: translateY(-50%);
+          width: 18px; height: 56px; padding: 0; z-index: 60;
+          display: flex; align-items: center; justify-content: center;
+          border: 1px solid var(--card-border); border-radius: 9px;
+          background: var(--card-bg); color: var(--text-main);
+          font-size: 15px; line-height: 1; cursor: pointer;
+          box-shadow: 0 2px 8px rgba(20, 26, 40, 0.18); opacity: 0.85;
+        }
+        #sidebarCollapseHandle:hover { opacity: 1; }
+        #sidebarCollapseHandle[data-collapsed="true"] { left: 0; border-left: none; border-radius: 0 9px 9px 0; }
+        body:not(.auth-ok) #sidebarCollapseHandle { display: none; }
+        @media (min-width: 901px) { .app.sidebar-collapsed .sidebar { display: none; } }
+        @media (max-width: 900px) { #sidebarCollapseHandle { display: none; } }
+      `;
+      document.head.appendChild(style);
+
+      const handle = document.createElement("button");
+      handle.id = "sidebarCollapseHandle";
+      handle.type = "button";
+      document.body.appendChild(handle);
+
+      const apply = (collapsed) => {
+        app.classList.toggle("sidebar-collapsed", collapsed);
+        handle.dataset.collapsed = collapsed ? "true" : "false";
+        handle.textContent = collapsed ? "›" : "‹";
+        const label = collapsed ? "顯示側邊欄" : "隱藏側邊欄";
+        handle.title = label;
+        handle.setAttribute("aria-label", label);
+      };
+      let collapsed = false;
+      try { collapsed = localStorage.getItem(KEY) === "1"; } catch (e) {}
+      apply(collapsed);
+      handle.addEventListener("click", () => {
+        collapsed = !collapsed;
+        apply(collapsed);
+        try { localStorage.setItem(KEY, collapsed ? "1" : "0"); } catch (e) {}
+      });
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupSidebarToggle);
+    else setupSidebarToggle();
   }
 
   // 把選好的圖片縮小成正方形小圖再轉成 base64，不然直接把原圖傳上去
