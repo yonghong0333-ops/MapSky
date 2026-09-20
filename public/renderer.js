@@ -2335,6 +2335,290 @@ function renderAlertsBadge(alerts) {
   }
 }
 
+// ---------------- 颱風警報畫面（蓋在首頁）＋ 收合成卡片 ----------------
+// 有生效中的颱風警報時：
+//   * 第一次（或警報從「海上」升級成「海上陸上」、或出現新的颱風）會用全螢幕畫面蓋在首頁上，
+//     顯示強度、名稱、警報種類、中心位置、風速、暴風半徑、警戒區域等詳細資料。
+//   * 按「收合」就縮成首頁最上方的一條卡片：「強度颱風　警報種類　颱風名稱」，點卡片可再展開。
+//   * 使用者收合過的警報會記在 localStorage，之後每 5 分鐘更新資料不會再自動彈出來。
+// 資料來源是氣象署颱風警報 CAP（W-C0034-001），欄位格式見 CAP 說明文件：
+//   headline／severityLevel＝「海上颱風警報」或「海上陸上颱風警報」；
+//   description 內有「颱風強度及命名：輕度颱風，國際命名：TEST，中文譯名：測試。」等段落。
+const TY_ACK_KEY = "mapsky_ty_ack";
+const TY_INTENSITY_RANK = { 強烈: 0, 中度: 1, 輕度: 2 };
+const TY_COLORS = {
+  sea: { a: "#e8720c", b: "#8a3a05" }, // 海上颱風警報：橙
+  both: { a: "#dc2626", b: "#6f0c0c" }, // 海上陸上／陸上颱風警報：紅
+};
+let tyWarnings = [];
+let tyExpanded = false;
+
+function tyEl(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined && text !== null) n.textContent = text;
+  return n;
+}
+
+// 從 description 抓「標籤：內容。」這種段落；內容到第一個「。」為止（內容裡的逗號不算結束）
+function tyField(desc, label) {
+  const m = desc.match(new RegExp(label + "[:：]\\s*([^。]+)(?:。|$)"));
+  return m ? m[1].trim() : null;
+}
+
+function parseTyphoonWarning(a) {
+  // CAP 文字裡有斷行：中文與中文之間的換行／空白直接拿掉（「向西北\n進行」→「向西北進行」），
+  // 數字旁邊的空白（「北緯 20.7 度」）保留。
+  const CJK = "\\u4e00-\\u9fff，。、；：（）「」";
+  const desc = String(a.description || "")
+    .replace(new RegExp(`([${CJK}])\\s+(?=[${CJK}])`, "g"), "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+  const naming = tyField(desc, "颱風強度及命名") || "";
+  const intensityM = naming.match(/(輕度|中度|強烈)颱風/);
+  const cnM = naming.match(/中文譯名[:：]\s*([^，,。\s]+)/);
+  const intlM = naming.match(/國際命名[:：]\s*([^，,。]+)/);
+  const numberM = desc.match(/颱風編號[:：]\s*(\d+)/);
+  const reportM = desc.match(/警報報數[:：]\s*(\d+)/);
+
+  // 警報種類：看 headline／警戒程度；都沒有寫時，退回用警戒區域判斷
+  const label = `${a.headline || ""} ${a.severityLevel || ""} ${a.alertTitle || ""}`;
+  let sea = label.includes("海上");
+  let land = label.includes("陸上");
+  if (!sea && !land) {
+    land = (a.landCounties || []).length > 0;
+    sea = !land;
+  }
+
+  const areas = a.areas || [];
+  const name = cnM ? cnM[1] : intlM ? intlM[1].trim() : "颱風";
+  return {
+    key: (numberM && numberM[1]) || name,
+    number: numberM ? numberM[1] : null,
+    reportNo: reportM ? reportM[1] : null,
+    name,
+    intlName: intlM ? intlM[1].trim() : null,
+    intensity: intensityM ? intensityM[1] : null,
+    sea,
+    land,
+    sent: a.sent || null,
+    expires: a.expires || null,
+    facts: {
+      position: tyField(desc, "中心位置"),
+      motion: tyField(desc, "預測速度及方向"),
+      maxWind: tyField(desc, "近中心最大風速"),
+      gust: tyField(desc, "瞬間之最大陣風"),
+      pressure: tyField(desc, "中心氣壓"),
+      radius: tyField(desc, "暴風半徑"),
+      forecast: tyField(desc, "預測位置"),
+    },
+    seaAreas: areas.filter((n) => /海/.test(n)),
+    landAreas: areas.filter((n) => !/海/.test(n)),
+  };
+}
+
+function tyType(w) {
+  return w.sea && w.land ? "海上陸上颱風警報" : w.land ? "陸上颱風警報" : "海上颱風警報";
+}
+function tyPalette(w) {
+  return w.land ? TY_COLORS.both : TY_COLORS.sea;
+}
+function tyAckKey(w) {
+  return `${w.key}|${tyType(w)}`;
+}
+
+// 從警特報資料整理出「目前有效的颱風警報」，一個颱風一筆（同一個颱風有多筆時取最新、種類合併）
+function collectTyphoonWarnings(alerts) {
+  const GRACE_MS = 30 * 60 * 1000; // 氣象署警報 4 小時到期、通常 1～3 小時更新一次，多給 30 分鐘容錯
+  const byKey = new Map();
+  for (const a of alerts || []) {
+    if (a.source !== "typhoon" || !a.isActive) continue;
+    if (/解除/.test(`${a.headline || ""} ${a.alertTitle || ""}`)) continue;
+    if (a.expires && Date.parse(a.expires) + GRACE_MS < Date.now()) continue;
+    const w = parseTyphoonWarning(a);
+    const prev = byKey.get(w.key);
+    if (!prev) {
+      byKey.set(w.key, w);
+      continue;
+    }
+    const newer = (w.sent || "") >= (prev.sent || "") ? w : prev;
+    const older = newer === w ? prev : w;
+    newer.sea = newer.sea || older.sea;
+    newer.land = newer.land || older.land;
+    newer.seaAreas = Array.from(new Set([...newer.seaAreas, ...older.seaAreas]));
+    newer.landAreas = Array.from(new Set([...newer.landAreas, ...older.landAreas]));
+    for (const k of Object.keys(older.facts)) if (!newer.facts[k]) newer.facts[k] = older.facts[k];
+    if (!newer.intensity) newer.intensity = older.intensity;
+    byKey.set(w.key, newer);
+  }
+  // 嚴重的排前面：海上陸上優先，其次強烈 > 中度 > 輕度
+  return Array.from(byKey.values()).sort((x, y) => {
+    if (x.land !== y.land) return x.land ? -1 : 1;
+    const rx = x.intensity in TY_INTENSITY_RANK ? TY_INTENSITY_RANK[x.intensity] : 9;
+    const ry = y.intensity in TY_INTENSITY_RANK ? TY_INTENSITY_RANK[y.intensity] : 9;
+    return rx - ry;
+  });
+}
+
+function tyLoadAck() {
+  try {
+    const v = JSON.parse(localStorage.getItem(TY_ACK_KEY) || "[]");
+    return Array.isArray(v) ? v : [];
+  } catch (e) {
+    return [];
+  }
+}
+function tySaveAck(list) {
+  try {
+    localStorage.setItem(TY_ACK_KEY, JSON.stringify(list));
+  } catch (e) {
+    /* 存不了就算了，頂多下次更新又彈出來 */
+  }
+}
+
+function tyBuildCard(w) {
+  const pal = tyPalette(w);
+  const card = tyEl("section", "ty-card");
+  card.style.setProperty("--ty-a", pal.a);
+  card.style.setProperty("--ty-b", pal.b);
+
+  const head = tyEl("div", "ty-card-head");
+  head.appendChild(tyEl("div", "ty-type", tyType(w)));
+  const nameRow = tyEl("div", "ty-name-row");
+  nameRow.appendChild(tyEl("span", "ty-intensity", `${w.intensity || ""}颱風`));
+  nameRow.appendChild(tyEl("span", "ty-name", w.name));
+  head.appendChild(nameRow);
+  const metaParts = [];
+  if (w.intlName) metaParts.push(w.intlName);
+  if (w.number) metaParts.push(`颱風編號 ${w.number}`);
+  if (w.reportNo) metaParts.push(`第 ${w.reportNo} 報`);
+  if (metaParts.length) head.appendChild(tyEl("div", "ty-meta", metaParts.join("　")));
+  head.appendChild(tyEl("div", "ty-meta", `發布 ${formatAlertTime(w.sent)}　有效至 ${formatAlertTime(w.expires)}`));
+  card.appendChild(head);
+
+  const rows = [
+    ["中心位置", w.facts.position, true],
+    ["移動", w.facts.motion, true],
+    ["近中心最大風速", w.facts.maxWind, false],
+    ["瞬間最大陣風", w.facts.gust, false],
+    ["中心氣壓", w.facts.pressure, false],
+    ["暴風半徑", w.facts.radius, false],
+    ["預測位置", w.facts.forecast, true],
+  ].filter((x) => x[1]);
+  if (rows.length) {
+    const grid = tyEl("div", "ty-facts");
+    for (const [label, value, wide] of rows) {
+      const cell = tyEl("div", "ty-fact" + (wide ? " ty-fact--wide" : ""));
+      cell.appendChild(tyEl("div", "ty-fact-label", label));
+      cell.appendChild(tyEl("div", "ty-fact-value", value));
+      grid.appendChild(cell);
+    }
+    card.appendChild(grid);
+  }
+
+  if (w.landAreas.length || w.seaAreas.length) {
+    const areas = tyEl("div", "ty-areas");
+    const addGroup = (title, names, chipCls) => {
+      if (!names.length) return;
+      const g = tyEl("div", "ty-areas-group");
+      g.appendChild(tyEl("div", "ty-areas-title", title));
+      const chips = tyEl("div", "ty-chips");
+      names.forEach((n) => chips.appendChild(tyEl("span", `ty-chip ${chipCls}`, n)));
+      g.appendChild(chips);
+      areas.appendChild(g);
+    };
+    addGroup("陸上警戒區域", w.landAreas, "ty-chip--land");
+    addGroup("海上警戒區域", w.seaAreas, "ty-chip--sea");
+    card.appendChild(areas);
+  }
+  return card;
+}
+
+// 收合後的一條卡片：「強度颱風　警報種類　颱風名稱」
+function tyBuildStrip(w) {
+  const pal = tyPalette(w);
+  const btn = tyEl("button", "ty-strip");
+  btn.type = "button";
+  btn.style.setProperty("--ty-a", pal.a);
+  btn.style.setProperty("--ty-b", pal.b);
+  btn.setAttribute("aria-label", `${w.intensity || ""}颱風 ${tyType(w)} ${w.name}，點一下展開詳細資料`);
+  const text = tyEl("span", "ty-strip-text");
+  text.appendChild(tyEl("span", "ty-strip-intensity", `${w.intensity || ""}颱風`));
+  text.appendChild(tyEl("span", "ty-strip-type", tyType(w)));
+  text.appendChild(tyEl("span", "ty-strip-name", w.name));
+  btn.appendChild(text);
+  btn.appendChild(tyEl("span", "ty-strip-more", "詳細資料 ›"));
+  btn.addEventListener("click", () => tyOpen());
+  return btn;
+}
+
+function tyRender() {
+  const overlay = el("tyOverlay");
+  const body = el("tyOverlayBody");
+  const stripList = el("tyStripList");
+  if (!overlay || !body || !stripList) return;
+
+  if (!tyWarnings.length) {
+    overlay.classList.add("hidden");
+    stripList.classList.add("hidden");
+    body.innerHTML = "";
+    stripList.innerHTML = "";
+    return;
+  }
+
+  if (tyExpanded) {
+    body.innerHTML = "";
+    tyWarnings.forEach((w) => body.appendChild(tyBuildCard(w)));
+    overlay.classList.remove("hidden");
+    stripList.classList.add("hidden");
+    stripList.innerHTML = "";
+  } else {
+    overlay.classList.add("hidden");
+    body.innerHTML = "";
+    stripList.innerHTML = "";
+    tyWarnings.forEach((w) => stripList.appendChild(tyBuildStrip(w)));
+    stripList.classList.remove("hidden");
+  }
+}
+
+function tyOpen() {
+  tyExpanded = true;
+  tyRender();
+  const overlay = el("tyOverlay");
+  if (overlay) overlay.scrollTop = 0;
+}
+
+function tyCollapse() {
+  const ack = new Set(tyLoadAck());
+  tyWarnings.forEach((w) => ack.add(tyAckKey(w)));
+  tySaveAck(Array.from(ack));
+  tyExpanded = false;
+  tyRender();
+}
+
+function renderTyphoonWarning(alerts) {
+  tyWarnings = collectTyphoonWarnings(alerts);
+  if (!tyWarnings.length) {
+    // 警報全部解除了：清掉「已收合」的紀錄，下一個颱風來的時候才會再自動展開
+    tyExpanded = false;
+    if (tyLoadAck().length) tySaveAck([]);
+    tyRender();
+    return;
+  }
+  const ack = new Set(tyLoadAck());
+  // 出現新的颱風、或警報種類變了（海上 → 海上陸上）才自動展開；使用者收合過的就維持卡片
+  if (tyWarnings.some((w) => !ack.has(tyAckKey(w)))) tyExpanded = true;
+  tyRender();
+}
+
+el("tyCollapseTopBtn").onclick = tyCollapse;
+el("tyCollapseBtn").onclick = tyCollapse;
+el("tyAllAlertsBtn").onclick = () => {
+  const alertsTab = document.querySelector('.tab-btn[data-tab="alerts"]');
+  if (alertsTab) alertsTab.click();
+};
+// ---------------- end 颱風警報畫面 ----------------
+
 async function loadAlerts() {
   const data = await window.weatherAPI.getAlerts();
   const alerts = (data && data.alerts) || [];
@@ -2354,6 +2638,7 @@ async function loadAlerts() {
   renderAlertsBadge(alerts);
   renderAlertMap(alerts);
   renderTyphoonMap(alerts);
+  renderTyphoonWarning(alerts);
 }
 
 async function loadTyphoonProbability() {

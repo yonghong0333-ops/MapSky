@@ -2704,3 +2704,137 @@ button:hover { background: var(--accent-hover); }
   .current-temp { font-size: 34px; }
   .current-card-top { gap: 10px; }
 }
+
+
+/* ---------------- 颱風警報畫面（蓋在首頁）＋ 收合後的卡片 ---------------- */
+/* 顏色由 renderer.js 依警報種類設在 --ty-a／--ty-b：海上＝橙、海上陸上＝紅（跟氣象署警戒色一致） */
+.ty-overlay.hidden,
+.ty-strip-list.hidden { display: none; }
+
+/* 只在首頁出現：切到警特報、工具、設定等其他分頁就藏起來（回首頁又會出現） */
+body:not(:has(#forecastPanel.active)) #tyOverlay { display: none; }
+.main:not(:has(#forecastPanel.active)) > .ty-strip-list { display: none; }
+
+.ty-overlay {
+  position: fixed;
+  /* 桌面版有自己畫的標題列（web-shim.js 會設定 --mapsky-titlebar-h），畫面要從它下方開始 */
+  inset: var(--mapsky-titlebar-h, 0px) 0 0 0;
+  z-index: 48; /* 比底部導覽列（50）低：警報開著時，底部導覽列還是能點 */
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  color: #fff;
+  background: linear-gradient(180deg, #1d2740 0%, #131a2b 100%);
+}
+@media (min-width: 901px) {
+  .ty-overlay { left: 270px; } /* 電腦版：不要蓋住左邊的側邊欄 */
+}
+
+.ty-overlay-top {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 18px 10px;
+  background: rgba(19, 26, 43, 0.82);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+.ty-overlay-top-title { font-size: 15px; font-weight: 700; letter-spacing: 0.5px; opacity: 0.9; }
+
+.ty-collapse-btn {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 7px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.ty-collapse-btn:hover { background: rgba(255, 255, 255, 0.24); }
+.ty-collapse-btn--wide { width: 100%; padding: 13px 16px; font-size: 16px; border-radius: 14px; background: rgba(255, 255, 255, 0.92); color: #1d2740; border: 0; }
+.ty-collapse-btn--wide:hover { background: #fff; }
+
+.ty-overlay-body { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 16px; }
+
+.ty-card {
+  border-radius: 22px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.ty-card-head {
+  padding: 20px 20px 18px;
+  background: linear-gradient(135deg, var(--ty-a, #d21a1a), var(--ty-b, #690b0b));
+}
+.ty-type { font-size: 15px; font-weight: 700; letter-spacing: 1px; opacity: 0.95; }
+.ty-name-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.ty-intensity {
+  font-size: 15px;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--ty-b, #690b0b);
+}
+.ty-name { font-size: 34px; font-weight: 800; line-height: 1.1; }
+.ty-meta { margin-top: 10px; font-size: 13px; opacity: 0.88; line-height: 1.5; }
+
+.ty-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: rgba(255, 255, 255, 0.1); }
+.ty-fact { background: #1a2238; padding: 13px 16px; min-width: 0; }
+.ty-fact--wide { grid-column: 1 / -1; }
+.ty-fact-label { font-size: 12px; opacity: 0.65; margin-bottom: 4px; }
+.ty-fact-value { font-size: 15px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+
+.ty-areas { padding: 14px 16px 18px; background: #1a2238; }
+.ty-areas-group + .ty-areas-group { margin-top: 12px; }
+.ty-areas-title { font-size: 12px; opacity: 0.65; margin-bottom: 8px; }
+.ty-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ty-chip { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); }
+.ty-chip--land { background: rgba(255, 70, 70, 0.28); }
+.ty-chip--sea { background: rgba(255, 170, 40, 0.28); }
+
+.ty-overlay-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 16px calc(112px + env(safe-area-inset-bottom, 0px)); /* 留空間給底部導覽列 */
+}
+.ty-more-btn {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: transparent;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 11px 16px;
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+/* 收合後的卡片：一條、一個颱風一張，顯示「強度颱風　警報種類　颱風名稱」 */
+.ty-strip-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.ty-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  border-radius: 14px;
+  padding: 11px 14px;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  background: linear-gradient(90deg, var(--ty-a, #d21a1a), var(--ty-b, #690b0b));
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  -webkit-tap-highlight-color: transparent;
+}
+.ty-strip-text { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; font-size: 14px; line-height: 1.4; }
+.ty-strip-intensity { font-weight: 800; }
+.ty-strip-type { font-weight: 600; opacity: 0.95; }
+.ty-strip-name { font-weight: 800; }
+.ty-strip-more { flex-shrink: 0; font-size: 12px; font-weight: 600; opacity: 0.92; white-space: nowrap; }

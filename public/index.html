@@ -169,6 +169,9 @@
     </aside>
 
     <main class="main">
+      <!-- 颱風警報收合後的卡片列（一個颱風一張）。只在首頁出現，有颱風警報且使用者按過「收合」時才會顯示。 -->
+      <div id="tyStripList" class="ty-strip-list hidden"></div>
+
       <header class="main-header">
         <h2 id="cityName">尚未選擇城市</h2>
         <button id="shareWeatherBtn" class="share-weather-btn" type="button" aria-label="分享天氣">
@@ -1007,6 +1010,21 @@
     </nav>
 
     </div>
+
+  <!-- 颱風警報畫面：直接蓋在首頁上（底部導覽列還是能點，切到別的分頁就自動藏起來）。
+       內容由 renderer.js 的 renderTyphoonWarning() 依警特報資料產生；按「收合」會縮成首頁
+       最上方的一條卡片，點卡片可以再展開看詳細資料。 -->
+  <div id="tyOverlay" class="ty-overlay hidden" role="region" aria-label="颱風警報">
+    <div class="ty-overlay-top">
+      <span class="ty-overlay-top-title">颱風警報</span>
+      <button id="tyCollapseTopBtn" class="ty-collapse-btn" type="button">收合</button>
+    </div>
+    <div id="tyOverlayBody" class="ty-overlay-body"></div>
+    <div class="ty-overlay-actions">
+      <button id="tyAllAlertsBtn" class="ty-more-btn" type="button">查看完整警特報</button>
+      <button id="tyCollapseBtn" class="ty-collapse-btn ty-collapse-btn--wide" type="button">收合成卡片</button>
+    </div>
+  </div>
 
   <script src="web-shim.js"></script>
 </body>
