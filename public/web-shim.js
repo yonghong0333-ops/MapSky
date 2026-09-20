@@ -44,8 +44,6 @@
 
       const btn = el("desktopAppRequiredBtn");
       if (!btn) return;
-      const fileInfo = el("desktopAppRequiredFileInfo");
-      const perks = el("desktopAppRequiredPerks");
       const macCmd = el("desktopAppRequiredMacCmd");
       const macCmdCopyBtn = el("desktopAppRequiredMacCmdCopyBtn");
 
@@ -60,22 +58,12 @@
         btn.innerHTML = WIN_ICON_SVG + "<span>下載 Windows 版</span><span aria-hidden=\"true\">→</span>";
         btn.disabled = false;
         btn.onclick = () => window.open(WIN_DOWNLOAD_URL, "_blank");
-        if (fileInfo) {
-          fileInfo.textContent = "MapSky_Installbox.exe ・約 78 MB";
-          fileInfo.classList.remove("hidden");
-        }
-        if (perks) perks.classList.remove("hidden");
         if (macCmd) macCmd.classList.add("hidden");
       } else if (isMac) {
         const MAC_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 768 768" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="mapskyMacIconClip"><path d="M 53.761719 184 L 690 184 L 690 765 L 53.761719 765 Z M 53.761719 184 "/></clipPath></defs><g clip-path="url(#mapskyMacIconClip)"><path fill="#ffffff" d="M 592.25 405.894531 C 593.871094 488.617188 647.398438 532.410156 676.59375 550.25 C 687.945312 558.359375 692.8125 572.957031 687.945312 585.933594 C 679.835938 607.019531 665.238281 637.835938 640.910156 670.277344 C 608.46875 717.3125 574.410156 762.726562 519.261719 764.347656 C 465.738281 765.972656 449.519531 733.53125 389.503906 733.53125 C 329.492188 733.53125 310.03125 762.726562 259.75 764.347656 C 207.847656 765.972656 167.296875 714.070312 134.859375 667.03125 C 68.359375 572.957031 16.453125 399.410156 86.199219 282.628906 C 120.261719 224.238281 181.894531 186.933594 250.015625 186.933594 C 300.296875 185.308594 348.957031 220.992188 379.773438 220.992188 C 410.589844 220.992188 468.980469 180.445312 530.617188 185.308594 C 553.324219 186.933594 608.46875 193.417969 653.882812 235.589844 C 665.238281 246.945312 665.238281 266.40625 652.261719 277.761719 C 627.933594 300.46875 592.25 342.640625 592.25 405.894531 "/></g><path fill="#ffffff" d="M 491.6875 120.433594 C 514.394531 92.859375 530.617188 57.175781 532.238281 21.492188 C 532.238281 8.515625 522.507812 -1.214844 509.53125 2.027344 C 475.46875 10.136719 438.164062 31.222656 413.835938 57.175781 C 394.371094 83.125 373.285156 120.433594 373.285156 157.738281 C 373.285156 169.089844 383.015625 177.199219 392.75 175.578125 C 431.675781 172.335938 468.980469 149.628906 491.6875 120.433594 "/></svg>';
         btn.innerHTML = MAC_ICON_SVG + "<span>下載 Mac 版</span><span aria-hidden=\"true\">→</span>";
         btn.disabled = false;
         btn.onclick = () => window.open(MAC_DOWNLOAD_URL, "_blank");
-        if (fileInfo) {
-          fileInfo.textContent = "MapSky_Installbox.dmg ・未簽章版本，第一次打開需右鍵「打開」";
-          fileInfo.classList.remove("hidden");
-        }
-        if (perks) perks.classList.remove("hidden");
         // Mac 版沒有簽章，Gatekeeper 有時候不會給「右鍵打開」這個選項可用
         // （顯示「無法打開，因為 Apple 無法檢查其是否包含惡意軟體」且沒有
         // 例外按鈕），這時候唯一的辦法是打開「終端機」清掉隔離屬性。指令
@@ -114,8 +102,6 @@
       } else {
         btn.textContent = "目前僅支援 Windows／Mac 桌面版";
         btn.disabled = true;
-        if (fileInfo) fileInfo.classList.add("hidden");
-        if (perks) perks.classList.add("hidden");
         if (macCmd) macCmd.classList.add("hidden");
       }
     });
