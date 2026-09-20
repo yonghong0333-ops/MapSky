@@ -1065,31 +1065,31 @@ function injectTitleBar(win) {
       // 就維持原本掃描頁面文字的結果當備援，不會整個空著。
       var realLocationLabel = null;
 
-      function reverseGeocode(lat, lon) {
-        var url = "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=" +
-          lat + "&lon=" + lon + "&accept-language=zh-TW&zoom=12";
-        fetch(url, { headers: { "Accept": "application/json" } })
-          .then(function (r) { return r.json(); })
-          .then(function (data) {
-            var a = (data && data.address) || {};
-            var city = a.city || a.county || a.state || "";
-            var district = a.town || a.city_district || a.district || a.suburb || "";
-            var parts = [city, district].filter(function (v, i, arr) {
-              return v && arr.indexOf(v) === i; // 去重（例如縣市跟行政區剛好同名）
-            });
-            if (parts.length) {
-              realLocationLabel = parts.join(" ");
-              if (wcity) { wcity.textContent = realLocationLabel; wcity.title = data.display_name || realLocationLabel; }
+      // 地名和天氣都交給外殼（主行程）查，網頁只負責拿座標。拿不到系統定位就傳 null，
+      // 外殼改用 IP 概略定位，所以登入畫面、沒給定位權限時標題列也不會是空的。
+      var shellWeather = null;
+
+      function lookupShell(coords) {
+        if (!window.mapskyLocation || !window.mapskyLocation.lookup) return;
+        window.mapskyLocation.lookup(coords).then(function (r) {
+          if (!r) return;
+          if (r.place) {
+            realLocationLabel = r.place;
+            if (wcity) {
+              wcity.textContent = r.place;
+              wcity.title = r.approx ? r.place + "（依網路位置概略判斷）" : r.place;
             }
-          })
-          .catch(function () {});
+          }
+          if (r.temp !== null && r.temp !== undefined) shellWeather = r;
+          scanAndApply();
+        }).catch(function () {});
       }
 
       function detectRealLocation() {
-        if (!navigator.geolocation) return;
+        if (!navigator.geolocation) { lookupShell(null); return; }
         navigator.geolocation.getCurrentPosition(
-          function (pos) { reverseGeocode(pos.coords.latitude, pos.coords.longitude); },
-          function () { /* 使用者拒絕定位或拿不到座標——保持原本掃描頁面文字的結果，不強制蓋掉 */ },
+          function (pos) { lookupShell({ lat: pos.coords.latitude, lon: pos.coords.longitude }); },
+          function () { lookupShell(null); },
           { enableHighAccuracy: false, maximumAge: 10 * 60 * 1000, timeout: 8000 }
         );
       }
@@ -1112,6 +1112,10 @@ function injectTitleBar(win) {
 
       function scanAndApply() {
         var detected = detectWeatherFromPage();
+        // 網頁上沒有天氣卡片（例如登入畫面）時，用外殼自己查到的天氣墊底。
+        if (shellWeather && detected.condition === null && detected.temp === null) {
+          detected = { city: detected.city, temp: shellWeather.temp, condition: shellWeather.condition, conditionLabel: shellWeather.label };
+        }
         applyTheme(pickThemeKey(detected), detected);
       }
 
@@ -1283,6 +1287,106 @@ function applyLiquidGlass(win) {
       win.setVibrancy("sidebar");
     } catch (_) { /* 舊系統或視窗已關閉，忽略 */ }
   }
+}
+
+// ---------------- 外殼自己查「所在地＋目前天氣」 ----------------
+// 標題列原本只能讀網頁畫面上的天氣卡片；登入畫面沒有卡片，就只剩空的「--°C --」。
+// 這裡在外殼（主行程）自己查：座標 → 地名（OpenStreetMap Nominatim）＋目前天氣
+// （Open-Meteo，免金鑰）。放在主行程做，不受網頁的 CSP／CORS 限制，登入前也能用。
+// 座標來源：網頁端先試系統定位；失敗就傳 null，這裡改用 IP 概略定位（只準到縣市）。
+// 網頁上有真正的天氣卡片（登入後、中央氣象署資料）時，標題列仍以卡片為準，這裡只是墊底。
+const LOCAL_WEATHER_TTL_MS = 5 * 60 * 1000;
+const IP_LOCATION_TTL_MS = 30 * 60 * 1000;
+let localWeatherCache = { key: null, at: 0, data: null };
+let ipLocationCache = { at: 0, lat: null, lon: null };
+
+function wmoToCondition(code) {
+  if (code === 0) return { condition: "clear", label: "晴" };
+  if (code === 1) return { condition: "clear", label: "晴朗" };
+  if (code === 2) return { condition: "cloudy", label: "局部多雲" };
+  if (code === 3) return { condition: "cloudy", label: "陰天" };
+  if (code === 45 || code === 48) return { condition: "fog", label: "霧" };
+  if (code >= 51 && code <= 57) return { condition: "rain", label: "毛毛雨" };
+  if (code >= 61 && code <= 67) return { condition: "rain", label: "下雨" };
+  if (code >= 71 && code <= 77) return { condition: "snow", label: "下雪" };
+  if (code >= 80 && code <= 82) return { condition: "rain", label: "陣雨" };
+  if (code === 85 || code === 86) return { condition: "snow", label: "陣雪" };
+  if (code >= 95 && code <= 99) return { condition: "thunder", label: "雷雨" };
+  return { condition: null, label: null };
+}
+
+async function fetchJsonWithTimeout(url, headers) {
+  const res = await net.fetch(url, {
+    headers: Object.assign({ Accept: "application/json" }, headers || {}),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return res.json();
+}
+
+async function getIpCoords() {
+  const now = Date.now();
+  if (ipLocationCache.lat !== null && now - ipLocationCache.at < IP_LOCATION_TTL_MS) {
+    return { lat: ipLocationCache.lat, lon: ipLocationCache.lon };
+  }
+  const ip = await fetchJsonWithTimeout("https://ipwho.is/");
+  const lat = Number(ip && ip.latitude);
+  const lon = Number(ip && ip.longitude);
+  if (!ip || ip.success === false || !isFinite(lat) || !isFinite(lon)) throw new Error("ip lookup failed");
+  ipLocationCache = { at: now, lat, lon };
+  return { lat, lon };
+}
+
+async function lookupLocalWeather(input) {
+  let lat, lon, approx = false;
+  if (input && isFinite(Number(input.lat)) && isFinite(Number(input.lon))) {
+    lat = Number(input.lat);
+    lon = Number(input.lon);
+    if (Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new Error("bad coords");
+  } else {
+    const c = await getIpCoords();
+    lat = c.lat;
+    lon = c.lon;
+    approx = true;
+  }
+
+  const key = lat.toFixed(2) + "," + lon.toFixed(2);
+  const now = Date.now();
+  if (localWeatherCache.key === key && now - localWeatherCache.at < LOCAL_WEATHER_TTL_MS) {
+    return Object.assign({}, localWeatherCache.data, { approx });
+  }
+
+  const wxUrl =
+    "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon +
+    "&current=temperature_2m,weather_code&timezone=auto";
+  const geoUrl =
+    "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=" + lat + "&lon=" + lon +
+    "&accept-language=zh-TW&zoom=12";
+  const [wx, geo] = await Promise.allSettled([
+    fetchJsonWithTimeout(wxUrl),
+    // Nominatim 使用規範要求帶可辨識的 User-Agent
+    fetchJsonWithTimeout(geoUrl, { "User-Agent": "MapSky-Desktop (https://github.com/yonghong0333-ops/MapSky)" }),
+  ]);
+
+  const data = { place: null, temp: null, condition: null, label: null };
+  if (geo.status === "fulfilled" && geo.value) {
+    const a = geo.value.address || {};
+    const city = a.city || a.county || a.state || "";
+    const district = a.town || a.city_district || a.district || a.suburb || "";
+    const parts = [city, district].filter((v, i, arr) => v && arr.indexOf(v) === i);
+    if (parts.length) data.place = parts.join(" ");
+  }
+  if (wx.status === "fulfilled" && wx.value && wx.value.current) {
+    const cur = wx.value.current;
+    if (typeof cur.temperature_2m === "number") data.temp = Math.round(cur.temperature_2m);
+    const c = wmoToCondition(cur.weather_code);
+    data.condition = c.condition;
+    data.label = c.label;
+  }
+  if (data.place === null && data.temp === null) throw new Error("no data");
+
+  localWeatherCache = { key, at: now, data };
+  return Object.assign({}, data, { approx });
 }
 
 // ---------------- macOS 定位服務 ----------------
@@ -1595,6 +1699,8 @@ app.whenReady().then(() => {
     applyUpdateChannel(channel);
     autoUpdater.checkForUpdates().catch(() => {});
   });
+
+  ipcMain.handle("mapsky:local-weather", (_event, input) => lookupLocalWeather(input).catch(() => null));
 
   ipcMain.on("mapsky:location-failed", (event) => {
     showLocationHelp(BrowserWindow.fromWebContents(event.sender));

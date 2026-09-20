@@ -39,4 +39,6 @@ contextBridge.exposeInMainWorld("mapskyAppUpdate", {
 // 由主行程跳出說明並引導使用者到系統設定開啟定位服務。
 contextBridge.exposeInMainWorld("mapskyLocation", {
   reportFailure: (code) => ipcRenderer.send("mapsky:location-failed", code),
+  // 由外殼查「所在地名稱＋目前天氣」。coords 為 { lat, lon }；傳 null 表示改用 IP 概略定位。
+  lookup: (coords) => ipcRenderer.invoke("mapsky:local-weather", coords || null),
 });
