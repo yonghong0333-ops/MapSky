@@ -1,6 +1,6 @@
 {
   "name": "mapsky-desktop",
-  "version": "26.11.0-alpha.1",
+  "version": "26.12.0-beta.1",
   "private": true,
   "description": "MapSky —— 桌面版（載入線上 map-sky.vercel.app 的原生視窗殼）",
   "main": "main.js",
