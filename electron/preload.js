@@ -7,7 +7,7 @@
 // 實際動作還是在主行程（main.js）裡用 ipcMain 處理。
 // ------------------------------------------------------------------
 
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, webFrame } = require("electron");
 
 contextBridge.exposeInMainWorld("mapskyWindowControls", {
   minimize: () => ipcRenderer.send("mapsky:window-control", "minimize"),
@@ -42,3 +42,43 @@ contextBridge.exposeInMainWorld("mapskyLocation", {
   // 由外殼查「所在地名稱＋目前天氣」。coords 為 { lat, lon }；傳 null 表示改用 IP 概略定位。
   lookup: (coords) => ipcRenderer.invoke("mapsky:local-weather", coords || null),
 });
+
+// ------------------------------------------------------------------
+// macOS 定位：等使用者在系統的「定位權限」視窗按下允許，再開始偵測
+//
+// 第一次讀定位時 macOS 會跳出「MapSky 想使用你的位置」。網站原本只等 15 秒（標題列 8 秒），
+// 使用者還在看視窗、還沒按，程式就當成「失敗」，改用 IP 定位隨便挑一個縣市（在台灣常常
+// 判成台北），還會誤跳「無法取得定位」的說明。這裡把等待時間拉長到 10 分鐘：
+//   * 使用者還沒回答 → 一直等，不亂猜、不自動改用 IP 定位。
+//   * 按下允許 → 系統把座標交回來，網站原本的流程照常往下走。
+//   * 按下不允許／系統定位服務關閉 → 立刻回報失敗（code 1／2），網站才改用 IP 定位，
+//     外殼也才跳出說明視窗、引導到系統設定開啟。「逾時」不算失敗，不會跳說明。
+// 必須在網頁自己的程式執行之前裝好，所以放在 preload（文件一開始就跑），
+// 用 webFrame 把這段丟進網頁本身的環境（不是 preload 的隔離環境）。
+// ------------------------------------------------------------------
+if (process.platform === "darwin") {
+  const GEO_WAIT_SOURCE = `
+    (function () {
+      if (window.__mapskyGeoWrapped || !navigator.geolocation) return;
+      window.__mapskyGeoWrapped = true;
+      var geo = navigator.geolocation;
+      var orig = geo.getCurrentPosition.bind(geo);
+      var reported = false;
+      var LONG_WAIT_MS = 10 * 60 * 1000;
+      geo.getCurrentPosition = function (ok, fail, opts) {
+        var o = Object.assign({}, opts || {});
+        o.timeout = LONG_WAIT_MS;
+        return orig(ok, function (err) {
+          if (err && (err.code === 1 || err.code === 2) && !reported) {
+            reported = true;
+            try { if (window.mapskyLocation) window.mapskyLocation.reportFailure(err.code); } catch (e) {}
+          }
+          if (fail) fail(err);
+        }, o);
+      };
+    })();
+  `;
+  try {
+    webFrame.executeJavaScript(GEO_WAIT_SOURCE).catch(() => {});
+  } catch (_) { /* 拿不到就維持原本行為，不影響其他功能 */ }
+}

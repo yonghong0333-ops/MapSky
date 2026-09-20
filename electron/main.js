@@ -1177,14 +1177,35 @@ function injectTitleBar(win) {
         }).catch(function () {});
       }
 
+      // macOS 上使用者還在看系統的定位權限視窗時，這個請求會一直等著（等待時間由 preload
+      // 拉長），按下允許後才有座標；只有真的失敗（不允許／系統定位關閉）才改用 IP 概略定位。
+      var geoPending = false;
+      var geoFailedAt = 0;
+
       function detectRealLocation() {
+        if (geoPending) return; // 上一次還在等使用者回答，不要重複發請求
         if (!navigator.geolocation) { lookupShell(null); return; }
+        geoPending = true;
         navigator.geolocation.getCurrentPosition(
-          function (pos) { lookupShell({ lat: pos.coords.latitude, lon: pos.coords.longitude }); },
-          function () { lookupShell(null); },
+          function (pos) {
+            geoPending = false;
+            geoFailedAt = 0;
+            lookupShell({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+          },
+          function () {
+            geoPending = false;
+            geoFailedAt = Date.now();
+            lookupShell(null);
+          },
           { enableHighAccuracy: false, maximumAge: 10 * 60 * 1000, timeout: 8000 }
         );
       }
+
+      // 定位「永遠啟用」：上一次失敗的話（例如當時還沒開系統的定位服務），使用者去系統設定
+      // 打開之後切回 MapSky，就自動重新偵測，不用重開 App。
+      window.addEventListener("focus", function () {
+        if (geoFailedAt && Date.now() - geoFailedAt > 15000) detectRealLocation();
+      });
 
       detectRealLocation();
       // 定位不太可能一分鐘內就變，10 分鐘重定位一次就夠，不用太頻繁。
@@ -1516,33 +1537,6 @@ async function showLocationHelp(win) {
   } catch (_) { /* 視窗已關閉，忽略 */ }
 }
 
-// 在網頁裡包一層 getCurrentPosition：把等待上限縮到 6 秒（原本 15 秒，使用者會以為
-// 沒反應），失敗時通知外殼跳出說明。網站原本的失敗處理（退回 IP 定位）照常執行。
-function injectGeolocationHelper(win) {
-  if (process.platform !== "darwin" || win.isDestroyed()) return;
-  const script = `
-    (function () {
-      if (window.__mapskyGeoWrapped || !navigator.geolocation || !window.mapskyLocation) return;
-      window.__mapskyGeoWrapped = true;
-      var geo = navigator.geolocation;
-      var orig = geo.getCurrentPosition.bind(geo);
-      var reported = false;
-      geo.getCurrentPosition = function (ok, fail, opts) {
-        var o = Object.assign({}, opts || {});
-        if (!o.timeout || o.timeout > 6000) o.timeout = 6000;
-        return orig(ok, function (err) {
-          if (err && !reported) {
-            reported = true;
-            try { window.mapskyLocation.reportFailure(err.code); } catch (e) {}
-          }
-          if (fail) fail(err);
-        }, o);
-      };
-    })();
-  `;
-  win.webContents.executeJavaScript(script).catch(() => {});
-}
-
 // macOS 上方選單列（MapSky／檔案／編輯…）。Electron 預設選單是英文，這裡整份換成
 // 繁體中文，用詞照 Apple 在繁體中文 macOS 上的慣例（拷貝、顯示方式、輔助說明…）。
 // 每個項目都用 role 保留系統行為（快捷鍵、複製貼上、結束、全螢幕等），label 只是
@@ -1696,7 +1690,6 @@ function createWindow() {
 
   // 自訂標題列的 DOM 是注入進去的，每次頁面（重新）載入完都要重插一次，
   // 不然 reload/導覽一次就被洗掉了。
-  win.webContents.on("dom-ready", () => injectGeolocationHelper(win));
   win.webContents.on("did-finish-load", () => {
     injectTitleBar(win);
     injectMacGlassCSS(win);
