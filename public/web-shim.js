@@ -375,6 +375,98 @@
       bind();
     };
     setupBrandHome();
+
+    // 桌面版：滑鼠移到標題列的網路狀態（訊號格＋「已連線」）時顯示 Ping 值。
+    // 外殼（electron/main.js）其實有畫一個提示框，但它接在標題列裡面，而標題列是
+    // overflow:hidden、高度只有 36px，提示框往下掛就被裁掉看不到。所以這裡另外在
+    // body 上畫一個提示框，位置貼著網路狀態下方；Ping 也是自己量（對站台根目錄打不快取的
+    // HEAD 請求，量往返時間），滑上去馬上量一次，停留期間每 2 秒更新。
+    // 之後若外殼那邊修好了、原本的提示框會出現，記得把這段拿掉，不然會兩個重疊。
+    const setupPingTip = () => {
+      let observer = null;
+      let tip = null;
+      let timer = null;
+      let hovering = false;
+
+      const findWifi = () => {
+        const bar = document.getElementById("__mapsky_titlebar__");
+        if (!bar) return null;
+        for (const d of bar.querySelectorAll("div")) {
+          if (d.style.position === "relative" && d.style.cursor === "default" && /已連線|離線/.test(d.textContent)) return d;
+        }
+        return null;
+      };
+
+      const measure = async () => {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 5000);
+        const start = performance.now();
+        try {
+          await fetch(location.origin + "/?__ping=" + Date.now(), { method: "HEAD", cache: "no-store", signal: ctrl.signal });
+          return Math.round(performance.now() - start);
+        } catch (e) {
+          return null;
+        } finally {
+          clearTimeout(t);
+        }
+      };
+
+      const place = (wifi) => {
+        const r = wifi.getBoundingClientRect();
+        tip.style.left = r.left + r.width / 2 + "px";
+        tip.style.top = r.bottom + 6 + "px";
+      };
+
+      const tick = async (wifi) => {
+        if (!hovering) return;
+        if (!navigator.onLine) {
+          tip.textContent = "離線";
+        } else {
+          const ms = await measure();
+          if (!hovering) return;
+          tip.textContent = ms == null ? "Ping 量測失敗" : "Ping " + ms + " ms";
+        }
+        place(wifi);
+        timer = setTimeout(() => tick(wifi), 2000);
+      };
+
+      const bind = () => {
+        const wifi = findWifi();
+        if (!wifi) return;
+        if (observer) observer.disconnect();
+        if (wifi.dataset.pingTipBound === "1") return;
+        wifi.dataset.pingTipBound = "1";
+
+        tip = document.createElement("div");
+        tip.id = "mapskyPingTip";
+        tip.style.cssText =
+          "position:fixed;transform:translateX(-50%);padding:4px 9px;border-radius:7px;" +
+          "background:#111827;color:#fff;font:11px -apple-system,'Segoe UI',sans-serif;" +
+          "white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s ease;" +
+          "box-shadow:0 6px 16px rgba(0,0,0,.35);z-index:2147483647;";
+        document.body.appendChild(tip);
+
+        wifi.addEventListener("mouseenter", () => {
+          hovering = true;
+          tip.textContent = navigator.onLine ? "量測中…" : "離線";
+          place(wifi);
+          tip.style.opacity = "1";
+          clearTimeout(timer);
+          tick(wifi);
+        });
+        wifi.addEventListener("mouseleave", () => {
+          hovering = false;
+          clearTimeout(timer);
+          tip.style.opacity = "0";
+        });
+      };
+
+      observer = new MutationObserver(bind);
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+      bind();
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupPingTip);
+    else setupPingTip();
   }
 
   // 把選好的圖片縮小成正方形小圖再轉成 base64，不然直接把原圖傳上去
