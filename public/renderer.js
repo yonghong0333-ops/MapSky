@@ -1150,16 +1150,20 @@ async function loadWindObservation(label) {
 }
 
 // ---------------- 紫外線指數 ----------------
-// 跟風速同樣邏輯：整批全臺縣市資料一次撈回來，快取在同一次網頁工作階段內。
+// 即時紫外線（氣象署 O-A0003-001，每 10 分鐘更新）：整批全臺縣市資料一次撈回來，
+// 但只快取 10 分鐘，過了會重新撈，不會整個網頁工作階段都停在同一個數字。
 let uvIndexCache = null;
+let uvIndexCacheAt = 0;
+const UV_INDEX_REFRESH_MS = 10 * 60 * 1000;
 async function loadUvIndex(label) {
   const valueEl = el("uvIndexValue");
   if (!valueEl) return;
   try {
-    if (!uvIndexCache) {
+    if (!uvIndexCache || Date.now() - uvIndexCacheAt > UV_INDEX_REFRESH_MS) {
       const result = await window.weatherAPI.getUvIndex();
       if (!result || !result.ok) return; // 拿不到就維持「暫無資料」，不影響其他功能
       uvIndexCache = result.counties || {};
+      uvIndexCacheAt = Date.now();
     }
     const uv = uvIndexCache[label];
     if (!uv || uv.uvIndex === undefined || uv.uvIndex === null) return;

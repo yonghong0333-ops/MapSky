@@ -19,9 +19,8 @@ const RAIN_WARNING_DATA_ID = "W-C0033-003";
 const TYPHOON_PROB_DATA_ID = "W-C0034-003";
 const SUN_TIMES_DATA_ID = "A-B0062-001"; // 全臺各縣市日出、日沒、太陽過中天時刻
 const MOON_TIMES_DATA_ID = "A-B0063-001"; // 全臺各縣市月出、月沒、月球過中天時刻
-const UV_INDEX_DATA_ID = "O-A0005-001"; // 氣象站每日紫外線指數最大值（依測站代號，需另外對照縣市）
 const WEEKLY_FORECAST_DATA_ID = "F-D0047-091"; // 全臺各縣市未來1週逐12小時天氣預報
-const OBSERVATION_DATA_ID = "O-A0003-001"; // 現在天氣觀測報告（自動氣象站，含即時風速）
+const OBSERVATION_DATA_ID = "O-A0003-001"; // 氣象觀測站 10 分鐘綜觀氣象資料（現在天氣觀測報告：即時風速、即時紫外線指數）
 const DIALAMOON_BASE = "https://svs.gsfc.nasa.gov/api/dialamoon"; // NASA SVS 月相圖 API
 
 const CWA_CITIES = [
@@ -663,9 +662,13 @@ async function getMoonPhaseImage({ forceRefresh = false } = {}) {
   return buf;
 }
 
-// ---------- 紫外線指數 (O-A0005-001) ----------
-// 這份資料是「依測站代號」給的每日最大值，沒有直接帶縣市名稱，
-// 所以要另外撈一次測站觀測資料 (O-A0003-001) 把 StationID 對照回縣市。
+// ---------- 紫外線指數（即時，O-A0003-001）----------
+// 用 O-A0003-001（氣象觀測站 10 分鐘綜觀氣象資料）每個測站的 WeatherElement.UVIndex，
+// 每 10 分鐘更新一次，是「現在」的紫外線指數。
+// 不用 O-A0005-001（每日紫外線指數最大值）：那份是當天的最大值，要等中午過後才會公布，
+// 早上、夜間沒有值，也不是即時的。
+// O-A0003-001 每個測站自己就帶縣市（GeoInfo.CountyName），不用再另外對照。
+// 特殊值：X＝儀器故障、-99＝缺值；夜間正常會是 0。
 // UV 指數等級參考世界衛生組織（WHO）標準。
 function uvIndexLevel(uv) {
   if (uv >= 11) return "危險";
@@ -675,55 +678,63 @@ function uvIndexLevel(uv) {
   return "低量";
 }
 
+// 氣象署的數值都是字串；"X"、"-99"、空值都當成沒有資料。
+function parseUvValue(v) {
+  const n = parseFloat(v);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 async function getUvIndexObservation({ forceRefresh = false } = {}) {
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false, reason: "no-api-key" };
-  const cacheKey = "uv-index";
+  const cacheKey = "uv-index-realtime";
   if (!forceRefresh) {
     const cached = readCache(cacheKey);
     if (cached) return { ok: true, ...cached, cached: true };
   }
 
-  const stationUrl = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/${OBSERVATION_DATA_ID}?Authorization=${encodeURIComponent(apiKey)}&format=JSON`;
-  const uvUrl = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/${UV_INDEX_DATA_ID}?Authorization=${encodeURIComponent(apiKey)}&format=JSON`;
-  const [stationResp, uvResp] = await Promise.all([fetch(stationUrl), fetch(uvUrl)]);
-  if (!stationResp.ok) throw new Error(`HTTP ${stationResp.status}`);
-  if (!uvResp.ok) throw new Error(`HTTP ${uvResp.status}`);
-  const stationData = await stationResp.json();
-  const uvData = await uvResp.json();
-  if (stationData.success === "false" || stationData.success === false) {
-    throw new Error(stationData.message || "查詢測站資料失敗，請確認授權碼是否正確");
-  }
-  if (uvData.success === "false" || uvData.success === false) {
-    throw new Error(uvData.message || "查詢紫外線指數失敗，請確認授權碼是否正確");
+  const url = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/${OBSERVATION_DATA_ID}?Authorization=${encodeURIComponent(apiKey)}&format=JSON`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (data.success === "false" || data.success === false) {
+    throw new Error(data.message || "查詢即時紫外線指數失敗，請確認授權碼是否正確");
   }
 
-  // StationID -> 縣市 對照表
-  const stationCounty = {};
-  const stations = (stationData.records && stationData.records.Station) || [];
+  const stations = (data.records && data.records.Station) || [];
+  const byCounty = {};
+  let latestObs = null;
   for (const s of stations) {
     const county = s.GeoInfo && s.GeoInfo.CountyName;
-    if (s.StationId && county) stationCounty[s.StationId] = county;
-  }
-
-  const uvRecords = (uvData.records && uvData.records.weatherElement && uvData.records.weatherElement.location) || [];
-  const obsDate = uvData.records && uvData.records.weatherElement && uvData.records.weatherElement.Date;
-  const byCounty = {};
-  for (const rec of uvRecords) {
-    const uv = parseFloat(rec.UVIndex);
-    if (!Number.isFinite(uv) || uv < 0) continue; // -99 代表暫無資料
-    const county = stationCounty[rec.StationID];
     if (!county) continue;
-    const isOfficial = /^\d{6}$/.test(rec.StationID || "");
+    const uv = parseUvValue(s.WeatherElement && s.WeatherElement.UVIndex);
+    if (uv === null) continue; // 這個測站沒有紫外線儀器、儀器故障或缺值
+    const isOfficial = /^\d{6}$/.test(s.StationId || "");
     const existing = byCounty[county];
     if (existing) {
+      // 同一縣市有多個測站：正式站優先；同等級取數值較高的（保守，寧可提醒多一點）。
       const keepExisting = existing.isOfficial && !isOfficial ? true : !existing.isOfficial && isOfficial ? false : existing.uvIndex >= uv;
       if (keepExisting) continue;
     }
-    byCounty[county] = { uvIndex: uv, level: uvIndexLevel(uv), stationId: rec.StationID, isOfficial };
+    const observedAt = (s.ObsTime && s.ObsTime.DateTime) || null;
+    byCounty[county] = {
+      uvIndex: uv,
+      level: uvIndexLevel(uv),
+      stationName: s.StationName,
+      stationId: s.StationId,
+      isOfficial,
+      observedAt,
+    };
+    if (observedAt && (!latestObs || observedAt > latestObs)) latestObs = observedAt;
   }
 
-  const payload = { updatedAt: new Date().toISOString(), date: obsDate, counties: byCounty };
+  const payload = {
+    updatedAt: new Date().toISOString(),
+    observedAt: latestObs, // 氣象署這批資料的觀測時間（+08:00）
+    date: latestObs ? latestObs.slice(0, 10) : null,
+    source: OBSERVATION_DATA_ID,
+    counties: byCounty,
+  };
   writeCache(cacheKey, payload);
   return { ok: true, ...payload, cached: false };
 }
