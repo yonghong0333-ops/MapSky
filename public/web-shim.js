@@ -302,7 +302,21 @@
         #sidebarCollapseHandle:hover { opacity: 1; }
         #sidebarCollapseHandle[data-collapsed="true"] { left: 0; border-left: none; border-radius: 0 9px 9px 0; }
         body:not(.auth-ok) #sidebarCollapseHandle { display: none; }
-        @media (min-width: 901px) { .app.sidebar-collapsed .sidebar { display: none; } }
+        #sidebarCollapseHandle { transition: left 0.25s ease, opacity 0.2s ease, border-radius 0.25s ease; }
+        @media (min-width: 901px) {
+          /* 用負的 margin-left 把側邊欄滑出畫面，裡面的內容不會跟著重新排版；
+             收起來之後再 visibility:hidden，避免 Tab 鍵還能focus到看不見的按鈕。 */
+          .sidebar { flex-shrink: 0; transition: margin-left 0.25s ease, opacity 0.25s ease, visibility 0s; }
+          .app.sidebar-collapsed .sidebar {
+            margin-left: -270px; opacity: 0; visibility: hidden; pointer-events: none;
+            transition: margin-left 0.25s ease, opacity 0.25s ease, visibility 0s 0.25s;
+          }
+        }
+        /* 第一次載入時直接套用上次的狀態，不要播動畫 */
+        html.sidebar-noanim .sidebar, html.sidebar-noanim #sidebarCollapseHandle { transition: none !important; }
+        @media (prefers-reduced-motion: reduce) {
+          .sidebar, #sidebarCollapseHandle { transition: none !important; }
+        }
         @media (max-width: 900px) { #sidebarCollapseHandle { display: none; } }
       `;
       document.head.appendChild(style);
@@ -322,7 +336,11 @@
       };
       let collapsed = false;
       try { collapsed = localStorage.getItem(KEY) === "1"; } catch (e) {}
+      document.documentElement.classList.add("sidebar-noanim");
       apply(collapsed);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        document.documentElement.classList.remove("sidebar-noanim");
+      }));
       handle.addEventListener("click", () => {
         collapsed = !collapsed;
         apply(collapsed);
