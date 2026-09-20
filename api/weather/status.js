@@ -12,6 +12,7 @@ const { resolveMemberId } = require("../_lib/member-id");
 const { PROVIDERS, isConfigured } = require("../_lib/providers");
 const { getNicknameCooldownDays, setNicknameCooldownDays, isMaintenanceMode, setMaintenanceMode } = require("../_lib/app-settings");
 const { getAllSubscriptions, removeSubscription } = require("../_lib/push-store");
+const { addAnnouncement, getAnnouncementsSince } = require("../_lib/announcements");
 const { sendPush, ensureConfigured } = require("../_lib/web-push");
 const { getBetaTesters, addBetaTester, removeBetaTester } = require("../_lib/beta-testers");
 
@@ -77,6 +78,13 @@ module.exports = async function handler(req, res) {
       // 插入「from MapSky」這行，程式改不了；把標題也塞進內文，
       // 排版上就會變成「(空白) / from MapSky / 標題：內容」）。
       const combinedBody = `${title}：${message}`;
+      // 同時存一份到公告紀錄，桌面版 App（收不到網頁推播）靠這份定時來拿。
+      // 存失敗不影響原本的網頁推播。
+      try {
+        await addAnnouncement({ title, body: message, url });
+      } catch (e) {
+        console.error("addAnnouncement failed", e.message);
+      }
       const subs = await getAllSubscriptions();
       let sent = 0;
       let expired = 0;
@@ -214,6 +222,17 @@ module.exports = async function handler(req, res) {
 
   // ---- GET：一般狀態查詢 ----
   const basic = { hasKey: Boolean(getApiKey()) };
+  // 桌面版定時來問有沒有新公告：?announcements=1&since=<上次看到的時間戳(ms)>。
+  // 一般登入使用者就能問（上面 requireSession 已經擋掉沒登入的）。
+  if (req.query.announcements === "1") {
+    const since = Number(req.query.since) || 0;
+    try {
+      const announcements = await getAnnouncementsSince(since, 10);
+      return res.status(200).json({ ok: true, now: Date.now(), announcements });
+    } catch (e) {
+      return res.status(200).json({ ok: false, reason: "announcements-unavailable" });
+    }
+  }
   if (req.query.admin !== "1") {
     return res.status(200).json(basic);
   }

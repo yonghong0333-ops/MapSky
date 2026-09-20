@@ -975,8 +975,115 @@
     await subscribeToPush(session, { silent: true });
   }
 
+  // ---------------- 桌面版：公告通知（取代網頁推播） ----------------
+  // 管理員發公告時，伺服器除了送網頁推播，也會把公告存起來（api/_lib/announcements.js）。
+  // 桌面版 App 開著（最小化也算）的時候，每分鐘問一次「有沒有比上次更新的公告」，有就跳系統通知。
+  // 限制：App 完全關掉時收不到；下次打開會補一次錯過的公告（最多 10 則）。
+  // 第一次啟用時只記下「現在」的時間，不會把以前的舊公告一次全部跳出來。
+  const DESKTOP_NOTIFY_KEY = "mapsky_desktop_notify"; // "0" = 使用者自己關掉
+  const DESKTOP_ANN_LAST_KEY = "mapsky_ann_last_ts";
+  const desktopNotifyOn = () => {
+    try { return localStorage.getItem(DESKTOP_NOTIFY_KEY) !== "0"; } catch (e) { return true; }
+  };
+
+  let announcementPolling = false;
+  async function pollDesktopAnnouncements() {
+    if (announcementPolling) return;
+    announcementPolling = true;
+    try {
+      if (!desktopNotifyOn()) return;
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      let lastRaw = null;
+      try { lastRaw = localStorage.getItem(DESKTOP_ANN_LAST_KEY); } catch (e) {}
+      const since = lastRaw ? Number(lastRaw) || 0 : 0;
+      const resp = await fetch("/api/weather/status?announcements=1&since=" + since, { cache: "no-store" });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data || !data.ok) return;
+      if (!lastRaw) {
+        try { localStorage.setItem(DESKTOP_ANN_LAST_KEY, String(data.now)); } catch (e) {}
+        return;
+      }
+      let maxTs = since;
+      for (const a of data.announcements || []) {
+        const n = new Notification(a.title || "MapSky", { body: a.body || "" });
+        n.onclick = () => { try { window.focus(); } catch (e) {} };
+        if (a.ts > maxTs) maxTs = a.ts;
+      }
+      if (maxTs > since) {
+        try { localStorage.setItem(DESKTOP_ANN_LAST_KEY, String(maxTs)); } catch (e) {}
+      }
+    } catch (e) {
+      /* 網路不通等等，下一分鐘再問 */
+    } finally {
+      announcementPolling = false;
+    }
+  }
+
+  let announcementsStarted = false;
+  function startDesktopAnnouncements() {
+    if (!window.mapskyWindowControls || announcementsStarted) return;
+    announcementsStarted = true;
+    setTimeout(pollDesktopAnnouncements, 12000); // 等啟動時的通知授權（約 8 秒）先處理完
+    setInterval(pollDesktopAnnouncements, 60 * 1000);
+    window.addEventListener("focus", pollDesktopAnnouncements);
+  }
+
+  function buildDesktopNotificationEntry() {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.id = "pushNotificationBtn";
+    row.className = "settings-list-item";
+    row.innerHTML = `
+      <span class="settings-list-item-icon">🔔</span>
+      <span class="settings-list-item-label">推播通知</span>
+      <span class="settings-list-item-arrow" id="pushNotificationState">…</span>
+    `;
+    const stateEl = row.querySelector("#pushNotificationState");
+
+    const refreshState = () => {
+      if (!("Notification" in window)) {
+        stateEl.textContent = "此環境不支援";
+        return;
+      }
+      stateEl.textContent = desktopNotifyOn() && Notification.permission === "granted" ? "已開啟 ✓" : "點擊開啟";
+    };
+
+    row.addEventListener("click", async () => {
+      if (!("Notification" in window)) return;
+      // 已開啟 → 點一下關閉
+      if (desktopNotifyOn() && Notification.permission === "granted") {
+        try { localStorage.setItem(DESKTOP_NOTIFY_KEY, "0"); } catch (e) {}
+        refreshState();
+        return;
+      }
+      row.disabled = true;
+      try {
+        const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+        if (permission !== "granted") {
+          alert("需要允許通知權限才能開啟推播，請到「系統設定 → 通知」允許 MapSky。");
+          return;
+        }
+        try { localStorage.setItem(DESKTOP_NOTIFY_KEY, "1"); } catch (e) {}
+        new Notification("MapSky", { body: "推播通知已開啟" });
+        pollDesktopAnnouncements();
+      } catch (e) {
+        alert("設定通知時發生錯誤，請再試一次。");
+      } finally {
+        row.disabled = false;
+        refreshState();
+      }
+    });
+
+    refreshState();
+    return row;
+  }
+
   // ---------------- 推播通知：訂閱／取消訂閱一條列表項目 ----------------
   function buildPushNotificationEntry(session) {
+    // 桌面版（Electron 外殼）沒有 Google 的推播服務，網頁推播一定訂閱失敗，
+    // 改用下面的「公告通知」：App 開著時定時去問伺服器有沒有新公告，用系統通知顯示。
+    if (window.mapskyWindowControls) return buildDesktopNotificationEntry();
     const row = document.createElement("button");
     row.type = "button";
     row.id = "pushNotificationBtn";
@@ -1184,6 +1291,7 @@
         slot.appendChild(buildProfileEditEntry(session));
         slot.appendChild(buildPushNotificationEntry(session));
         maybeAutoPromptPush(session);
+        startDesktopAnnouncements();
         applySettingsAvatarIcon(currentAvatarSrc(session));
         const logoutBtn = el("authLogoutBtn");
         if (logoutBtn) {
