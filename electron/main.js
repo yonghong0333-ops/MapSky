@@ -762,6 +762,102 @@ function injectTitleBar(win) {
 
       var DEFAULT_AVATAR_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>';
 
+      // ---------------- 頭像選單（首頁／警特報／工具／後台管理／設定）----------------
+      // 點頭像跳出選單，列出主要導覽項目；「警特報」只在有生效中的警特報時出現、「後台管理」
+      // 只有管理員看得到（判斷方式：直接看頁面上對應分頁按鈕有沒有被藏起來，跟頂部導覽列
+      // 一致，不另外維護一份條件）。選項本身是去點那顆真正的 .tab-btn，換頁邏輯仍統一由
+      // renderer.js 處理。未登入（登入畫面）時主畫面是藏起來的，所以不開選單。
+      var NAV_MENU_ID = "__mapsky_navmenu__";
+      var NAV_MENU_TOP = ${TITLEBAR_HEIGHT} + 6;
+      var TOOL_TABS = ["tools", "weekly", "chart", "compare", "map", "typhoon"];
+      var navMenuOpen = false;
+      var navAnchor = null;
+
+      function closeNavMenu() {
+        var m = document.getElementById(NAV_MENU_ID);
+        if (m) m.remove();
+        navMenuOpen = false;
+      }
+
+      function navBtnVisible(btn) { return !!btn && !btn.classList.contains("hidden"); }
+
+      function buildNavItems() {
+        var q = function (tab) { return document.querySelector('.tabs .tab-btn[data-tab="' + tab + '"]'); };
+        var items = [{ tab: "forecast", label: "首頁", icon: "🏠", btn: q("forecast") }];
+        var alertsBtn = q("alerts");
+        if (navBtnVisible(alertsBtn)) {
+          var badgeEl = document.getElementById("alertTabBadge");
+          items.push({ tab: "alerts", label: "警特報", icon: "⚠️", btn: alertsBtn, badge: badgeEl ? (badgeEl.textContent || "").trim() : "" });
+        }
+        items.push({ tab: "tools", label: "工具", icon: "🧰", btn: q("tools") });
+        var adminBtn = document.getElementById("adminTabBtn");
+        if (navBtnVisible(adminBtn)) items.push({ tab: "admin", label: "後台管理", icon: "🛡️", btn: adminBtn });
+        items.push({ tab: "settings", label: "設定", icon: "⚙️", btn: q("settings") });
+        return items.filter(function (it) { return it.btn; });
+      }
+
+      function openNavMenu() {
+        closeNavMenu();
+        if (!document.body.classList.contains("auth-ok")) return;
+        var dark = !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        var activeBtn = document.querySelector(".tab-btn.active");
+        var activeTab = activeBtn ? activeBtn.getAttribute("data-tab") : "";
+        var menu = document.createElement("div");
+        menu.id = NAV_MENU_ID;
+        menu.style.cssText =
+          "position:fixed;top:" + NAV_MENU_TOP + "px;right:12px;z-index:2147483646;min-width:176px;padding:6px;" +
+          "border-radius:14px;font:13px/1.2 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;" +
+          "-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);" +
+          "-webkit-app-region:no-drag;box-shadow:0 12px 32px rgba(0,0,0,.22),0 2px 6px rgba(0,0,0,.12);" +
+          (dark
+            ? "background:rgba(44,44,48,.8);color:#f5f5f7;border:1px solid rgba(255,255,255,.14);"
+            : "background:rgba(250,250,252,.8);color:#1d1d1f;border:1px solid rgba(255,255,255,.7);");
+        var hoverBg = dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.06)";
+        var activeBg = dark ? "rgba(255,255,255,.16)" : "rgba(0,0,0,.09)";
+        buildNavItems().forEach(function (it) {
+          var isActive = activeTab === it.tab || (it.tab === "tools" && TOOL_TABS.indexOf(activeTab) !== -1);
+          var row = document.createElement("div");
+          row.style.cssText =
+            "display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;cursor:pointer;" +
+            "user-select:none;-webkit-user-select:none;" + (isActive ? "background:" + activeBg + ";font-weight:600;" : "");
+          var ic = document.createElement("span");
+          ic.textContent = it.icon;
+          ic.style.cssText = "width:18px;text-align:center;font-size:14px;";
+          var lb = document.createElement("span");
+          lb.textContent = it.label;
+          lb.style.cssText = "flex:1;";
+          row.appendChild(ic);
+          row.appendChild(lb);
+          if (it.badge && it.badge !== "0") {
+            var bd = document.createElement("span");
+            bd.textContent = it.badge;
+            bd.style.cssText = "min-width:18px;padding:1px 6px;border-radius:9px;background:#ff3b30;color:#fff;font-size:11px;font-weight:700;text-align:center;";
+            row.appendChild(bd);
+          }
+          row.onmouseenter = function () { if (!isActive) row.style.background = hoverBg; };
+          row.onmouseleave = function () { if (!isActive) row.style.background = ""; };
+          row.onclick = function (e) {
+            e.stopPropagation();
+            closeNavMenu();
+            it.btn.click();
+          };
+          menu.appendChild(row);
+        });
+        document.body.appendChild(menu);
+        navMenuOpen = true;
+      }
+
+      // 點選單以外的地方、按 Esc、視窗失焦都收起來（只需要註冊一次）。
+      document.addEventListener("mousedown", function (e) {
+        if (!navMenuOpen) return;
+        var m = document.getElementById(NAV_MENU_ID);
+        if (m && m.contains(e.target)) return;
+        if (navAnchor && navAnchor.contains(e.target)) return; // 點頭像本身交給它自己的 onclick 切換
+        closeNavMenu();
+      }, true);
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeNavMenu(); });
+      window.addEventListener("blur", closeNavMenu);
+
       function renderAvatar(session) {
         accountSlot.innerHTML = "";
         var wrap = document.createElement("div");
@@ -772,19 +868,19 @@ function injectTitleBar(win) {
         var profile = (loggedIn && session.profile) || {};
         var avatarSrc = profile.avatarDataUrl || profile.avatarUrl || "";
         var name = profile.nickname || profile.name || (loggedIn ? "已登入" : "未登入");
-        wrap.title = name + "（點一下開啟帳號 / 設定）";
+        wrap.title = name + "（點一下開啟選單）";
         wrap.innerHTML = avatarSrc
           ? '<img src="' + avatarSrc + '" style="width:100%;height:100%;object-fit:cover;" />'
           : DEFAULT_AVATAR_SVG;
-        // 點大頭貼開「帳號/設定」：直接點分頁列那顆真正的 .tab-btn[data-tab="settings"]，
-        // 換頁邏輯統一交給 renderer.js 處理，這裡不重複做設定面板。
+        // 點大頭貼開導覽選單（見上方 openNavMenu）。
         wrap.onmouseenter = function () { wrap.style.background = "rgba(255,255,255,.34)"; };
         wrap.onmouseleave = function () { wrap.style.background = "rgba(255,255,255,.2)"; };
         wrap.onmousedown = function () { wrap.style.transform = "scale(0.9)"; };
         wrap.onmouseup = function () { wrap.style.transform = "scale(1)"; };
+        navAnchor = wrap;
         wrap.onclick = function () {
-          var tabBtn = document.querySelector('.tab-btn[data-tab="settings"]');
-          if (tabBtn) tabBtn.click();
+          if (navMenuOpen) closeNavMenu();
+          else openNavMenu();
         };
         accountSlot.appendChild(wrap);
       }
