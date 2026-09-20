@@ -270,6 +270,37 @@
   // 的大頭貼（桌面殼會去點這顆 .tab-btn[data-tab="settings"]，所以按鈕留在 DOM 只是藏
   // 起來）。純網頁瀏覽器沒有那顆大頭貼，所以網頁版仍然照舊顯示「設定」分頁。
   if (window.mapskyWindowControls) {
+    // 桌面版：系統定位最多等 20 秒。外殼（electron/preload.js）為了讓使用者有時間按授權視窗的
+    // 「允許」，把等待上限拉到 10 分鐘；但系統一直沒回應時（例如授權沒對上這一版），
+    // 標題列和側邊欄就會卡上 10 分鐘。這裡在外面再包一層：超過 20 秒沒答覆就當逾時（code 3），
+    // 讓各處的備援流程接手；之後系統若才回座標，會被瀏覽器記下，下次呼叫（maximumAge 內）
+    // 直接取用，不會浪費。
+    if (navigator.geolocation && !navigator.geolocation.__mapskyCapped) {
+      const geo = navigator.geolocation;
+      const inner = geo.getCurrentPosition.bind(geo);
+      const CAP_MS = 20000;
+      geo.getCurrentPosition = function (ok, fail, opts) {
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          if (fail) {
+            fail({
+              code: 3,
+              message: "MapSky: system location timed out",
+              PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3,
+            });
+          }
+        }, CAP_MS);
+        return inner(
+          (pos) => { if (settled) return; settled = true; clearTimeout(timer); if (ok) ok(pos); },
+          (err) => { if (settled) return; settled = true; clearTimeout(timer); if (fail) fail(err); },
+          opts
+        );
+      };
+      geo.__mapskyCapped = true;
+    }
+
     const hideSettingsTab = () => {
       const btn = document.querySelector('.tabs .tab-btn[data-tab="settings"]');
       if (btn) btn.classList.add("hidden");
@@ -467,6 +498,29 @@
     };
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupPingTip);
     else setupPingTip();
+
+    // 桌面版：進入軟體時主動跳出「通知」授權。
+    // 定位的授權視窗不用另外做：標題列一開起來就會讀系統定位，macOS 還沒問過的話就會在那時候跳出來。
+    // 通知比較特別：macOS 要等 App「第一次真的顯示通知」才會問，光呼叫 requestPermission 不會跳，
+    // 所以第一次會顯示一則「通知已開啟」，好讓系統彈出授權視窗；之後不再重複顯示。
+    // 延後幾秒，跟定位的授權視窗錯開，避免兩個視窗同時跳出來。
+    // 注意：macOS 每種授權只會問一次，使用者按過「允許」或「不允許」之後就不會再跳，
+    // 之後要改只能到「系統設定」裡調整。
+    const promptNotificationPermission = async () => {
+      if (!("Notification" in window)) return;
+      try {
+        if (Notification.permission === "default") await Notification.requestPermission();
+        if (Notification.permission !== "granted") return;
+        let primed = false;
+        try { primed = localStorage.getItem("mapsky_notif_primed") === "1"; } catch (e) {}
+        if (primed) return;
+        new Notification("MapSky", { body: "通知已開啟", silent: true });
+        try { localStorage.setItem("mapsky_notif_primed", "1"); } catch (e) {}
+      } catch (e) { /* 拿不到就算了，不影響其他功能 */ }
+    };
+    const schedulePermissionPrompts = () => setTimeout(promptNotificationPermission, 8000);
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", schedulePermissionPrompts);
+    else schedulePermissionPrompts();
   }
 
   // 把選好的圖片縮小成正方形小圖再轉成 base64，不然直接把原圖傳上去
