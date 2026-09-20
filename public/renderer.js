@@ -307,8 +307,17 @@ function getGpsPosition() {
 // 桌面版：直接讀作業系統的定位，不退回 IP 定位。IP 只準到縣市，在台灣常被判成台北，
 // 會悄悄選到錯的縣市；抓不到系統定位時寧可明確告訴使用者原因，也不要亂猜。
 // window.mapskyLocation 只有 Electron 桌面版的 preload 才會提供，手機版／網頁版不會走這裡。
+const LAST_LOCATED_KEY = "mapsky_last_located_city";
+
 async function autoLocateDesktop() {
   setStatus("正在讀取系統定位…");
+  // 系統定位（尤其開機後第一次、或沒有 GPS 的桌機）有時要等十幾秒；先給個提示，
+  // 避免看起來像當掉。第一次使用時 macOS 會跳出授權視窗，也要等使用者按允許。
+  const slowTimers = [
+    setTimeout(() => setStatus("系統定位回應較慢，仍在等待…"), 8000),
+    setTimeout(() => setStatus("還在等系統定位；若跳出授權視窗請按「允許」，或到系統設定確認 MapSky 的定位權限"), 20000),
+  ];
+  const clearSlow = () => slowTimers.forEach(clearTimeout);
   let pos;
   try {
     pos = await new Promise((resolve, reject) => {
@@ -324,6 +333,7 @@ async function autoLocateDesktop() {
       });
     });
   } catch (e) {
+    clearSlow();
     let reason = "無法取得系統定位";
     if (e && e.code === 1) reason = "系統已拒絕 MapSky 使用定位";
     else if (e && e.code === 3) reason = "系統定位逾時";
@@ -331,6 +341,7 @@ async function autoLocateDesktop() {
     return;
   }
 
+  clearSlow();
   setStatus("定位成功，正在比對縣市…");
   const { latitude, longitude } = pos.coords;
   let matched = null;
@@ -371,8 +382,13 @@ async function autoLocateDesktop() {
     setStatus("定位成功，但無法比對到支援的縣市，請手動於下拉選單選擇縣市");
     return;
   }
+  try { localStorage.setItem(LAST_LOCATED_KEY, matched); } catch (e) {}
   el("citySelect").value = matched;
-  selectCity(matched);
+  if (currentCity && currentCity.label === matched) {
+    setStatus(`定位完成：${matched}`);
+  } else {
+    selectCity(matched);
+  }
 }
 
 async function autoLocate() {
@@ -2368,6 +2384,19 @@ window.weatherAPI.onUpdated(() => {
   const hasKey = await refreshApiKeyStatus();
   if (!hasKey) {
     setStatus("尚未設定 CWA 授權碼，請聯絡後台管理員設定");
+  } else if (window.mapskyLocation && window.mapskyLocation.lookup) {
+    // 桌面版：先用「上次定位到的縣市」（沒有就用第一個收藏城市）秒開，
+    // 同時在背景讀系統定位，讀到了再自動切到目前所在縣市，不用每次手動按「自動定位」。
+    // 下拉選單也一併同步，不會停在清單第一項的臺北市。
+    let last = null;
+    try { last = localStorage.getItem(LAST_LOCATED_KEY); } catch (e) {}
+    const first = (last && CWA_CITIES.includes(last) && last) || (favorites[0] && favorites[0].label) || null;
+    if (first) {
+      const sel = el("citySelect");
+      if ([...sel.options].some((o) => o.value === first)) sel.value = first;
+      selectCity(first);
+    }
+    setTimeout(autoLocateDesktop, 300);
   } else if (favorites.length > 0) {
     selectCity(favorites[0].label);
   } else {
