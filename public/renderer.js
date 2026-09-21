@@ -2370,7 +2370,6 @@ function renderAlertCard(alert) {
 // 以前展開後會把氣象署整段電文原封不動貼出來，很長。現在只留重點（強度／名稱／中心位置／
 // 風力／暴風半徑／移動），下面接台灣地圖（陸上警報縣市塗紅、海上警報在台灣外側畫螢光線），
 // 完整電文收在最下面的「完整警報文字」裡，需要才點開。
-let tyCardOpen = false;
 
 function tyShortTime(iso) {
   if (!iso) return "—";
@@ -2419,39 +2418,17 @@ function renderTyphoonAlertCard(alert) {
   row.appendChild(tyEl("span", "alert-row-status", alert.isActive ? "生效中" : "已解除"));
   const btn = tyEl("button", "alert-detail-btn", "詳細資訊");
   btn.type = "button";
+  // 不在列表裡原地展開了：點下去直接開全螢幕的颱風警報畫面（跟首頁那張一樣，
+  // 底下的導覽列還在），範圍地圖接在卡片下面。
+  btn.addEventListener("click", () => tyOpenFromAlerts());
   row.appendChild(btn);
   item.appendChild(row);
-
-  const detail = tyEl("div", "alert-detail hidden");
-  // 版型跟首頁全螢幕的颱風畫面一樣：紅色標頭（警報種類、強度＋名稱、編號／報數、發布與有效時間）
-  // ＋資料格（中心位置、移動、風速、陣風、氣壓、暴風半徑…）＋陸上／海上警戒區域，
-  // 直接共用 tyBuildCard()，之後兩邊不會長得不一樣。下面接著放範圍地圖。
-  const tyCard = tyBuildCard(w);
-  tyCard.classList.add("ty-card--in-list");
-  detail.appendChild(tyCard);
-
-  detail.appendChild(tyEl("div", "ty-al-mapslot")); // 展開時，颱風地圖會被搬到這裡
-
-  if (alert.description) {
-    const rawBtn = tyEl("button", "ty-al-raw-btn", "完整警報文字 ▾");
-    rawBtn.type = "button";
-    const raw = tyEl("p", "ty-al-raw hidden", alert.description);
-    rawBtn.addEventListener("click", () => {
-      const open = raw.classList.toggle("hidden") === false;
-      rawBtn.textContent = open ? "完整警報文字 ▴" : "完整警報文字 ▾";
-    });
-    detail.appendChild(rawBtn);
-    detail.appendChild(raw);
-  }
-  item.appendChild(detail);
-  wireAlertItemToggle(item, { typhoonMap: true });
   return item;
 }
 
-// 颱風地圖本來在「颱風」分頁裡；展開警特報分頁的颱風卡片時，把整個地圖區塊搬進卡片，
-// 收起或離開警特報分頁就搬回去（地圖裡所有東西都是用 id 找的，搬動不影響原本的功能）。
-function tyPlaceMapInCard(item) {
-  const slot = item.querySelector(".ty-al-mapslot");
+// 颱風地圖本來在「颱風」分頁裡；從警特報分頁打開全螢幕颱風畫面時，把整個地圖區塊搬進畫面裡，
+// 關掉或離開警特報分頁就搬回去（地圖裡所有東西都是用 id 找的，搬動不影響原本的功能）。
+function tyPlaceMapInOverlay(slot) {
   const section = el("typhoonMapSection");
   if (!slot || !section) return;
   buildTyphoonMap();
@@ -2474,11 +2451,6 @@ function wireAlertItemToggle(item, options) {
     const isOpen = item.classList.toggle("alert-item-open");
     detail.classList.toggle("hidden", !isOpen);
     btn.textContent = isOpen ? "收起" : "詳細資訊";
-    if (opts.typhoonMap) {
-      tyCardOpen = isOpen;
-      if (isOpen) tyPlaceMapInCard(item);
-      else tyRestoreMapHome();
-    }
     if (opts.showMap) {
       const mapSection = el("alertMapSection");
       if (mapSection && alertMapHasData) {
@@ -2756,13 +2728,23 @@ function tyBuildStrip(w) {
   return btn;
 }
 
+// 從警特報分頁的颱風那一列「詳細資訊」點進來的全螢幕畫面（tyAlertsView）：
+// 跟首頁那張是同一個畫面，但不影響首頁「已收合／已展開」的狀態，
+// 卡片下面多接一張範圍地圖；按「關閉」、或點底部導覽列就回到警特報列表。
+let tyAlertsView = false;
+
 function tyRender() {
   const overlay = el("tyOverlay");
   const body = el("tyOverlayBody");
   const stripList = el("tyStripList");
   if (!overlay || !body || !stripList) return;
 
+  // 地圖可能正放在下面要被清掉的畫面裡，先搬回「颱風」分頁
+  tyRestoreMapHome();
+
   if (!tyWarnings.length) {
+    tyAlertsView = false;
+    overlay.classList.remove("ty-force");
     overlay.classList.add("hidden");
     stripList.classList.add("hidden");
     body.innerHTML = "";
@@ -2770,9 +2752,18 @@ function tyRender() {
     return;
   }
 
-  if (tyExpanded) {
+  const topBtn = el("tyCollapseTopBtn");
+  overlay.classList.toggle("ty-force", tyAlertsView);
+  if (topBtn) topBtn.textContent = tyAlertsView ? "關閉" : "收合";
+
+  if (tyExpanded || tyAlertsView) {
     body.innerHTML = "";
     tyWarnings.forEach((w) => body.appendChild(tyBuildCard(w)));
+    if (tyAlertsView) {
+      const slot = tyEl("div", "ty-overlay-map");
+      body.appendChild(slot);
+      tyPlaceMapInOverlay(slot);
+    }
     overlay.classList.remove("hidden");
     stripList.classList.add("hidden");
     stripList.innerHTML = "";
@@ -2784,6 +2775,28 @@ function tyRender() {
     stripList.classList.remove("hidden");
   }
 }
+
+function tyOpenFromAlerts() {
+  tyAlertsView = true;
+  tyRender();
+  const overlay = el("tyOverlay");
+  if (overlay) overlay.scrollTop = 0;
+}
+
+function tyCloseAlertsView() {
+  if (!tyAlertsView) return;
+  tyAlertsView = false;
+  tyRender();
+}
+
+// 在警特報分頁開著這個畫面時，點導覽列（換分頁、或再點一次警特報）就關掉它
+document.addEventListener(
+  "click",
+  (evt) => {
+    if (tyAlertsView && evt.target.closest && evt.target.closest(".tab-btn, .bottom-nav-btn")) tyCloseAlertsView();
+  },
+  true
+);
 
 function tyOpen() {
   tyExpanded = true;
@@ -2815,7 +2828,7 @@ function renderTyphoonWarning(alerts) {
   tyRender();
 }
 
-el("tyCollapseTopBtn").onclick = tyCollapse;
+el("tyCollapseTopBtn").onclick = () => (tyAlertsView ? tyCloseAlertsView() : tyCollapse());
 el("tyCollapseBtn").onclick = tyCollapse;
 el("tyAllAlertsBtn").onclick = () => {
   const alertsTab = document.querySelector('.tab-btn[data-tab="alerts"]');
@@ -2982,15 +2995,6 @@ async function loadAlerts() {
   renderAlertMap(alerts);
   renderTyphoonMap(alerts);
   renderTyphoonWarning(alerts);
-
-  // 每 5 分鐘資料更新會重畫列表：使用者剛才展開著颱風卡片（正在看地圖）的話，自動再展開，
-  // 不要讓畫面自己縮回去。只在警特報分頁正在顯示時才搬地圖，不然「颱風」分頁的地圖會不見。
-  if (tyCardOpen) {
-    const alertsActive = el("alertsPanel").classList.contains("active");
-    const tyBtn = listEl.querySelector('.alert-item[data-ty="1"] .alert-detail-btn');
-    if (alertsActive && tyBtn) tyBtn.click();
-    else if (!tyBtn) tyCardOpen = false;
-  }
 }
 
 async function loadTyphoonProbability() {

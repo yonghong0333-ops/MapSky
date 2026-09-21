@@ -2901,19 +2901,23 @@ body:not(:has(#forecastPanel.active)) #tyOverlay { display: none; }
 .ty-al-rows { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; line-height: 1.45; }
 .ty-al-label { color: var(--text-sub, #6b7280); white-space: nowrap; }
 .ty-al-value { font-weight: 600; overflow-wrap: anywhere; }
-.ty-al-mapslot { margin-top: 14px; }
-/* 警特報分頁的颱風卡片：用跟首頁全螢幕颱風畫面同一張卡片（tyBuildCard），
-   但放在淺色列表裡，所以這裡補上深色底和白字（原本靠全螢幕畫面的深色背景）。 */
-.alert-detail .ty-card--in-list {
-  margin-top: 12px;
-  color: #fff;
-  background: #1a2238;
-  border-color: rgba(255, 255, 255, 0.12);
+.ty-al-mapslot { margin-top: 12px; }
+/* 從警特報分頁點進來的全螢幕颱風畫面：原本只在首頁出現，這個模式在警特報分頁也要顯示；
+   換到其他分頁一樣會被藏起來（renderer.js 也會同步把這個模式關掉）。 */
+body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
+.ty-overlay.ty-force .ty-more-btn,
+.ty-overlay.ty-force .ty-collapse-btn--wide { display: none; } /* 已經在警特報分頁了；關閉用上面的按鈕 */
+/* 卡片下面的範圍地圖：淺色底的圓角卡片，深色畫面裡才讀得清楚 */
+.ty-overlay-map {
+  border-radius: 22px;
+  background: #ffffff;
+  color: #1f2937;
+  padding: 16px 14px 14px;
 }
-/* 一般警報的詳細內容有 34px 的左縮排（對齊標題），颱風卡片是整張寬卡片，左右留一樣寬 */
-.alert-item[data-ty="1"] .alert-detail { padding: 0 12px 14px; }
-.ty-card--in-list .ty-card-head { padding: 16px 16px 14px; }
-.ty-card--in-list .ty-name { font-size: 28px; }
+.ty-overlay-map .alert-map-section { margin: 0; padding: 0; border: 0; box-shadow: none; background: none; }
+.ty-overlay-map .alert-map-title { display: block; margin-top: 0; }
+/* 地圖區塊沒資料時（被藏起來）就不要留一張空白的白卡片 */
+.ty-overlay-map:not(:has(.alert-map-section:not(.hidden))) { display: none; }
 /* 地圖區塊搬進卡片後：拿掉自己的標題／外框留白，卡片本身已經有標題了 */
 .ty-al-mapslot .alert-map-section { margin: 0; padding: 0; border: 0; box-shadow: none; background: none; }
 .ty-al-mapslot .alert-map-title { display: none; }
