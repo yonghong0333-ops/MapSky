@@ -2738,7 +2738,16 @@ body:not(:has(#forecastPanel.active)) #tyOverlay { display: none; }
   background-image: linear-gradient(180deg, #1d2740 0%, #131a2b 100%);
 }
 @media (min-width: 901px) {
-  .ty-overlay { left: 270px; } /* 電腦版：不要蓋住左邊的側邊欄 */
+  .ty-overlay {
+    left: 270px; /* 電腦版：不要蓋住左邊的側邊欄 */
+    transition: left 0.25s ease; /* 跟側邊欄滑出去的動畫（web-shim.js，0.25s）同步 */
+  }
+  /* 桌面版把側邊欄收起來時（web-shim.js 會在 .app 上加 sidebar-collapsed），警報畫面要跟著撐滿；
+     不然左邊會空出 270px 一條縫，露出後面的內容。overlay 掛在 body 底下、不在 .app 裡，所以用 :has()。 */
+  body:has(.app.sidebar-collapsed) .ty-overlay { left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ty-overlay { transition: none; }
 }
 
 .ty-overlay-top {
