@@ -2805,20 +2805,55 @@ function rainActiveAlerts() {
   return (latestMapAlerts || []).filter((a) => a && a.source === "rain" && a.isActive);
 }
 
+// ---- 「最近縣市」的等級 ----
+// currentCity.label 是目前的縣市（自動定位到最近的縣市，或使用者自己選的），名稱跟特報區域
+// 名稱的開頭一樣（例如「高雄市內門區」開頭是「高雄市」）。
+// 回傳這個縣市在這則特報裡的最高等級；這則特報沒有涵蓋到這個縣市就回傳 null。
+const rainNormName = (s) => String(s || "").replace(/台/g, "臺");
+function rainLocalLevel(a) {
+  const county = rainNormName(currentCity && currentCity.label);
+  if (!county) return null;
+  let best = null;
+  for (const areas of Object.values(a.areasByZone || {})) {
+    for (const ar of areas) {
+      if (!rainNormName(ar.name).startsWith(county)) continue;
+      if (best === null || rainLevelRank(ar.level) < rainLevelRank(best)) best = ar.level;
+    }
+  }
+  return best;
+}
+
+// 頁面標題：最近縣市有被列入特報 → 依該縣市自己的等級叫「豪雨特報」「大雨特報」…；
+// 沒有被列入（或還沒定位）→ 維持原本的「大雨（豪雨）特報」。
+// 同時有多則特報時，以最近縣市最嚴重的那個等級為準。
+function rainPageTitle(alerts) {
+  let best = null;
+  for (const a of alerts) {
+    const lv = rainLocalLevel(a);
+    if (lv && (best === null || rainLevelRank(lv) < rainLevelRank(best))) best = lv;
+  }
+  return best ? `${best}特報` : "大雨（豪雨）特報";
+}
+
 function rainBuildCard(a) {
-  const level = a.severityLevel || a.alertTitle || "大雨";
+  const overall = a.severityLevel || a.alertTitle || "大雨";
+  const local = rainLocalLevel(a); // 最近縣市在這則特報裡的等級（沒被列入是 null）
+  // 大字、標頭顏色：最近縣市有被列入就用該縣市的等級（豪雨 → 橘色「豪雨特報」）；
+  // 沒被列入就照全臺最高等級。
+  const level = local || overall;
   const pal = RAIN_PAL[level] || RAIN_PAL["大雨"];
   const card = tyEl("section", "ty-card");
   card.style.setProperty("--ty-a", pal[0]);
   card.style.setProperty("--ty-b", pal[1]);
 
   const head = tyEl("div", "ty-card-head");
-  head.appendChild(tyEl("div", "ty-type", "大雨（豪雨）特報"));
+  head.appendChild(tyEl("div", "ty-type", local ? `${local}特報` : "大雨（豪雨）特報"));
   const nameRow = tyEl("div", "ty-name-row");
-  nameRow.appendChild(tyEl("span", "ty-intensity", "最高等級"));
+  nameRow.appendChild(tyEl("span", "ty-intensity", local ? currentCity.label : "最高等級"));
   nameRow.appendChild(tyEl("span", "ty-name", level));
   head.appendChild(nameRow);
   if (a.areaCount) head.appendChild(tyEl("div", "ty-meta", `共 ${a.areaCount} 個區域`));
+  if (local && local !== overall) head.appendChild(tyEl("div", "ty-meta", `全臺最高等級　${overall}`));
   head.appendChild(tyEl("div", "ty-meta", `發布 ${formatAlertTime(a.sent)}　有效至 ${formatAlertTime(a.expires)}`));
   card.appendChild(head);
 
@@ -2832,8 +2867,14 @@ function rainBuildCard(a) {
     grid.appendChild(cell);
     card.appendChild(grid);
   }
+  return card;
+}
 
-  // 依等級（重 → 輕）、再依平地／山區分組，標籤顏色跟地圖上的等級色一致
+// 受影響區域：依等級（重 → 輕）、再依平地／山區分組，每組是一個可收合的區塊（預設收起來），
+// 標籤顏色跟地圖上的等級色一致。放在分布圖的下面（見 rainRender）。
+// 資料每 5 分鐘會整頁重畫一次，所以「哪幾組被使用者展開」要另外記著，不然一重畫又全部收起來。
+const rainFoldOpen = new Set();
+function rainBuildAreas(a) {
   const groups = [];
   const byKey = new Map();
   for (const [zone, areas] of Object.entries(a.areasByZone || {})) {
@@ -2841,6 +2882,7 @@ function rainBuildCard(a) {
       const key = `${ar.level}|${zone}`;
       if (!byKey.has(key)) {
         const g = {
+          key,
           level: ar.level,
           zone,
           color: ar.color || RAIN_LEVEL_FALLBACK_COLOR[ar.level] || "#ffffff",
@@ -2853,23 +2895,36 @@ function rainBuildCard(a) {
     }
   }
   groups.sort((x, y) => rainLevelRank(x.level) - rainLevelRank(y.level) || String(x.zone).localeCompare(String(y.zone), "zh-Hant"));
-  if (groups.length) {
-    const areasEl = tyEl("div", "ty-areas");
-    for (const g of groups) {
-      const grp = tyEl("div", "ty-areas-group");
-      grp.appendChild(tyEl("div", "ty-areas-title", `${g.level}　${g.zone}（${g.names.length}）`));
-      const chips = tyEl("div", "ty-chips");
-      g.names.forEach((n) => {
-        const chip = tyEl("span", "ty-chip", n);
-        chip.style.cssText = rainChipStyle(g.color, g.level);
-        chips.appendChild(chip);
-      });
-      grp.appendChild(chips);
-      areasEl.appendChild(grp);
-    }
-    card.appendChild(areasEl);
+  if (!groups.length) return null;
+
+  const wrap = tyEl("section", "rain-fold-card");
+  wrap.appendChild(tyEl("div", "rain-fold-heading", a.areaCount ? `受影響區域（${a.areaCount}）` : "受影響區域"));
+  for (const g of groups) {
+    const det = document.createElement("details");
+    det.className = "rain-fold-group";
+    if (rainFoldOpen.has(g.key)) det.open = true;
+    det.addEventListener("toggle", () => {
+      if (det.open) rainFoldOpen.add(g.key);
+      else rainFoldOpen.delete(g.key);
+    });
+    const sum = document.createElement("summary");
+    sum.className = "rain-fold-title";
+    const dot = tyEl("span", "rain-fold-dot");
+    dot.style.background = g.color;
+    sum.appendChild(dot);
+    sum.appendChild(tyEl("span", "rain-fold-name", `${g.level}　${g.zone}`));
+    sum.appendChild(tyEl("span", "rain-fold-count", `${g.names.length} 個區域`));
+    det.appendChild(sum);
+    const chips = tyEl("div", "ty-chips rain-fold-body");
+    g.names.forEach((n) => {
+      const chip = tyEl("span", "ty-chip", n);
+      chip.style.cssText = rainChipStyle(g.color, g.level);
+      chips.appendChild(chip);
+    });
+    det.appendChild(chips);
+    wrap.appendChild(det);
   }
-  return card;
+  return wrap;
 }
 
 function rainRestoreMapHome() {
@@ -2905,6 +2960,16 @@ function rainRender() {
     body.appendChild(slot);
     slot.appendChild(section);
   }
+  // 受影響區域（可收合）放在分布圖下面
+  alerts.forEach((a) => {
+    const areas = rainBuildAreas(a);
+    if (areas) body.appendChild(areas);
+  });
+  // 上方標題列：最近縣市是豪雨就寫「豪雨特報」，不然維持「大雨（豪雨）特報」
+  const title = rainPageTitle(alerts);
+  const topTitle = overlay.querySelector(".ty-overlay-top-title");
+  if (topTitle) topTitle.textContent = title;
+  overlay.setAttribute("aria-label", title);
   overlay.classList.remove("hidden");
 }
 
