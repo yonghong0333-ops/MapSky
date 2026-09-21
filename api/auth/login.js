@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 const { PROVIDERS, isConfigured, redirectUriFor } = require("../_lib/providers");
-const { serializeCookie } = require("../_lib/cookies");
+const { parseCookies, serializeCookie } = require("../_lib/cookies");
 const { getRedisClient } = require("../_lib/redis-client");
 
 // 桌面殼登入完成（api/auth/callback.js 換到短效交換碼、導回 mapsky://login-complete?xchg=...）
@@ -81,10 +81,22 @@ module.exports = async function handler(req, res) {
   // 有效期限、同樣一次性（callback 處理完就會清掉）。
   const isDesktop = req.query.desktop === "1";
 
+  // oauth_state 現在存的是「一串」還沒完成的登入流程，逗號分隔，每筆是 <state> 或 <state>~d
+  // （~d = 這次是桌面版登入，callback 完成後要導回桌面殼）。原本只存一個，使用者如果開了
+  // 多個登入分頁、或在桌面版連按好幾次登入，後開的會把先開的擠掉，先開的那個登完回來就會
+  // 「state 不符」。改成最多同時保留 5 筆，callback 只移除自己那一筆。
+  // 桌面版標記也跟著 state 走，不再另外用 oauth_desktop cookie（舊的遺留值在這裡順手清掉），
+  // 免得放棄的桌面版登入把標記留給下一次網頁版登入。
+  const pending = String(parseCookies(req).oauth_state || "")
+    .split(",")
+    .filter((e) => /^[0-9a-f]{32}(~d)?$/.test(e))
+    .slice(-4);
+  const entry = isDesktop ? `${state}~d` : state;
+
   res.setHeader("Set-Cookie", [
-    serializeCookie("oauth_state", state, { maxAge: 600 }),
+    serializeCookie("oauth_state", [...pending, entry].join(","), { maxAge: 600 }),
     serializeCookie("oauth_provider", providerId, { maxAge: 600 }),
-    ...(isDesktop ? [serializeCookie("oauth_desktop", "1", { maxAge: 600 })] : []),
+    serializeCookie("oauth_desktop", "", { maxAge: 0 }),
   ]);
   res.writeHead(302, { Location: `${provider.authorizeUrl}?${params.toString()}` });
   res.end();

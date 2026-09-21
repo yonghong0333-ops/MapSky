@@ -61,6 +61,56 @@ async function exchangeToken(provider, code, redirectUri) {
   return resp.json();
 }
 
+// 登入驗證失敗時顯示的頁面：把原因講清楚（以前只有一行白底黑字），並附上錯誤代碼，
+// 使用者截圖給我們就能分辨是哪一種。
+const LOGIN_ERROR_TEXT = {
+  "no-cookie": {
+    why: "瀏覽器沒有把登入用的暫存資料（Cookie）帶回來。",
+    tips: [
+      "瀏覽器或擴充功能封鎖了 Cookie（學校、公司管理的電腦常見）。請允許 mapskyapp.vercel.app 使用 Cookie，或改用無痕視窗試一次。",
+      "登入超過 10 分鐘才完成，暫存資料已經過期。請一次做完。",
+      "登入是在另一個瀏覽器、另一個設定檔或無痕視窗開始的。請在同一個視窗完成。",
+      "登入其實已經成功，只是這個頁面被重新整理、或從歷史紀錄打開。如果 MapSky App 已經登入，直接關掉這個分頁就好。",
+    ],
+  },
+  "state-mismatch": {
+    why: "這個登入頁面已經失效，跟目前瀏覽器記得的登入對不上。",
+    tips: [
+      "同時開了很多個登入分頁，或短時間內連按了很多次登入。請關掉其他登入分頁，回到 MapSky 只按一次登入。",
+      "這個頁面是登入完成後重新整理、或從歷史紀錄打開的。如果 MapSky App 已經登入成功，直接關掉這個分頁就好。",
+    ],
+  },
+  "missing-params": {
+    why: "登入資料不完整。",
+    tips: ["請回到 MapSky 重新按一次登入。"],
+  },
+};
+
+function sendLoginError(res, code) {
+  const info = LOGIN_ERROR_TEXT[code] || LOGIN_ERROR_TEXT["missing-params"];
+  const items = info.tips.map((t) => `<li>${t}</li>`).join("");
+  const html = `<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>登入驗證失敗 - MapSky</title></head>
+<body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:560px;margin:48px auto;padding:0 20px;line-height:1.7;color:#1f2937">
+<h2>登入驗證失敗</h2>
+<p>${info.why}</p>
+<p>可能的原因：</p>
+<ul>${items}</ul>
+<p><a href="/" style="display:inline-block;padding:10px 18px;background:#1d4ed8;color:#fff;border-radius:8px;text-decoration:none">回到 MapSky 重新登入</a></p>
+<p style="color:#9ca3af;font-size:12px">錯誤代碼：${code}</p>
+</body></html>`;
+  res.status(400).setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.send(html);
+}
+
+function parseStateEntries(raw) {
+  return String(raw || "")
+    .split(",")
+    .filter((e) => /^[0-9a-f]{32}(~d)?$/.test(e));
+}
+
 module.exports = async function handler(req, res) {
   const providerId = req.query.provider;
   const provider = PROVIDERS[providerId];
@@ -71,9 +121,14 @@ module.exports = async function handler(req, res) {
   if (req.query.error) {
     return res.redirect(302, `/?login=error&reason=${encodeURIComponent(req.query.error)}`);
   }
-  if (!req.query.code || !req.query.state || req.query.state !== cookies.oauth_state) {
-    return res.status(400).send("登入驗證失敗（state 不符），請重新登入一次");
+  if (!req.query.code || !req.query.state) return sendLoginError(res, "missing-params");
+  const stateEntries = parseStateEntries(cookies.oauth_state);
+  const matchedEntry = stateEntries.find((e) => e.replace(/~d$/, "") === req.query.state);
+  if (!matchedEntry) {
+    return sendLoginError(res, cookies.oauth_state ? "state-mismatch" : "no-cookie");
   }
+  const isDesktop = matchedEntry.endsWith("~d");
+  const remainingStates = stateEntries.filter((e) => e !== matchedEntry);
 
   try {
     const redirectUri = redirectUriFor(req, providerId);
@@ -89,12 +144,13 @@ module.exports = async function handler(req, res) {
     const profile = provider.mapProfile(profileJson);
 
     const token = sign({ provider: providerId, profile });
-    const isDesktop = cookies.oauth_desktop === "1";
 
     // 清掉這次登入流程用的一次性 cookie，不管是不是桌面版都要清，避免留著
-    // 被下一次登入流程誤用。
+    // 被下一次登入流程誤用。oauth_state 只移除這一筆，其他還在進行中的登入流程保留。
     const clearFlowCookies = [
-      serializeCookie("oauth_state", "", { maxAge: 0 }),
+      remainingStates.length
+        ? serializeCookie("oauth_state", remainingStates.join(","), { maxAge: 600 })
+        : serializeCookie("oauth_state", "", { maxAge: 0 }),
       serializeCookie("oauth_provider", "", { maxAge: 0 }),
       serializeCookie("oauth_desktop", "", { maxAge: 0 }),
     ];
