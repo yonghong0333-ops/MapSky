@@ -515,6 +515,7 @@ async function selectCity(label) {
   }
 
   currentCity = { label };
+  tyMaybeForceForLocation(); // 警報資料如果比縣市先到，這裡補判斷（函式在下面定義，載入完才會被呼叫）
   el("cityName").textContent = label;
   renderFavorites();
 
@@ -2798,6 +2799,52 @@ document.addEventListener(
   true
 );
 
+// ---- 所在縣市在陸上颱風警報範圍內：每次開啟 App 都強制蓋住首頁 ----
+// 平常使用者「收合」過的警報，只有出現新颱風、或警報種類變了才會再自動展開（見
+// renderTyphoonWarning）。但如果使用者目前的縣市（定位到的／收藏的／首頁正在看的那個）
+// 就在陸上颱風警報的範圍內，這件事跟他直接相關，所以每次重新開啟 App（或離開超過一分鐘再
+// 回來）都直接蓋住首頁，不管以前收合過沒有。只在剛開啟的前 90 秒內判斷（定位、警報資料
+// 都是非同步載入，誰先到都要能觸發）；使用者這次已經自己收合過，就不會再蓋。
+const TY_FORCE_WINDOW_MS = 90 * 1000;
+const TY_REOPEN_AFTER_MS = 60 * 1000;
+let tyBootAt = Date.now(); // 這次開啟（或從背景回來）的起算時間
+let tyForceDone = false; // 這次開啟已經強制蓋過了
+let tyUserCollapsedThisOpen = false; // 使用者這次已經自己收合過
+let tyHiddenAt = 0;
+
+function tyLocationInLandWarning() {
+  if (!currentCity || !currentCity.label) return false;
+  const norm = (x) => String(x).replace(/台/g, "臺");
+  const here = norm(currentCity.label);
+  return tyWarnings.some((w) => (w.landAreas || []).some((a) => norm(a) === here));
+}
+
+function tyMaybeForceForLocation() {
+  if (tyForceDone || tyUserCollapsedThisOpen) return;
+  if (Date.now() - tyBootAt > TY_FORCE_WINDOW_MS) return;
+  if (!tyLocationInLandWarning()) return;
+  tyForceDone = true;
+  tyExpanded = true;
+  tyRender();
+  const overlay = el("tyOverlay");
+  if (overlay) overlay.scrollTop = 0;
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    tyHiddenAt = Date.now();
+    return;
+  }
+  if (tyHiddenAt && Date.now() - tyHiddenAt >= TY_REOPEN_AFTER_MS) {
+    // 離開超過一分鐘再回來，當作重新開啟
+    tyBootAt = Date.now();
+    tyForceDone = false;
+    tyUserCollapsedThisOpen = false;
+    tyMaybeForceForLocation();
+  }
+  tyHiddenAt = 0;
+});
+
 function tyOpen() {
   tyExpanded = true;
   tyRender();
@@ -2806,6 +2853,7 @@ function tyOpen() {
 }
 
 function tyCollapse() {
+  tyUserCollapsedThisOpen = true;
   const ack = new Set(tyLoadAck());
   tyWarnings.forEach((w) => ack.add(tyAckKey(w)));
   tySaveAck(Array.from(ack));
@@ -2826,6 +2874,7 @@ function renderTyphoonWarning(alerts) {
   // 出現新的颱風、或警報種類變了（海上 → 海上陸上）才自動展開；使用者收合過的就維持卡片
   if (tyWarnings.some((w) => !ack.has(tyAckKey(w)))) tyExpanded = true;
   tyRender();
+  tyMaybeForceForLocation(); // 使用者所在縣市在陸上警報範圍內：不管收合過沒有，剛開啟時都蓋住
 }
 
 el("tyCollapseTopBtn").onclick = () => (tyAlertsView ? tyCloseAlertsView() : tyCollapse());
