@@ -1500,13 +1500,13 @@ button:hover { background: var(--accent-hover); }
 }
 .alert-sea-outline-casing {
   stroke: #7a6400;
-  stroke-width: 16;
+  stroke-width: 26; /* 一半被陸地蓋住，露出來的外側只有一半寬 */
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 .alert-sea-outline {
   stroke: #faff00;
-  stroke-width: 10;
+  stroke-width: 16;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -2886,3 +2886,19 @@ body:not(:has(#forecastPanel.active)) #tyOverlay { display: none; }
   background: rgba(0, 0, 0, 0.3);
   border: 1px dashed rgba(255, 255, 255, 0.7);
 }
+
+/* ---------------- 警特報分頁：颱風警報卡片（精簡版）---------------- */
+.ty-al-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 17px; font-weight: 800; margin: 2px 0 10px; }
+.ty-al-type { font-size: 13px; font-weight: 700; color: #b45309; }
+.ty-al-rows { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; line-height: 1.45; }
+.ty-al-label { color: var(--text-sub, #6b7280); white-space: nowrap; }
+.ty-al-value { font-weight: 600; overflow-wrap: anywhere; }
+.ty-al-mapslot { margin-top: 12px; }
+/* 地圖區塊搬進卡片後：拿掉自己的標題／外框留白，卡片本身已經有標題了 */
+.ty-al-mapslot .alert-map-section { margin: 0; padding: 0; border: 0; box-shadow: none; background: none; }
+.ty-al-mapslot .alert-map-title { display: none; }
+.ty-al-areas { margin-top: 10px; font-size: 13px; line-height: 1.6; white-space: pre-line; color: var(--text-main); }
+.ty-al-time { margin-top: 8px; font-size: 12px; color: #8a94a3; }
+.ty-al-raw-btn { margin-top: 8px; padding: 0; border: 0; background: none; color: var(--accent, #1c4fb8); font-size: 12px; font-weight: 600; cursor: pointer; }
+.ty-al-raw { margin: 6px 0 0; font-size: 12px; line-height: 1.6; color: #6b7280; overflow-wrap: anywhere; }
+.ty-al-raw.hidden { display: none; }

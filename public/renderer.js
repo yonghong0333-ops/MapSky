@@ -1583,6 +1583,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     };
     const target = panelMap[btn.dataset.tab] || "forecastPanel";
     el(target).classList.add("active");
+    if (btn.dataset.tab !== "alerts") tyRestoreMapHome(); // 颱風地圖借放在警特報卡片裡，離開就還給「颱風」分頁
     // 「工具」「設定」「後台管理」都跟城市無關，共用的頁首（城市名稱 + 加入
     // 收藏）不應該留在這幾個畫面上
     const hideHeaderTabs = ["tools", "settings", "admin"];
@@ -1990,6 +1991,95 @@ function hideTyphoonMapTooltip() {
     .forEach((o) => o.classList.remove("selected", "hover"));
 }
 
+// ---- 海上颱風警報線：畫在台灣「外側」、而且畫在對應的海域方向 ----
+// 做法有兩個：
+//  1) 把沿海那組黃線（.alert-sea-outline／-casing）搬到陸地色塊「下面」（見 tyBuildSeaLayer）。
+//     陸地色塊是不透明的，所以線只會露出外側那一半，看起來就是在台灣外面圍了一條螢光線。
+//  2) 依警報的海域名稱，只留下該海域方向的那一段（見 tyApplySeaRegions）：北部海面只畫在
+//     北部海岸、東部海面只畫在東部海岸…。做法是用 SVG clipPath 裁出對應的矩形範圍，
+//     座標是這張地圖的座標（viewBox 原本 185 0 660 1145，本島北端 y≈0、南端 y≈1145）。
+//     這些範圍是依海域地理位置人工估的，只供視覺參考，實際警戒範圍以氣象署文字為準；
+//     遇到不認得的海域名稱就不裁切（退回原本「整個沿海縣市」的畫法）。
+const TY_SEA_REGIONS = {
+  // 北部海面：北部與西北部海岸（基隆～桃園～新竹）。分成兩塊，避開宜蘭縣北端海岸（那段屬於東北部海面）。
+  北部海面: [[420, -100, 770, 110], [420, 110, 600, 185]],
+  東北部海面: [[690, -100, 900, 345]],
+  東部海面: [[620, 300, 900, 730]],
+  東南部海面: [[430, 680, 900, 1260]],
+  南部海面: [[240, 880, 560, 1260]],
+  西南部海面: [[100, 610, 370, 980]],
+  西部海面: [[100, 230, 440, 700]],
+  海峽: [[100, -100, 520, 980]],
+  海峽北部: [[100, -100, 560, 430]],
+  海峽南部: [[100, 400, 390, 980]],
+  巴士海峽: [[300, 1000, 900, 1260]],
+  南海北部: [[100, 860, 520, 1260]],
+  附近海面: [[-1000, -1000, 3000, 3000]],
+  及其附近海面: [[-1000, -1000, 3000, 3000]],
+};
+let typhoonSeaClipEl = null;
+
+function tySeaRegionFor(areaName) {
+  const key = String(areaName || "").trim().replace(/^台/, "臺").replace(/^臺灣/, "");
+  return TY_SEA_REGIONS[key] || null;
+}
+
+function tyBuildSeaLayer(svg, isMainMap) {
+  const towns = svg.querySelector("#towns");
+  if (!towns || !towns.parentNode) return;
+  const NS = "http://www.w3.org/2000/svg";
+  const layer = document.createElementNS(NS, "g");
+  layer.setAttribute("class", "ty-sea-layer");
+  svg.querySelectorAll(".alert-sea-outline-casing").forEach((p) => layer.appendChild(p));
+  svg.querySelectorAll(".alert-sea-outline").forEach((p) => layer.appendChild(p));
+  towns.parentNode.insertBefore(layer, towns); // 放在陸地色塊下面：只露出外側那一半
+
+  if (isMainMap) {
+    // 線畫在海岸外側，viewBox 要往外多留一圈，不然台灣最北／最南端的線會被切掉。
+    svg.setAttribute("viewBox", "150 -45 730 1235");
+    let defs = svg.querySelector("defs");
+    if (!defs) {
+      defs = document.createElementNS(NS, "defs");
+      svg.insertBefore(defs, svg.firstChild);
+    }
+    const clip = document.createElementNS(NS, "clipPath");
+    clip.setAttribute("id", "tySeaClip");
+    defs.appendChild(clip);
+    typhoonSeaClipEl = clip;
+  }
+}
+
+// 依目前生效中的海上颱風警報海域名稱，決定本島那組黃線要留下哪幾段
+function tyApplySeaRegions(areaNames) {
+  const layer = document.querySelector("#typhoonMapHolder .ty-sea-layer");
+  if (!layer || !typhoonSeaClipEl) return;
+  const rects = [];
+  let allKnown = areaNames.length > 0;
+  for (const name of areaNames) {
+    const regions = tySeaRegionFor(name);
+    if (!regions) {
+      allKnown = false;
+      break;
+    }
+    rects.push(...regions);
+  }
+  if (!allKnown || !rects.length) {
+    layer.removeAttribute("clip-path"); // 有不認得的海域：不裁切，維持整個沿海縣市
+    return;
+  }
+  const NS = "http://www.w3.org/2000/svg";
+  while (typhoonSeaClipEl.firstChild) typhoonSeaClipEl.removeChild(typhoonSeaClipEl.firstChild);
+  for (const [x0, y0, x1, y1] of rects) {
+    const rect = document.createElementNS(NS, "rect");
+    rect.setAttribute("x", String(x0));
+    rect.setAttribute("y", String(y0));
+    rect.setAttribute("width", String(x1 - x0));
+    rect.setAttribute("height", String(y1 - y0));
+    typhoonSeaClipEl.appendChild(rect);
+  }
+  layer.setAttribute("clip-path", "url(#tySeaClip)");
+}
+
 function buildTyphoonMap() {
   if (typhoonMapBuilt) return;
 
@@ -2050,6 +2140,7 @@ function buildTyphoonMap() {
       p.addEventListener("click", (evt) => showTyphoonCountyTooltip(p.dataset.county, evt));
     });
 
+    tyBuildSeaLayer(clone, templateId === "twZoneMapTemplate");
     holder.appendChild(clone);
   }
 
@@ -2179,10 +2270,15 @@ function renderTyphoonMap(alerts) {
   }
   if (seaCounties.size) {
     items.push(
-      `<div class="alert-map-legend-item"><span class="alert-map-legend-swatch alert-map-legend-swatch--line" style="background:${TYPHOON_SEA_COLOR}"></span><span>海上颱風警報（鄰近沿海縣市邊界，僅供參考）</span></div>`
+      `<div class="alert-map-legend-item"><span class="alert-map-legend-swatch alert-map-legend-swatch--line" style="background:${TYPHOON_SEA_COLOR}"></span><span>海上颱風警報（畫在台灣外側對應的海域方向，僅供參考）</span></div>`
     );
   }
   legend.innerHTML = items.join("");
+
+  // 本島那組海上警報線只留下對應海域方向的那一段（北部海面畫在北部海岸…）
+  const seaAreaNames = new Set();
+  seaAreasByCounty.forEach((set) => set.forEach((n) => seaAreaNames.add(n)));
+  tyApplySeaRegions(Array.from(seaAreaNames));
 }
 
 // 把「山區」或「平地」那一組地區，依等級（顏色）分段列出，同等級的合成一行避免太長
@@ -2238,6 +2334,7 @@ function renderRainAlertCard(alert) {
 
 function renderAlertCard(alert) {
   if (alert.source === "rain") return renderRainAlertCard(alert);
+  if (alert.source === "typhoon") return renderTyphoonAlertCard(alert);
 
   const item = document.createElement("div");
   item.className = "alert-item" + (alert.isActive ? "" : " alert-item-cancelled");
@@ -2268,6 +2365,118 @@ function renderAlertCard(alert) {
   return item;
 }
 
+// ---------------- 警特報分頁裡的颱風警報卡片（精簡版 + 台灣地圖）----------------
+// 以前展開後會把氣象署整段電文原封不動貼出來，很長。現在只留重點（強度／名稱／中心位置／
+// 風力／暴風半徑／移動），下面接台灣地圖（陸上警報縣市塗紅、海上警報在台灣外側畫螢光線），
+// 完整電文收在最下面的「完整警報文字」裡，需要才點開。
+let tyCardOpen = false;
+
+function tyShortTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const p2 = (n) => String(n).padStart(2, "0");
+  return `${d.getMonth() + 1}/${d.getDate()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
+
+// 「11 日 17 時的中心位置在北緯 20.7 度，東經 123.9 度，即在臺東的東南方約 360 公里之海面上」
+// → 「臺東東南方約 360 公里海面上」
+function tyShortPlace(pos) {
+  if (!pos) return null;
+  const i = pos.indexOf("即在");
+  const t = (i >= 0 ? pos.slice(i + 2) : pos).replace(/的/g, "").replace(/之/g, "").trim();
+  return t || pos;
+}
+
+function tyCompactRows(w) {
+  const rows = [];
+  const place = tyShortPlace(w.facts.position);
+  if (place) rows.push(["中心位置", place]);
+  const wind = (w.facts.maxWind || "").match(/每秒\s*(\d+)\s*公尺.*?相當於\s*(\d+)\s*級/);
+  const gust = (w.facts.gust || "").match(/相當於\s*(\d+)\s*級/);
+  if (wind) rows.push(["風力", `${wind[2]} 級（每秒 ${wind[1]} 公尺）` + (gust ? `　陣風 ${gust[1]} 級` : "")]);
+  else if (w.facts.maxWind) rows.push(["風力", w.facts.maxWind]);
+  const radius = Array.from((w.facts.radius || "").matchAll(/(\d+)\s*級風暴風半徑\s*(\d+)\s*公里/g)).map(
+    (m) => `${m[1]} 級 ${m[2]} 公里`
+  );
+  if (radius.length) rows.push(["暴風半徑", radius.join("　")]);
+  const move = (w.facts.motion || "").match(/每小時\s*(\d+)\s*公里.*?向(.+?)進行/);
+  if (move) rows.push(["移動", `向${move[2]}　時速 ${move[1]} 公里`]);
+  return rows;
+}
+
+function renderTyphoonAlertCard(alert) {
+  const w = parseTyphoonWarning(alert);
+  const item = document.createElement("div");
+  item.className = "alert-item" + (alert.isActive ? "" : " alert-item-cancelled");
+  item.dataset.ty = "1";
+  item.style.setProperty("--alert-color", alert.color || (w.land ? "rgb(255,0,0)" : "rgb(255,128,0)"));
+
+  const row = tyEl("div", "alert-row");
+  row.appendChild(tyEl("span", "alert-row-dot"));
+  row.appendChild(tyEl("span", "alert-row-title", alert.alertTitle || alert.headline || "颱風警報"));
+  row.appendChild(tyEl("span", "alert-row-status", alert.isActive ? "生效中" : "已解除"));
+  const btn = tyEl("button", "alert-detail-btn", "詳細資訊");
+  btn.type = "button";
+  row.appendChild(btn);
+  item.appendChild(row);
+
+  const detail = tyEl("div", "alert-detail hidden");
+  const head = tyEl("div", "ty-al-head");
+  head.appendChild(tyEl("span", "", `${w.intensity || ""}颱風　${w.name}`));
+  head.appendChild(tyEl("span", "ty-al-type", tyType(w)));
+  detail.appendChild(head);
+
+  const rows = tyCompactRows(w);
+  if (rows.length) {
+    const grid = tyEl("div", "ty-al-rows");
+    for (const [label, value] of rows) {
+      grid.appendChild(tyEl("span", "ty-al-label", label));
+      grid.appendChild(tyEl("span", "ty-al-value", value));
+    }
+    detail.appendChild(grid);
+  }
+
+  detail.appendChild(tyEl("div", "ty-al-mapslot")); // 展開時，颱風地圖會被搬到這裡
+
+  const areaLines = [];
+  if (w.landAreas.length) areaLines.push(`陸上：${w.landAreas.join("、")}`);
+  if (w.seaAreas.length) areaLines.push(`海上：${w.seaAreas.join("、")}`);
+  if (areaLines.length) detail.appendChild(tyEl("div", "ty-al-areas", areaLines.join("\n")));
+
+  detail.appendChild(tyEl("div", "ty-al-time", `發布 ${tyShortTime(alert.sent)}　有效至 ${tyShortTime(alert.expires)}`));
+
+  if (alert.description) {
+    const rawBtn = tyEl("button", "ty-al-raw-btn", "完整警報文字 ▾");
+    rawBtn.type = "button";
+    const raw = tyEl("p", "ty-al-raw hidden", alert.description);
+    rawBtn.addEventListener("click", () => {
+      const open = raw.classList.toggle("hidden") === false;
+      rawBtn.textContent = open ? "完整警報文字 ▴" : "完整警報文字 ▾";
+    });
+    detail.appendChild(rawBtn);
+    detail.appendChild(raw);
+  }
+  item.appendChild(detail);
+  wireAlertItemToggle(item, { typhoonMap: true });
+  return item;
+}
+
+// 颱風地圖本來在「颱風」分頁裡；展開警特報分頁的颱風卡片時，把整個地圖區塊搬進卡片，
+// 收起或離開警特報分頁就搬回去（地圖裡所有東西都是用 id 找的，搬動不影響原本的功能）。
+function tyPlaceMapInCard(item) {
+  const slot = item.querySelector(".ty-al-mapslot");
+  const section = el("typhoonMapSection");
+  if (!slot || !section) return;
+  buildTyphoonMap();
+  slot.appendChild(section);
+}
+function tyRestoreMapHome() {
+  const home = el("typhoonPanel");
+  const section = el("typhoonMapSection");
+  if (home && section && section.parentElement !== home) home.insertBefore(section, home.firstChild);
+}
+
 // 點「詳細資訊」按鈕：原地展開/收合顯示那則自己的完整內容（文字），
 // 大雨特報還會多帶出「大雨(豪雨)特報縣市分布圖」（圖表），收合時一起收起來；
 // 卡片本身只是靜態顯示標題跟狀態，不會整排都可以點。
@@ -2279,6 +2488,11 @@ function wireAlertItemToggle(item, options) {
     const isOpen = item.classList.toggle("alert-item-open");
     detail.classList.toggle("hidden", !isOpen);
     btn.textContent = isOpen ? "收起" : "詳細資訊";
+    if (opts.typhoonMap) {
+      tyCardOpen = isOpen;
+      if (isOpen) tyPlaceMapInCard(item);
+      else tyRestoreMapHome();
+    }
     if (opts.showMap) {
       const mapSection = el("alertMapSection");
       if (mapSection && alertMapHasData) {
@@ -2766,6 +2980,7 @@ async function loadAlerts() {
   const alerts = withSimulatedTyphoon((data && data.alerts) || []); // 後台「模擬颱風警報」啟動時會多一則假的
   const listEl = el("alertsList");
   const emptyEl = el("alertsEmpty");
+  tyRestoreMapHome(); // 地圖如果正放在某張卡片裡，先搬回去，不然清掉列表時連地圖一起被清掉了
   listEl.innerHTML = "";
 
   const active = alerts.filter((a) => a.isActive);
@@ -2781,6 +2996,15 @@ async function loadAlerts() {
   renderAlertMap(alerts);
   renderTyphoonMap(alerts);
   renderTyphoonWarning(alerts);
+
+  // 每 5 分鐘資料更新會重畫列表：使用者剛才展開著颱風卡片（正在看地圖）的話，自動再展開，
+  // 不要讓畫面自己縮回去。只在警特報分頁正在顯示時才搬地圖，不然「颱風」分頁的地圖會不見。
+  if (tyCardOpen) {
+    const alertsActive = el("alertsPanel").classList.contains("active");
+    const tyBtn = listEl.querySelector('.alert-item[data-ty="1"] .alert-detail-btn');
+    if (alertsActive && tyBtn) tyBtn.click();
+    else if (!tyBtn) tyCardOpen = false;
+  }
 }
 
 async function loadTyphoonProbability() {
