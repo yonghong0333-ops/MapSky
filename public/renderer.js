@@ -2315,6 +2315,7 @@ function renderAreaGroup(label, areas) {
 function renderRainAlertCard(alert) {
   const item = document.createElement("div");
   item.className = "alert-item" + (alert.isActive ? "" : " alert-item-cancelled");
+  item.dataset.rain = "1"; // 給颱風畫面的「大雨（豪雨）特報」按鈕找得到
   const barColor = alert.color || RAIN_LEVEL_FALLBACK_COLOR[alert.severityLevel] || "#7f8c9a";
   item.style.setProperty("--alert-color", barColor);
 
@@ -2764,6 +2765,7 @@ function tyRender() {
       const slot = tyEl("div", "ty-overlay-map");
       body.appendChild(slot);
       tyPlaceMapInOverlay(slot);
+      body.appendChild(tyBuildRainButton());
     }
     overlay.classList.remove("hidden");
     stripList.classList.add("hidden");
@@ -2775,6 +2777,36 @@ function tyRender() {
     tyWarnings.forEach((w) => stripList.appendChild(tyBuildStrip(w)));
     stripList.classList.remove("hidden");
   }
+}
+
+// 颱風畫面最下面的「大雨（豪雨）特報」按鈕：關掉這個畫面、回到警特報列表，
+// 直接展開第一則大雨（豪雨）特報（會一起帶出大雨(豪雨)特報縣市分布圖）並捲到那裡。
+// 目前沒有生效中的大雨（豪雨）特報時，按鈕是灰的、不能按，但還是顯示，讓使用者知道有這個分類。
+function tyActiveRainCount() {
+  return (latestMapAlerts || []).filter((a) => a && a.source === "rain" && a.isActive).length;
+}
+
+function tyBuildRainButton() {
+  const count = tyActiveRainCount();
+  const btn = tyEl("button", "ty-rain-btn");
+  btn.type = "button";
+  btn.appendChild(tyEl("span", "ty-rain-btn-title", "🌧️ 大雨（豪雨）特報"));
+  btn.appendChild(tyEl("span", "ty-rain-btn-sub", count ? `${count} 則生效中　查看 ›` : "目前沒有生效中的特報"));
+  if (!count) {
+    btn.disabled = true;
+    return btn;
+  }
+  btn.addEventListener("click", () => {
+    tyCloseAlertsView();
+    const first = document.querySelector('#alertsList .alert-item[data-rain="1"]');
+    if (!first) return;
+    if (!first.classList.contains("alert-item-open")) {
+      const detailBtn = first.querySelector(".alert-detail-btn");
+      if (detailBtn) detailBtn.click();
+    }
+    first.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+  return btn;
 }
 
 function tyOpenFromAlerts() {

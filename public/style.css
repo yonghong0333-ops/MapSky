@@ -2918,6 +2918,29 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
 }
 .ty-overlay-map .alert-map-section { margin: 0; padding: 0; border: 0; box-shadow: none; background: none; }
 .ty-overlay-map .alert-map-title { display: block; margin-top: 0; }
+/* 從警特報「詳細資訊」點進來的畫面，下面已經有範圍地圖了，就不再重複列「陸上／海上警戒區域」
+   那兩排標籤；地圖沒資料（被藏起來）時還是保留標籤，首頁那張（沒有地圖）也照舊顯示。 */
+.ty-overlay.ty-force:has(.ty-overlay-map .alert-map-section:not(.hidden)) .ty-areas { display: none; }
+/* 卡片、地圖下面的「大雨（豪雨）特報」按鈕 */
+.ty-rain-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+.ty-rain-btn:active { background: rgba(255, 255, 255, 0.2); }
+.ty-rain-btn-sub { font-size: 13px; font-weight: 600; opacity: 0.8; white-space: nowrap; }
+.ty-rain-btn:disabled { opacity: 0.5; cursor: default; }
 /* 地圖區塊沒資料時（被藏起來）就不要留一張空白的白卡片 */
 .ty-overlay-map:not(:has(.alert-map-section:not(.hidden))) { display: none; }
 /* 地圖區塊搬進卡片後：拿掉自己的標題／外框留白，卡片本身已經有標題了 */
