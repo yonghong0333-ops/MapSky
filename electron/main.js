@@ -1213,9 +1213,16 @@ function injectTitleBar(win) {
             geoFailedAt = 0;
             lookupShell({ lat: pos.coords.latitude, lon: pos.coords.longitude }, "gps");
           },
-          function () {
+          function (err) {
             geoPending = false;
             geoFailedAt = Date.now();
+            // 被拒絕（1）或系統抓不到位置（2）才請外殼跳說明；逾時（3）不算真的失敗。
+            // 外殼每次啟動只會提醒一次，且只在 macOS／Windows 有作用。
+            try {
+              if (err && (err.code === 1 || err.code === 2) && window.mapskyLocation && window.mapskyLocation.reportFailure) {
+                window.mapskyLocation.reportFailure(err.code);
+              }
+            } catch (e) {}
             fallbackLocation();
           },
           { enableHighAccuracy: false, maximumAge: 10 * 60 * 1000, timeout: 8000 }
@@ -1592,38 +1599,75 @@ async function getOsPosition(maxAgeMs) {
   return osPositionInFlight;
 }
 
-// ---------------- macOS 定位服務 ----------------
-// Electron 沒有「主動向系統要定位權限」的 API：系統的授權視窗只會在 App 第一次真的
-// 去讀定位時（navigator.geolocation）才跳出來，而且 App 得有正確簽章才會出現在
-// 「定位服務」清單。所以這裡做兩件事：
-//   1. 網頁定位失敗時（被拒絕／系統沒開／逾時），跳出說明並一鍵開啟系統設定。
-//   2. 選單「檔案 → 定位服務設定…」隨時可以手動開。
+// ---------------- macOS／Windows 定位服務 ----------------
+// Electron 沒有「主動向系統要定位權限」的 API：
+//   * macOS：系統的授權視窗只會在 App 第一次真的去讀定位時才跳出來，而且 App 得有正確
+//     簽章才會出現在「定位服務」清單。
+//   * Windows：傳統型（Win32）桌面程式完全不會跳授權視窗，只受系統的兩個總開關控制：
+//     「位置服務」與「讓桌面應用程式存取您的位置」，程式無法自己幫使用者打開。
+// 所以這裡做兩件事：
+//   1. 網頁定位失敗時（被拒絕／系統沒開），跳出說明並一鍵開啟系統的定位設定頁。
+//   2. macOS 選單「檔案 → 定位服務設定…」隨時可以手動開。
 // 定位失敗時網站本身會退回 IP 定位（只準到縣市），所以不會整個不能用。
-const LOCATION_SETTINGS_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices";
+const LOCATION_SETTINGS_URL =
+  process.platform === "win32"
+    ? "ms-settings:privacy-location"
+    : "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices";
 let locationHelpShown = false;
+
+// 使用者在提醒視窗按過「永遠不提醒」，就在 userData 資料夾寫一個標記檔（跟第一次啟動的
+// .mapsky-first-run-done 同一套做法），之後不再跳這個視窗。
+// 想恢復提醒：把 userData 資料夾裡的 .mapsky-no-location-help 這個檔案刪掉就好。
+const LOCATION_HELP_OPTOUT_FILE = () => path.join(app.getPath("userData"), ".mapsky-no-location-help");
+
+function isLocationHelpDisabled() {
+  try {
+    return fs.existsSync(LOCATION_HELP_OPTOUT_FILE());
+  } catch {
+    return false;
+  }
+}
+
+function disableLocationHelpForever() {
+  try {
+    const marker = LOCATION_HELP_OPTOUT_FILE();
+    fs.mkdirSync(path.dirname(marker), { recursive: true });
+    fs.writeFileSync(marker, new Date().toISOString());
+  } catch (_) { /* 寫入失敗（例如權限問題）就算了，下次啟動會再提醒一次 */ }
+}
 
 function openLocationSettings() {
   shell.openExternal(LOCATION_SETTINGS_URL).catch(() => {});
 }
 
 async function showLocationHelp(win) {
-  if (process.platform !== "darwin" || locationHelpShown) return;
+  if ((process.platform !== "darwin" && process.platform !== "win32") || locationHelpShown) return;
+  if (isLocationHelpDisabled()) return; // 使用者選過「永遠不提醒」
   locationHelpShown = true; // 每次開啟 App 只提醒一次，避免一直被打擾
+  const macDetail =
+    "請到「系統設定 → 隱私權與安全性 → 定位服務」，確認最上方的「定位服務」已開啟，" +
+    "並把清單裡的「MapSky 定位」打開。\n\n" +
+    "如果清單裡找不到「MapSky 定位」，請完全結束 MapSky 後重新開啟，再按一次「自動定位目前位置」。\n\n" +
+    "在那之前，MapSky 會改用網路 IP 概略定位（只能判斷到縣市）。";
+  const winDetail =
+    "請到「設定 → 隱私權與安全性 → 位置」，確認：\n" +
+    "  1. 「位置服務」已開啟\n" +
+    "  2. 「讓桌面應用程式存取您的位置」（Let desktop apps access your location）已開啟\n\n" +
+    "開啟後回到 MapSky，會自動重新定位，不用重開程式。\n\n" +
+    "在那之前，MapSky 會改用網路 IP 概略定位（只能判斷到縣市）。";
   const opts = {
     type: "info",
-    buttons: ["開啟定位服務設定", "稍後再說"],
+    title: "MapSky", // 不指定的話標題會顯示 package.json 的 name（mapsky-desktop）
+    buttons: ["開啟定位服務設定", "稍後再說", "永遠不提醒"],
     defaultId: 0,
-    cancelId: 1,
+    cancelId: 1, // 按右上角 ✕ 等同「稍後再說」，不會誤觸「永遠不提醒」
     message: "MapSky 無法取得系統定位",
-    detail:
-      "請到「系統設定 → 隱私權與安全性 → 定位服務」，確認最上方的「定位服務」已開啟，" +
-      "並把清單裡的「MapSky 定位」打開。\n\n" +
-      "如果清單裡找不到「MapSky 定位」，請完全結束 MapSky 後重新開啟，再按一次「自動定位目前位置」。\n\n" +
-      "在那之前，MapSky 會改用網路 IP 概略定位（只能判斷到縣市）。",
+    detail: process.platform === "win32" ? winDetail : macDetail,
   };
   try {
     const r = win && !win.isDestroyed() ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
     if (r.response === 0) openLocationSettings();
+    else if (r.response === 2) disableLocationHelpForever();
   } catch (_) { /* 視窗已關閉，忽略 */ }
 }
 
@@ -1770,6 +1814,13 @@ function createWindow() {
   });
 
   win.webContents.setUserAgent(CHROME_UA);
+
+  // 固定視窗（工作列）標題為「MapSky」：Electron 預設會在網頁載入後改用網頁的 <title>
+  // （例如「MapSky | 台灣…」），這裡攔截 page-title-updated 事件，不讓網頁標題蓋掉。
+  win.on("page-title-updated", (event) => {
+    event.preventDefault();
+    if (!win.isDestroyed() && win.getTitle() !== "MapSky") win.setTitle("MapSky");
+  });
 
   // 每次開軟體都保證是打網路拿最新內容，不要讓本地磁碟快取搶答
   // （index.html 本來就設了 no-cache/must-revalidate，這裡是保險再做一次）。
