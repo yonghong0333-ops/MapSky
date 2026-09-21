@@ -2403,6 +2403,7 @@ function parseTyphoonWarning(a) {
     land,
     sent: a.sent || null,
     expires: a.expires || null,
+    simulated: Boolean(a.simulated),
     facts: {
       position: tyField(desc, "中心位置"),
       motion: tyField(desc, "預測速度及方向"),
@@ -2449,6 +2450,7 @@ function collectTyphoonWarnings(alerts) {
     newer.landAreas = Array.from(new Set([...newer.landAreas, ...older.landAreas]));
     for (const k of Object.keys(older.facts)) if (!newer.facts[k]) newer.facts[k] = older.facts[k];
     if (!newer.intensity) newer.intensity = older.intensity;
+    newer.simulated = newer.simulated && older.simulated;
     byKey.set(w.key, newer);
   }
   // 嚴重的排前面：海上陸上優先，其次強烈 > 中度 > 輕度
@@ -2483,6 +2485,7 @@ function tyBuildCard(w) {
   card.style.setProperty("--ty-b", pal.b);
 
   const head = tyEl("div", "ty-card-head");
+  if (w.simulated) head.appendChild(tyEl("div", "ty-sim-tag", "模擬測試　只有你這台裝置看得到"));
   head.appendChild(tyEl("div", "ty-type", tyType(w)));
   const nameRow = tyEl("div", "ty-name-row");
   nameRow.appendChild(tyEl("span", "ty-intensity", `${w.intensity || ""}颱風`));
@@ -2547,6 +2550,7 @@ function tyBuildStrip(w) {
   text.appendChild(tyEl("span", "ty-strip-type", tyType(w)));
   text.appendChild(tyEl("span", "ty-strip-name", w.name));
   btn.appendChild(text);
+  if (w.simulated) btn.appendChild(tyEl("span", "ty-strip-sim", "模擬"));
   btn.appendChild(tyEl("span", "ty-strip-more", "詳細資料 ›"));
   btn.addEventListener("click", () => tyOpen());
   return btn;
@@ -2617,11 +2621,149 @@ el("tyAllAlertsBtn").onclick = () => {
   const alertsTab = document.querySelector('.tab-btn[data-tab="alerts"]');
   if (alertsTab) alertsTab.click();
 };
+
+// ---------------- 模擬颱風警報（後台預覽用）----------------
+// 只存在這台裝置（localStorage），不會送到伺服器、不會推播，其他使用者完全不受影響。
+// 啟動後 loadAlerts() 會把一則「假的」颱風警報混進警特報資料裡，所以警報畫面、收合卡片、
+// 警特報分頁、颱風分頁地圖都會照真的警報一樣運作；2 小時後自動結束，避免忘記關。
+const TY_SIM_KEY = "mapsky_ty_sim";
+const TY_SIM_MAX_MS = 2 * 60 * 60 * 1000;
+const TY_SIM_NUMBER = "99";
+// 各強度的示意數值（風速對照氣象署強度分級：輕度 17.2～32.6、中度 32.7～50.9、強烈 51.0 m/s 以上）
+const TY_SIM_PRESETS = {
+  輕度: { w: 25, wLv: 10, g: 33, gLv: 12, pressure: 980, r7: 150, r10: "－", speed: 18 },
+  中度: { w: 42, wLv: 14, g: 52, gLv: 16, pressure: 950, r7: 200, r10: 60, speed: 20 },
+  強烈: { w: 58, wLv: 17, g: 72, gLv: 17, pressure: 915, r7: 250, r10: 100, speed: 22 },
+};
+
+function tyLoadSim() {
+  try {
+    const sim = JSON.parse(localStorage.getItem(TY_SIM_KEY) || "null");
+    if (!sim || !TY_SIM_PRESETS[sim.intensity]) return null;
+    if (!sim.startedAt || Date.now() - sim.startedAt > TY_SIM_MAX_MS) {
+      localStorage.removeItem(TY_SIM_KEY);
+      return null;
+    }
+    return sim;
+  } catch (e) {
+    return null;
+  }
+}
+
+function buildSimulatedTyphoonAlert(sim) {
+  const p = TY_SIM_PRESETS[sim.intensity];
+  const both = sim.type === "both";
+  const now = new Date();
+  const sent = now.toISOString();
+  const expires = new Date(now.getTime() + 4 * 60 * 60 * 1000).toISOString();
+  const day = now.getDate();
+  const hour = now.getHours();
+  const later = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const headline = both ? "海上陸上颱風警報" : "海上颱風警報";
+  const name = sim.name || "測試";
+  const kmh = (ms) => Math.round(ms * 3.6);
+  const forecast = both
+    ? "即在花蓮的南南東方約 40 公里之陸地上"
+    : "即在花蓮的東南東方約 190 公里之海面上";
+  const description =
+    `警報報數:1。颱風編號:${TY_SIM_NUMBER}。` +
+    `颱風強度及命名:${sim.intensity}颱風，國際命名：SIMULATION，中文譯名：${name}。` +
+    `中心氣壓:${p.pressure} 百帕。` +
+    `中心位置:${day} 日 ${hour} 時的中心位置在北緯 21.6 度，東經 121.9 度，即在鵝鑾鼻的南南東方約 120 公里之海面上。` +
+    `暴風半徑:7 級風暴風半徑 ${p.r7} 公里，10 級風暴風半徑 ${p.r10} 公里。` +
+    `預測速度及方向:以每小時 ${p.speed} 公里速度，向北北西進行。` +
+    `近中心最大風速:每秒 ${p.w} 公尺(約每小時 ${kmh(p.w)} 公里)，相當於 ${p.wLv} 級風。` +
+    `瞬間之最大陣風:每秒 ${p.g} 公尺(約每小時 ${kmh(p.g)} 公里)，相當於 ${p.gLv} 級風。` +
+    `預測位置:${later.getDate()} 日 ${hour} 時的中心位置在北緯 23.4 度，東經 121.3 度，${forecast}。`;
+  const seaAreas = ["臺灣東南部海面", "巴士海峽", "臺灣南部海面"];
+  const landCounties = both ? ["屏東縣", "臺東縣", "高雄市"] : [];
+  return {
+    id: "SIMULATED-TYPHOON",
+    source: "typhoon",
+    simulated: true,
+    sent,
+    status: "Actual",
+    msgType: "Alert",
+    isActive: true,
+    event: "颱風",
+    effective: sent,
+    onset: sent,
+    expires,
+    headline,
+    description,
+    alertTitle: "颱風警報（模擬）",
+    severityLevel: headline,
+    color: both ? "rgb(255,0,0)" : "rgb(255,128,0)",
+    areas: [...landCounties, ...seaAreas],
+    areaCount: landCounties.length + seaAreas.length,
+    landCounties,
+    seaCounties: ["臺東縣", "屏東縣", "高雄市"],
+    seaCountyAreas: {
+      臺東縣: ["臺灣東南部海面", "巴士海峽"],
+      屏東縣: ["臺灣東南部海面", "巴士海峽", "臺灣南部海面"],
+      高雄市: ["臺灣南部海面"],
+    },
+  };
+}
+
+// loadAlerts() 呼叫：模擬中就把假的颱風警報混進去（否則原樣回傳）
+function withSimulatedTyphoon(alerts) {
+  const sim = tyLoadSim();
+  return sim ? [buildSimulatedTyphoonAlert(sim), ...(alerts || [])] : alerts || [];
+}
+
+function syncAdminTySimUi() {
+  const msg = el("adminTySimMsg");
+  if (!msg) return;
+  const sim = tyLoadSim();
+  if (!sim) {
+    msg.textContent = "目前沒有在模擬。";
+    return;
+  }
+  const left = Math.max(1, Math.round((TY_SIM_MAX_MS - (Date.now() - sim.startedAt)) / 60000));
+  const typeLabel = sim.type === "both" ? "海上陸上颱風警報" : "海上颱風警報";
+  msg.textContent = `模擬中：${sim.intensity}颱風　${typeLabel}　${sim.name}（約 ${left} 分鐘後自動結束）`;
+  if (el("adminTySimIntensity")) el("adminTySimIntensity").value = sim.intensity;
+  if (el("adminTySimType")) el("adminTySimType").value = sim.type;
+  if (el("adminTySimName")) el("adminTySimName").value = sim.name;
+}
+
+if (el("adminTySimStart")) {
+  el("adminTySimStart").onclick = async () => {
+    const intensity = el("adminTySimIntensity").value;
+    const type = el("adminTySimType").value === "both" ? "both" : "sea";
+    const name = (el("adminTySimName").value || "").trim().slice(0, 8) || "測試";
+    try {
+      localStorage.setItem(TY_SIM_KEY, JSON.stringify({ intensity, type, name, startedAt: Date.now() }));
+    } catch (e) {
+      el("adminTySimMsg").textContent = "這個瀏覽器不允許儲存資料，沒辦法模擬。";
+      return;
+    }
+    // 讓警報畫面重新彈出來（清掉這個模擬颱風之前「已收合」的紀錄）
+    tySaveAck(tyLoadAck().filter((k) => !k.startsWith(`${TY_SIM_NUMBER}|`)));
+    await loadAlerts();
+    syncAdminTySimUi();
+    const homeBtn = document.querySelector('.tab-btn[data-tab="forecast"]');
+    if (homeBtn) homeBtn.click(); // 切到首頁，才看得到蓋在首頁上的警報畫面
+  };
+}
+if (el("adminTySimStop")) {
+  el("adminTySimStop").onclick = async () => {
+    try {
+      localStorage.removeItem(TY_SIM_KEY);
+    } catch (e) {
+      /* 忽略 */
+    }
+    await loadAlerts();
+    syncAdminTySimUi();
+  };
+}
+syncAdminTySimUi();
 // ---------------- end 颱風警報畫面 ----------------
 
 async function loadAlerts() {
   const data = await window.weatherAPI.getAlerts();
-  const alerts = (data && data.alerts) || [];
+  const alerts = withSimulatedTyphoon((data && data.alerts) || []); // 後台「模擬颱風警報」啟動時會多一則假的
   const listEl = el("alertsList");
   const emptyEl = el("alertsEmpty");
   listEl.innerHTML = "";

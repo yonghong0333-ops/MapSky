@@ -2838,3 +2838,51 @@ body:not(:has(#forecastPanel.active)) #tyOverlay { display: none; }
 .ty-strip-type { font-weight: 600; opacity: 0.95; }
 .ty-strip-name { font-weight: 800; }
 .ty-strip-more { flex-shrink: 0; font-size: 12px; font-weight: 600; opacity: 0.92; white-space: nowrap; }
+
+/* ---------------- 後台：模擬颱風警報 ---------------- */
+.admin-sim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
+.admin-sim-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-sub, var(--text-main)); }
+.admin-sim-field select,
+.admin-sim-field input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--input-border, var(--card-border));
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--input-bg, var(--card-bg));
+  color: var(--text-main);
+}
+.admin-sim-actions { display: flex; gap: 8px; margin-top: 12px; }
+.admin-sim-actions button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-sim-actions .admin-sim-stop { background: #6b7280; }
+
+/* 模擬中的標記：警報畫面上和收合卡片上都會出現，避免把測試誤當成真的警報 */
+.ty-sim-tag {
+  display: inline-block;
+  margin-bottom: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px dashed rgba(255, 255, 255, 0.7);
+}
+.ty-strip-sim {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px dashed rgba(255, 255, 255, 0.7);
+}

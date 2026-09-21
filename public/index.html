@@ -895,6 +895,37 @@
               </form>
               <p id="adminPushMsg" class="admin-assign-msg"></p>
             </div>
+            <div class="admin-card">
+              <h3 class="admin-card-title">🌀 模擬颱風警報</h3>
+              <p class="admin-card-hint">
+                預覽颱風警報畫面用。<strong>只有你這台裝置、這個帳號看得到</strong>，不會送到伺服器、
+                不會推播，其他使用者完全不受影響。啟動後會直接切到首頁看警報畫面，按「收合」可以看
+                卡片樣子；忘記關的話 2 小時後會自動結束。
+              </p>
+              <div class="admin-sim-grid">
+                <label class="admin-sim-field">強度
+                  <select id="adminTySimIntensity">
+                    <option value="輕度">輕度</option>
+                    <option value="中度">中度</option>
+                    <option value="強烈">強烈</option>
+                  </select>
+                </label>
+                <label class="admin-sim-field">警報種類
+                  <select id="adminTySimType">
+                    <option value="sea">海上颱風警報</option>
+                    <option value="both">海上陸上颱風警報</option>
+                  </select>
+                </label>
+                <label class="admin-sim-field">颱風名稱
+                  <input id="adminTySimName" type="text" value="測試" maxlength="8" />
+                </label>
+              </div>
+              <div class="admin-sim-actions">
+                <button id="adminTySimStart" type="button">啟動模擬</button>
+                <button id="adminTySimStop" type="button" class="admin-sim-stop">停止模擬</button>
+              </div>
+              <p id="adminTySimMsg" class="admin-assign-msg"></p>
+            </div>
             <div id="adminManageCard" class="admin-card hidden">
               <h3 class="admin-card-title">管理員名單</h3>
               <p class="admin-card-hint">超級管理員固定在伺服器環境變數裡，誰都踢不掉；一般管理員可以在這裡直接指派或踢除。</p>
