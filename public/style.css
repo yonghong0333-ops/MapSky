@@ -1360,7 +1360,15 @@ button:hover { background: var(--accent-hover); }
   padding: 12px 18px;
   z-index: 5;
   pointer-events: none;
-  white-space: nowrap;
+  /* 寬度照內容排（不會因為點在靠右邊而被擠窄），但最寬不超過地圖區塊，太長的文字
+     （例如「海上颱風警報：臺灣東南部海面、巴士海峽、臺灣南部海面」）在手機上才換行。
+     以前是 white-space: nowrap，手機上比地圖區塊還寬，夾擠算出負數就沒作用，
+     小視窗就從點擊位置往右伸出去被切掉。 */
+  width: max-content;
+  max-width: calc(100% - 8px);
+  box-sizing: border-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .alert-map-tooltip.hidden { display: none; }
 .alert-map-tooltip-title {

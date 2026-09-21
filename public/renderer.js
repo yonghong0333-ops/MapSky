@@ -1888,7 +1888,8 @@ function positionTooltipNearCursor(evt, tooltipId = "alertMapTooltip", wrapId = 
   const tRect = tooltip.getBoundingClientRect();
   const maxLeft = wrapRect.width - tRect.width - 4;
   const maxTop = wrapRect.height - tRect.height - 4;
-  if (maxLeft >= 0) left = Math.min(left, maxLeft);
+  // 小視窗比地圖區塊還寬（很窄的手機）時，貼齊左邊，不要從點擊位置往右伸出去
+  left = maxLeft >= 0 ? Math.min(left, maxLeft) : 4;
   if (maxTop >= 0) top = Math.min(top, maxTop);
   left = Math.max(left, 4);
   top = Math.max(top, 4);
