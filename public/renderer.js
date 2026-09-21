@@ -239,6 +239,7 @@ el("addFavBtn").onclick = () => {
   setStatus(`已將「${currentCity.label}」加入收藏`);
 };
 
+// （分享按鈕已經從畫面拿掉：index.html 不再有 #shareWeatherBtn，下面有防空值判斷，所以這段不會執行。）
 // 分享目前天氣：呼叫 Web Share API 跳出手機原生的分享清單（LINE、訊息、
 // Instagram 這些），不支援的瀏覽器（例如桌面版）就退回複製文字。
 const shareWeatherBtn = el("shareWeatherBtn");
@@ -3324,16 +3325,22 @@ async function loadTyphoonProbability() {
   });
 }
 
-el("refreshAlertsBtn").onclick = async () => {
-  el("refreshAlertsBtn").disabled = true;
-  try {
-    await window.weatherAPI.forceRefreshAlerts();
-    await loadAlerts();
-    await loadTyphoonProbability();
-  } finally {
-    el("refreshAlertsBtn").disabled = false;
-  }
-};
+// 「重新整理」按鈕已經從警特報頁面拿掉（index.html 裡不再有 #refreshAlertsBtn）。
+// 警特報會在切到該分頁時重新讀取，也會收到自動更新通知（onAlertsUpdated）。
+// 這裡留著防空值判斷：日後要把按鈕加回來，或別的畫面沒有這顆按鈕，都不會讓整支腳本中斷。
+const refreshAlertsBtn = el("refreshAlertsBtn");
+if (refreshAlertsBtn) {
+  refreshAlertsBtn.onclick = async () => {
+    refreshAlertsBtn.disabled = true;
+    try {
+      await window.weatherAPI.forceRefreshAlerts();
+      await loadAlerts();
+      await loadTyphoonProbability();
+    } finally {
+      refreshAlertsBtn.disabled = false;
+    }
+  };
+}
 
 el("alertBanner").onclick = () => {
   document.querySelector('.tab-btn[data-tab="alerts"]').click();
