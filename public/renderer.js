@@ -2423,29 +2423,14 @@ function renderTyphoonAlertCard(alert) {
   item.appendChild(row);
 
   const detail = tyEl("div", "alert-detail hidden");
-  const head = tyEl("div", "ty-al-head");
-  head.appendChild(tyEl("span", "", `${w.intensity || ""}颱風　${w.name}`));
-  head.appendChild(tyEl("span", "ty-al-type", tyType(w)));
-  detail.appendChild(head);
-
-  const rows = tyCompactRows(w);
-  if (rows.length) {
-    const grid = tyEl("div", "ty-al-rows");
-    for (const [label, value] of rows) {
-      grid.appendChild(tyEl("span", "ty-al-label", label));
-      grid.appendChild(tyEl("span", "ty-al-value", value));
-    }
-    detail.appendChild(grid);
-  }
+  // 版型跟首頁全螢幕的颱風畫面一樣：紅色標頭（警報種類、強度＋名稱、編號／報數、發布與有效時間）
+  // ＋資料格（中心位置、移動、風速、陣風、氣壓、暴風半徑…）＋陸上／海上警戒區域，
+  // 直接共用 tyBuildCard()，之後兩邊不會長得不一樣。下面接著放範圍地圖。
+  const tyCard = tyBuildCard(w);
+  tyCard.classList.add("ty-card--in-list");
+  detail.appendChild(tyCard);
 
   detail.appendChild(tyEl("div", "ty-al-mapslot")); // 展開時，颱風地圖會被搬到這裡
-
-  const areaLines = [];
-  if (w.landAreas.length) areaLines.push(`陸上：${w.landAreas.join("、")}`);
-  if (w.seaAreas.length) areaLines.push(`海上：${w.seaAreas.join("、")}`);
-  if (areaLines.length) detail.appendChild(tyEl("div", "ty-al-areas", areaLines.join("\n")));
-
-  detail.appendChild(tyEl("div", "ty-al-time", `發布 ${tyShortTime(alert.sent)}　有效至 ${tyShortTime(alert.expires)}`));
 
   if (alert.description) {
     const rawBtn = tyEl("button", "ty-al-raw-btn", "完整警報文字 ▾");
