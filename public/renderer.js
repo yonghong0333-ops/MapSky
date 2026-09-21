@@ -620,14 +620,19 @@ async function loadSunTimes(label) {
 // ---------------- 月出／月落 ----------------
 // 有些日子月亮不會升起或落下（極少數情形），對應欄位是空字串，顯示成「--」。
 let moonTimesCache = null;
+let moonTimesCacheDate = ""; // 快取對應的日期，跨日就要重抓
 async function loadMoonTimes(label) {
   const valueEl = el("moonTimesValue");
   if (!valueEl) return;
   try {
-    if (!moonTimesCache) {
+    // 資料是「今天、明天」兩天份；網頁開著過了午夜，舊快取裡的「今天」就變成昨天了，
+    // 所以日期一換就重新抓（伺服器端另外有快取，不會每分鐘都打氣象署）。
+    const todayKey = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD（裝置本地日期）
+    if (!moonTimesCache || moonTimesCacheDate !== todayKey) {
       const result = await window.weatherAPI.getMoonTimes();
       if (!result || !result.ok) return;
       moonTimesCache = result.counties || {};
+      moonTimesCacheDate = todayKey;
     }
     const days = moonTimesCache[label]; // [今天, 明天]
     const today = days && days[0];
@@ -653,26 +658,31 @@ async function loadMoonTimes(label) {
       return `${m}分`;
     };
 
-    // 跟日出/日落同樣邏輯：月出之前顯示月出時間、標籤倒數月出；
-    // 之後顯示月落時間、標籤倒數月落，只顯示一個。標籤只留時間長度，不加文字說明。
-    // 今天的月出/月落都過了（或今天沒有）的話，跨到明天的月出繼續倒數。
-    const riseMinutes = rise ? toMinutes(rise) : null;
-    const setMinutes = set ? toMinutes(set) : null;
-    if (rise && nowMinutes < riseMinutes) {
-      if (labelEl) labelEl.textContent = formatRemaining(riseMinutes - nowMinutes);
-      valueEl.textContent = rise;
-    } else if (set && nowMinutes < setMinutes) {
-      if (labelEl) labelEl.textContent = formatRemaining(setMinutes - nowMinutes);
-      valueEl.textContent = set;
-    } else if (nextRise) {
-      const nextRiseMinutes = toMinutes(nextRise) + 24 * 60;
-      if (labelEl) labelEl.textContent = formatRemaining(nextRiseMinutes - nowMinutes);
-      valueEl.textContent = nextRise;
-    } else if (set) {
-      if (labelEl) labelEl.textContent = "已落下";
-      valueEl.textContent = set;
+    // 月亮每天都比前一天晚約 50 分鐘升起，所以同一個日曆日裡「月落」可能排在「月出」
+    // 前面（例如 9/21：00:32 月落、14:30 月出），不能像太陽那樣假設「先出、後落」。
+    // 正確做法：把今天和明天的月出、月落全部攤平成一條時間軸，找「現在之後的下一個事件」：
+    //   月出之前 → 顯示月出；月亮在天上 → 顯示月落（可能是明天凌晨）。
+    // 標籤只留倒數的時間長度，不加文字說明（跟日出/日落一致）。
+    const events = [];
+    const pushEvent = (type, dayOffset, hhmm) => {
+      if (hhmm) events.push({ type, hhmm, mins: dayOffset * 24 * 60 + toMinutes(hhmm) });
+    };
+    pushEvent("rise", 0, rise);
+    pushEvent("set", 0, set);
+    if (tomorrow) {
+      pushEvent("rise", 1, tomorrow.MoonRiseTime || "");
+      pushEvent("set", 1, tomorrow.MoonSetTime || "");
+    }
+    events.sort((a, b) => a.mins - b.mins);
+    const next = events.find((e) => e.mins > nowMinutes);
+    if (next) {
+      if (labelEl) labelEl.textContent = formatRemaining(next.mins - nowMinutes);
+      valueEl.textContent = next.hhmm;
     } else {
-      valueEl.textContent = rise;
+      // 兩天的事件都過了（理論上不會發生）：顯示最後一個事件
+      const last = events[events.length - 1];
+      if (labelEl) labelEl.textContent = last.type === "set" ? "已落下" : "";
+      valueEl.textContent = last.hhmm;
     }
     valueEl.classList.remove("current-stat-empty");
   } catch (e) {

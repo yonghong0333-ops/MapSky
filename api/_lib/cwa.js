@@ -403,7 +403,9 @@ async function getTyphoonProbability({ forceRefresh = false } = {}) {
 async function getSunTimes({ forceRefresh = false } = {}) {
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false, reason: "no-api-key" };
-  const today = new Date().toISOString().slice(0, 10);
+  // 台灣日期（UTC+8）。Vercel 主機是 UTC，直接用 toISOString() 會在台灣 00:00~08:00
+  // 拿到「昨天」的日期，導致月出月落／日出日落整天資料錯位一天。
+  const today = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const cacheKey = `sun-${today}`;
   if (!forceRefresh) {
     const cached = readCache(cacheKey);
@@ -434,7 +436,9 @@ async function getSunTimes({ forceRefresh = false } = {}) {
 async function getMoonTimes({ forceRefresh = false } = {}) {
   const apiKey = getApiKey();
   if (!apiKey) return { ok: false, reason: "no-api-key" };
-  const today = new Date().toISOString().slice(0, 10);
+  // 台灣日期（UTC+8）。Vercel 主機是 UTC，直接用 toISOString() 會在台灣 00:00~08:00
+  // 拿到「昨天」的日期，導致月出月落／日出日落整天資料錯位一天。
+  const today = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const cacheKey = `moon-${today}`;
   if (!forceRefresh) {
     const cached = readCache(cacheKey);
