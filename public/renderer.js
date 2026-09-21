@@ -2326,12 +2326,9 @@ function renderRainAlertCard(alert) {
       <span class="alert-row-status">${alert.isActive ? "生效中" : "已解除"}</span>
       <button class="alert-detail-btn" type="button">詳細資訊</button>
     </div>
-    <div class="alert-detail hidden">
-      <p class="alert-detail-desc">${alert.description || "（沒有更多說明）"}</p>
-      <p class="alert-detail-time">發布 ${formatAlertTime(alert.sent)}　　有效至 ${formatAlertTime(alert.expires)}</p>
-    </div>
   `;
-  wireAlertItemToggle(item, { showMap: true });
+  // 不在列表裡原地展開了：點「詳細資訊」開獨立的全螢幕大雨（豪雨）特報頁面
+  item.querySelector(".alert-detail-btn").addEventListener("click", () => rainOpen(false));
   return item;
 }
 
@@ -2779,8 +2776,163 @@ function tyRender() {
   }
 }
 
-// 颱風畫面最下面的「大雨（豪雨）特報」按鈕：關掉這個畫面、回到警特報列表，
-// 直接展開第一則大雨（豪雨）特報（會一起帶出大雨(豪雨)特報縣市分布圖）並捲到那裡。
+// ---------------- 大雨（豪雨）特報：獨立的全螢幕頁面 ----------------
+// 版型沿用颱風警報畫面：標頭（依最高等級上色）＋特報內容＋各等級／平地山區的區域標籤，
+// 下面接「大雨(豪雨)特報縣市分布圖」；底部導覽列還在，右上角「關閉」。
+// 從警特報列表的「詳細資訊」、或颱風畫面最下面的「大雨（豪雨）特報」按鈕打開；
+// 從颱風畫面來的，按「關閉」會回到颱風畫面（rainReturnToTyphoon）。點導覽列則直接離開。
+const RAIN_PAL = {
+  大雨: ["#c99a00", "#6f5200"],
+  豪雨: ["#e8730c", "#8a3d00"],
+  大豪雨: ["#d21a1a", "#690b0b"],
+  超大豪雨: ["#8e3fd6", "#3f1470"],
+};
+let rainView = false;
+let rainReturnToTyphoon = false;
+let alertMapHome = null; // 地圖區塊原本的位置 {parent, next}，搬進頁面之後要搬回去
+
+function rainActiveAlerts() {
+  return (latestMapAlerts || []).filter((a) => a && a.source === "rain" && a.isActive);
+}
+
+function rainBuildCard(a) {
+  const level = a.severityLevel || a.alertTitle || "大雨";
+  const pal = RAIN_PAL[level] || RAIN_PAL["大雨"];
+  const card = tyEl("section", "ty-card");
+  card.style.setProperty("--ty-a", pal[0]);
+  card.style.setProperty("--ty-b", pal[1]);
+
+  const head = tyEl("div", "ty-card-head");
+  head.appendChild(tyEl("div", "ty-type", "大雨（豪雨）特報"));
+  const nameRow = tyEl("div", "ty-name-row");
+  nameRow.appendChild(tyEl("span", "ty-intensity", "最高等級"));
+  nameRow.appendChild(tyEl("span", "ty-name", level));
+  head.appendChild(nameRow);
+  if (a.areaCount) head.appendChild(tyEl("div", "ty-meta", `共 ${a.areaCount} 個區域`));
+  head.appendChild(tyEl("div", "ty-meta", `發布 ${formatAlertTime(a.sent)}　有效至 ${formatAlertTime(a.expires)}`));
+  card.appendChild(head);
+
+  if (a.description) {
+    const grid = tyEl("div", "ty-facts");
+    const cell = tyEl("div", "ty-fact ty-fact--wide");
+    cell.appendChild(tyEl("div", "ty-fact-label", "特報內容"));
+    const value = tyEl("div", "ty-fact-value", a.description);
+    value.style.whiteSpace = "pre-line";
+    cell.appendChild(value);
+    grid.appendChild(cell);
+    card.appendChild(grid);
+  }
+
+  // 依等級（重 → 輕）、再依平地／山區分組，標籤顏色跟地圖上的等級色一致
+  const groups = [];
+  const byKey = new Map();
+  for (const [zone, areas] of Object.entries(a.areasByZone || {})) {
+    for (const ar of areas) {
+      const key = `${ar.level}|${zone}`;
+      if (!byKey.has(key)) {
+        const g = {
+          level: ar.level,
+          zone,
+          color: ar.color || RAIN_LEVEL_FALLBACK_COLOR[ar.level] || "#ffffff",
+          names: [],
+        };
+        byKey.set(key, g);
+        groups.push(g);
+      }
+      byKey.get(key).names.push(ar.name);
+    }
+  }
+  groups.sort((x, y) => rainLevelRank(x.level) - rainLevelRank(y.level) || String(x.zone).localeCompare(String(y.zone), "zh-Hant"));
+  if (groups.length) {
+    const areasEl = tyEl("div", "ty-areas");
+    for (const g of groups) {
+      const grp = tyEl("div", "ty-areas-group");
+      grp.appendChild(tyEl("div", "ty-areas-title", `${g.level}　${g.zone}（${g.names.length}）`));
+      const chips = tyEl("div", "ty-chips");
+      g.names.forEach((n) => {
+        const chip = tyEl("span", "ty-chip", n);
+        chip.style.cssText = rainChipStyle(g.color, g.level);
+        chips.appendChild(chip);
+      });
+      grp.appendChild(chips);
+      areasEl.appendChild(grp);
+    }
+    card.appendChild(areasEl);
+  }
+  return card;
+}
+
+function rainRestoreMapHome() {
+  const section = el("alertMapSection");
+  if (!section || !alertMapHome) return;
+  const { parent, next } = alertMapHome;
+  if (section.parentElement !== parent) parent.insertBefore(section, next && next.parentNode === parent ? next : null);
+  section.classList.add("hidden"); // 沒展開任何特報時，地圖本來就是藏起來的
+}
+
+function rainRender() {
+  const overlay = el("rainOverlay");
+  const body = el("rainOverlayBody");
+  if (!overlay || !body) return;
+  rainRestoreMapHome(); // 地圖可能正放在下面要被清掉的頁面裡，先搬回去
+  const alerts = rainActiveAlerts();
+  if (!rainView || !alerts.length) {
+    // 特報解除了（資料更新後沒有生效中的大雨特報），頁面自己關掉
+    rainView = false;
+    rainReturnToTyphoon = false;
+    overlay.classList.add("hidden");
+    body.innerHTML = "";
+    return;
+  }
+  body.innerHTML = "";
+  alerts.forEach((a) => body.appendChild(rainBuildCard(a)));
+  const section = el("alertMapSection");
+  if (section && alertMapHasData) {
+    if (!alertMapHome) alertMapHome = { parent: section.parentElement, next: section.nextSibling };
+    buildAlertMap();
+    section.classList.remove("hidden");
+    const slot = tyEl("div", "ty-overlay-map");
+    body.appendChild(slot);
+    slot.appendChild(section);
+  }
+  overlay.classList.remove("hidden");
+}
+
+function rainOpen(fromTyphoon) {
+  rainView = true;
+  rainReturnToTyphoon = Boolean(fromTyphoon);
+  rainRender();
+  const overlay = el("rainOverlay");
+  if (overlay) overlay.scrollTop = 0;
+}
+
+function rainClose() {
+  const back = rainReturnToTyphoon;
+  rainView = false;
+  rainReturnToTyphoon = false;
+  rainRender();
+  if (back) tyOpenFromAlerts();
+}
+
+// 資料更新時（每 5 分鐘）：renderAlertMap() 會把地圖區塊藏起來，頁面開著的話要重畫一次
+function rainRefresh() {
+  if (rainView) rainRender();
+}
+
+el("rainCloseBtn").onclick = rainClose;
+// 點底部導覽列（換分頁、或再點一次警特報）就直接離開這個頁面，不回颱風畫面
+document.addEventListener(
+  "click",
+  (evt) => {
+    if (rainView && evt.target.closest && evt.target.closest(".tab-btn, .bottom-nav-btn")) {
+      rainReturnToTyphoon = false;
+      rainClose();
+    }
+  },
+  true
+);
+
+// 颱風畫面最下面的「大雨（豪雨）特報」按鈕：開大雨（豪雨）特報的獨立頁面（見下面 rainOpen）。
 // 目前沒有生效中的大雨（豪雨）特報時，按鈕是灰的、不能按，但還是顯示，讓使用者知道有這個分類。
 function tyActiveRainCount() {
   return (latestMapAlerts || []).filter((a) => a && a.source === "rain" && a.isActive).length;
@@ -2798,13 +2950,7 @@ function tyBuildRainButton() {
   }
   btn.addEventListener("click", () => {
     tyCloseAlertsView();
-    const first = document.querySelector('#alertsList .alert-item[data-rain="1"]');
-    if (!first) return;
-    if (!first.classList.contains("alert-item-open")) {
-      const detailBtn = first.querySelector(".alert-detail-btn");
-      if (detailBtn) detailBtn.click();
-    }
-    first.scrollIntoView({ behavior: "smooth", block: "center" });
+    rainOpen(true); // 關掉颱風畫面，開大雨（豪雨）特報頁面；那邊按「關閉」會回到這個颱風畫面
   });
   return btn;
 }
@@ -3076,6 +3222,7 @@ async function loadAlerts() {
   renderAlertMap(alerts);
   renderTyphoonMap(alerts);
   renderTyphoonWarning(alerts);
+  rainRefresh();
 }
 
 async function loadTyphoonProbability() {

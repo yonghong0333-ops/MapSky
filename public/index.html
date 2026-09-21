@@ -1057,6 +1057,17 @@
     </div>
   </div>
 
+  <!-- 大雨（豪雨）特報獨立頁面：樣式沿用上面的颱風警報畫面（.ty-overlay），由 renderer.js 的 rainOpen()／rainClose() 開關。
+       底部導覽列（z-index 50）比它高，開著時導覽列還是能點。 -->
+  <div id="rainOverlay" class="ty-overlay hidden" role="region" aria-label="大雨（豪雨）特報">
+    <div class="ty-overlay-top">
+      <span class="ty-overlay-top-title">大雨（豪雨）特報</span>
+      <button id="rainCloseBtn" class="ty-collapse-btn" type="button">關閉</button>
+    </div>
+    <div id="rainOverlayBody" class="ty-overlay-body"></div>
+    <div class="ty-overlay-actions"></div>
+  </div>
+
   <script src="web-shim.js"></script>
 </body>
 </html>
