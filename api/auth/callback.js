@@ -105,6 +105,27 @@ function sendLoginError(res, code) {
   return res.send(html);
 }
 
+// 桌面版登入的備援驗證（見 login.js 的說明）：讀出並刪除伺服器上記的 desktop_flow:<state>，
+// 值要等於這次的 provider。刪除是為了只能用一次。
+async function consumeDesktopFlow(state, providerId) {
+  if (!/^[0-9a-f]{32}$/.test(String(state || ""))) return false;
+  try {
+    const client = await getRedisClient();
+    if (!client) return false;
+    const key = `desktop_flow:${state}`;
+    let value;
+    if (client.getDel) {
+      value = await client.getDel(key);
+    } else {
+      value = await client.get(key);
+      if (value) await client.del(key);
+    }
+    return value === providerId;
+  } catch (e) {
+    return false;
+  }
+}
+
 function parseStateEntries(raw) {
   return String(raw || "")
     .split(",")
@@ -124,10 +145,17 @@ module.exports = async function handler(req, res) {
   if (!req.query.code || !req.query.state) return sendLoginError(res, "missing-params");
   const stateEntries = parseStateEntries(cookies.oauth_state);
   const matchedEntry = stateEntries.find((e) => e.replace(/~d$/, "") === req.query.state);
-  if (!matchedEntry) {
+  let isDesktop = false;
+  if (matchedEntry) {
+    isDesktop = matchedEntry.endsWith("~d");
+    // 桌面版有 cookie 也順便把伺服器上那筆紀錄刪掉，維持只能用一次
+    if (isDesktop) await consumeDesktopFlow(req.query.state, providerId);
+  } else if (await consumeDesktopFlow(req.query.state, providerId)) {
+    // 沒收到 cookie，但這個 state 是伺服器記得的桌面版登入 → 放行
+    isDesktop = true;
+  } else {
     return sendLoginError(res, cookies.oauth_state ? "state-mismatch" : "no-cookie");
   }
-  const isDesktop = matchedEntry.endsWith("~d");
   const remainingStates = stateEntries.filter((e) => e !== matchedEntry);
 
   try {

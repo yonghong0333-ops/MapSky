@@ -93,6 +93,21 @@ module.exports = async function handler(req, res) {
     .slice(-4);
   const entry = isDesktop ? `${state}~d` : state;
 
+  // 桌面版登入另外在伺服器（Redis）記一筆「這個 state 是桌面版登入」。callback 如果沒收到
+  // oauth_state cookie（使用者的預設瀏覽器封鎖 Cookie、或在另一個瀏覽器／設定檔完成登入…），
+  // 就用這筆紀錄驗證。這樣不會削弱安全性：桌面版最後是靠 mapsky://login-complete?xchg=... 把結果
+  // 交給 App，任何網頁本來就能直接叫起這個連結，cookie 綁定擋不住那條路；而 state 是 128 位元
+  // 隨機值、只能用一次、15 分鐘過期。網頁版登入（session cookie 必須設在同一個瀏覽器）不受影響，
+  // 還是要 cookie。
+  if (isDesktop) {
+    try {
+      const client = await getRedisClient();
+      if (client) await client.set(`desktop_flow:${state}`, providerId, { EX: 900 });
+    } catch (e) {
+      console.error("desktop_flow store failed", e.message);
+    }
+  }
+
   res.setHeader("Set-Cookie", [
     serializeCookie("oauth_state", [...pending, entry].join(","), { maxAge: 600 }),
     serializeCookie("oauth_provider", providerId, { maxAge: 600 }),
