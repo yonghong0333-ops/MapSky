@@ -3009,26 +3009,29 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
    做花俏的背景或標題，集滿 3 個條件才能用；未達成時整張卡片維持一樣的樣子，只有
    下面按鈕跟核取記號會呈現「還不能點」的狀態。 */
 .adventure-card {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
+  /* 螢光漸層底色，跟手機示意圖裡動態島本身的漸層一個色系；底色變深了，
+     裡面的文字、勾選圈、按鈕都要跟著換成看得清楚的顏色（見下面）。 */
+  background: linear-gradient(135deg, #7b2ff7 0%, #f72585 40%, #00e5ff 75%, #d4ff00 100%);
+  border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 14px;
   padding: 16px;
   margin-top: 12px;
-  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
+  box-shadow: 0 10px 26px rgba(123, 47, 247, 0.35);
 }
 .adventure-preview-img {
   display: block;
   width: 100%;
-  max-width: 220px;
+  max-width: 100%; /* 原本卡死在 220px，卡片變寬也放不大；改成貼齊卡片寬度，圖本身是 4:1 的長條，變寬也會跟著變高 */
   height: auto;
   margin: 0 auto 14px;
   border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 .adventure-desc {
   margin: 0 0 14px;
   font-size: 13px;
   line-height: 1.6;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.9);
 }
 .adventure-conditions {
   list-style: none;
@@ -3040,39 +3043,39 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
   align-items: center;
   gap: 10px;
   padding: 8px 0;
-  border-bottom: 1px solid var(--card-border);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.28);
   font-size: 13px;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.8);
 }
 .adventure-cond:last-child { border-bottom: none; }
-.adventure-cond.done { color: var(--text-main); }
+.adventure-cond.done { color: #fff; font-weight: 600; }
 .adventure-cond .adv-check {
   flex-shrink: 0;
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 1.5px solid var(--card-border);
+  border: 1.5px solid rgba(255, 255, 255, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 11px;
   color: #fff;
 }
-.adventure-cond.done .adv-check { background: var(--accent); border-color: var(--accent); }
+.adventure-cond.done .adv-check { background: #fff; border-color: #fff; color: #7b2ff7; }
 .adventure-cond .adv-label { flex: 1; }
-.adventure-cond .adv-progress { font-size: 12px; color: var(--text-faint); white-space: nowrap; }
+.adventure-cond .adv-progress { font-size: 12px; color: rgba(255, 255, 255, 0.75); white-space: nowrap; }
 .adventure-btn {
   width: 100%;
   border: none;
   border-radius: 10px;
   padding: 12px 16px;
   font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-  background: var(--accent);
+  font-weight: 700;
+  color: #7b2ff7;
+  background: #fff;
   cursor: pointer;
 }
-.adventure-btn[disabled] { background: var(--card-border); color: var(--text-faint); cursor: not-allowed; }
-.adventure-btn.active { background: var(--text-main); }
-.adventure-status { margin: 10px 0 0; font-size: 12px; color: var(--text-faint); min-height: 16px; }
+.adventure-btn[disabled] { background: rgba(255, 255, 255, 0.3); color: rgba(255, 255, 255, 0.75); cursor: not-allowed; }
+.adventure-btn.active { background: #1a1a2e; color: #fff; }
+.adventure-status { margin: 10px 0 0; font-size: 12px; color: rgba(255, 255, 255, 0.85); min-height: 16px; }
 
