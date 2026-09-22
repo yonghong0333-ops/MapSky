@@ -50,7 +50,8 @@ function loadFavorites() {
 function saveFavorites(favs) { localStorage.setItem(FAV_KEY, JSON.stringify(favs)); }
 
 let favorites = loadFavorites();
-let currentCity = null; // { label } - label 就是 CWA 縣市名稱
+let currentCity = null;
+let lastWeatherSnapshot = null; // { temp, wx, startTime }：動態島／sendToDynamicIsland 用 // { label } - label 就是 CWA 縣市名稱
 let selectedCompare = new Set(); // 目前勾選要比較的城市 label
 
 const el = (id) => document.getElementById(id);
@@ -1263,6 +1264,8 @@ function renderWeather(location) {
   const ciNow = ci ? ci.time[0].parameter.parameterName : "--";
 
   el("currentIcon").innerHTML = iconForWx(wxNow, isNightTime(wx.time[0].startTime));
+  lastWeatherSnapshot = { temp: `${minNow}~${maxNow}°C`, wx: wxNow, startTime: wx.time[0].startTime };
+  sendToDynamicIsland(); // 動態島已經開著的話，資料更新（每次選城市、每 5 分鐘）就跟著更新
   el("currentTemp").textContent = `${minNow}–${maxNow}°C`;
   el("currentDesc").textContent = wxNow;
   el("currentDetail").textContent =
@@ -3703,3 +3706,78 @@ document.querySelectorAll(".tools-menu-item").forEach((item) => {
     document.querySelector(".main").scrollTo({ top: 0, behavior: "smooth" });
   });
 });
+
+// ==================== 冒險分頁：動態島 ====================
+// ---------- 動態島(Dynamic Island)天氣卡片 ----------
+// 點一下按鈕開始顯示(就算把 App 從多工列滑掉，Live Activity 還是會留在
+// 動態島／鎖定畫面上，這是 iOS ActivityKit 本身的特性，不需要額外處理)；
+// 再點一下結束。顯示中的話，之後每次天氣資料刷新也會自動同步更新內容。
+function sfSymbolForWx(text, night) {
+  if (!text) return "questionmark.circle";
+  if (text.includes("雷") && text.includes("雨")) return "cloud.bolt.rain.fill";
+  if (text.includes("雷")) return "cloud.bolt.fill";
+  if (text.includes("豪雨")) return "cloud.heavyrain.fill";
+  if (text.includes("毛毛雨")) return "cloud.drizzle.fill";
+  if (text.includes("雨")) return "cloud.rain.fill";
+  if (text.includes("雪")) return "cloud.snow.fill";
+  if (text.includes("霧")) return "cloud.fog.fill";
+  if (night && text.includes("多雲") && text.includes("晴")) return "cloud.moon.fill";
+  if (text.includes("多雲") && text.includes("晴")) return "cloud.sun.fill";
+  if (text.includes("陰") || text.includes("多雲")) return "cloud.fill";
+  if (night && text.includes("晴")) return "moon.stars.fill";
+  if (text.includes("晴")) return "sun.max.fill";
+  return "thermometer.medium";
+}
+
+let dynamicIslandOn = false;
+function updateDynamicIslandBtnUI() {
+  const btn = el("dynamicIslandBtn");
+  if (!btn) return;
+  btn.textContent = dynamicIslandOn ? "🏝️ 結束動態島" : "🏝️ 動態島";
+  btn.classList.toggle("active", dynamicIslandOn);
+  const status = el("adventureStatus");
+  if (status) {
+    status.textContent = dynamicIslandOn
+      ? `${currentCity ? currentCity.label + "・" : ""}動態島顯示中，把 App 滑掉也不會消失`
+      : "點一下按鈕，把天氣顯示在動態島 / 鎖定畫面";
+  }
+}
+
+async function sendToDynamicIsland() {
+  if (!dynamicIslandOn || !window.MapSkyNative?.isNative || !lastWeatherSnapshot || !currentCity) return;
+  await window.MapSkyNative.updateDynamicIsland({
+    temperature: lastWeatherSnapshot.temp,
+    condition: lastWeatherSnapshot.wx,
+    conditionSymbol: sfSymbolForWx(lastWeatherSnapshot.wx, isNightTime(lastWeatherSnapshot.startTime)),
+    cityName: currentCity.label,
+  });
+}
+updateDynamicIslandBtnUI();
+
+const dynamicIslandBtn = el("dynamicIslandBtn");
+if (dynamicIslandBtn) {
+  dynamicIslandBtn.addEventListener("click", async () => {
+    if (!window.MapSkyNative?.isNative) {
+      setStatus("動態島功能僅支援 iOS App，網頁版無法使用");
+      return;
+    }
+    if (!currentCity || !lastWeatherSnapshot) {
+      setStatus("請先選擇城市，等天氣資料載入後再試");
+      return;
+    }
+    dynamicIslandBtn.disabled = true;
+    try {
+      if (dynamicIslandOn) {
+        await window.MapSkyNative.endDynamicIsland();
+        dynamicIslandOn = false;
+      } else {
+        await sendToDynamicIsland();
+        dynamicIslandOn = true;
+      }
+      updateDynamicIslandBtnUI();
+    } finally {
+      dynamicIslandBtn.disabled = false;
+    }
+  });
+}
+

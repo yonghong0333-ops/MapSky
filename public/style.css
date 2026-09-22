@@ -3003,3 +3003,68 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
 .ty-al-raw-btn { margin-top: 8px; padding: 0; border: 0; background: none; color: var(--accent, #1c4fb8); font-size: 12px; font-weight: 600; cursor: pointer; }
 .ty-al-raw { margin: 6px 0 0; font-size: 12px; line-height: 1.6; color: #6b7280; overflow-wrap: anywhere; }
 .ty-al-raw.hidden { display: none; }
+
+/* ---- 冒險分頁：把目前天氣帶到動態島／鎖定畫面（iOS） ---- */
+.dynamic-island-btn {
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.adventure-panel {
+  position: relative;
+  min-height: 65vh;
+  overflow: hidden;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(-45deg, #6a5acd, #ff6f91, #2ec4b6, #ffd166);
+  background-size: 400% 400%;
+  animation: adventureGradient 12s ease infinite;
+}
+@keyframes adventureGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.adventure-bg { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.adventure-particle {
+  position: absolute;
+  font-size: 28px;
+  opacity: 0.85;
+  animation: adventureFloat 8s ease-in-out infinite;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.15));
+}
+.adventure-particle.p1 { left: 8%;  top: 72%; animation-duration: 9s;  animation-delay: 0s; }
+.adventure-particle.p2 { left: 22%; top: 18%; animation-duration: 11s; animation-delay: 1s; }
+.adventure-particle.p3 { left: 45%; top: 60%; animation-duration: 7s;  animation-delay: 2s; }
+.adventure-particle.p4 { left: 65%; top: 14%; animation-duration: 10s; animation-delay: 0.5s; }
+.adventure-particle.p5 { left: 80%; top: 55%; animation-duration: 12s; animation-delay: 1.5s; }
+.adventure-particle.p6 { left: 90%; top: 22%; animation-duration: 8s;  animation-delay: 2.5s; }
+@keyframes adventureFloat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-30px) scale(1.15); }
+}
+.adventure-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 32px 24px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 24px;
+  backdrop-filter: blur(6px);
+  color: #fff;
+  max-width: 320px;
+}
+.adventure-title { font-size: 22px; margin: 0 0 8px; }
+.adventure-desc { font-size: 14px; opacity: 0.9; margin: 0 0 20px; line-height: 1.5; }
+.adventure-dynamic-island-btn {
+  background: #000;
+  color: #fff;
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.adventure-dynamic-island-btn.active { background: #fff; color: #000; }
+.adventure-status { margin-top: 14px; font-size: 13px; opacity: 0.9; min-height: 18px; }
