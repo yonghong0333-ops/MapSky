@@ -3803,7 +3803,7 @@ function advRenderSettingsCard(state) {
     if (!li) return;
     li.classList.toggle("done", done);
     const check = li.querySelector(".adv-check");
-    if (check) check.textContent = done ? "✅" : "⬜";
+    if (check) check.textContent = done ? "✓" : "";
     const prog = li.querySelector(".adv-progress");
     if (prog) prog.textContent = progress || "";
   };
@@ -3826,17 +3826,17 @@ function updateDynamicIslandBtnUI(state) {
   if (!unlocked) {
     btn.disabled = true;
     btn.classList.remove("active");
-    btn.textContent = "🔒 尚未解鎖";
+    btn.textContent = "尚未解鎖";
     if (status) status.textContent = "集滿上面 3 個條件，就能把天氣顯示在動態島 / 鎖定畫面";
     return;
   }
   btn.disabled = false;
-  btn.textContent = dynamicIslandOn ? "🏝️ 結束動態島" : "🏝️ 動態島";
+  btn.textContent = dynamicIslandOn ? "結束動態島" : "動態島";
   btn.classList.toggle("active", dynamicIslandOn);
   if (status) {
     status.textContent = dynamicIslandOn
       ? `${currentCity ? currentCity.label + "・" : ""}動態島顯示中，把 App 滑掉也不會消失`
-      : "已解鎖！點一下按鈕，把天氣顯示在動態島 / 鎖定畫面";
+      : "點一下按鈕，把天氣顯示在動態島 / 鎖定畫面";
   }
 }
 

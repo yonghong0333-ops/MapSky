@@ -3004,114 +3004,75 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
 .ty-al-raw { margin: 6px 0 0; font-size: 12px; line-height: 1.6; color: #6b7280; overflow-wrap: anywhere; }
 .ty-al-raw.hidden { display: none; }
 
-/* ---- 首頁最下面：把目前天氣帶到動態島／鎖定畫面（iOS）----
-   本來是獨立分頁，是個 .tab-panel，跟 .adventure-panel 同時各自宣告了 display，
-   兩條規則優先權一樣、看誰寫在後面，.adventure-panel 排在 .tab-panel 後面所以贏了，
-   結果不管有沒有切到那個分頁都會整塊擠在首頁最下面、贴著下面的導覽列，才會「離太近」。
-   現在它本來就是首頁的一個區塊、不再是分頁，直接給它跟上面「其他資訊」一樣的上邊距，
-   下面也留一點空隙（頁面本身對底部導覽列已經留了安全間距，這裡不用留太多）。 */
-.dynamic-island-btn {
-  border: none;
-  border-radius: 999px;
-  cursor: pointer;
+/* ---- 設定頁：動態島（把目前天氣顯示在 iOS 動態島／鎖定畫面）----
+   跟頁面上其他設定卡片（暱稱與大頭貼、模擬颱風警報…）同一套白底卡片樣式，沒有另外
+   做花俏的背景或標題，集滿 3 個條件才能用；未達成時整張卡片維持一樣的樣子，只有
+   下面按鈕跟核取記號會呈現「還不能點」的狀態。 */
+.adventure-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-top: 12px;
+  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
 }
-
-.adventure-panel {
-  position: relative;
-  min-height: 300px;
-  overflow: hidden;
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 22px 0 8px;
-  background: linear-gradient(-45deg, #6a5acd, #ff6f91, #2ec4b6, #ffd166);
-  background-size: 400% 400%;
-  animation: adventureGradient 12s ease infinite;
-}
-@keyframes adventureGradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-.adventure-bg { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-.adventure-particle {
-  position: absolute;
-  font-size: 28px;
-  opacity: 0.85;
-  animation: adventureFloat 8s ease-in-out infinite;
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.15));
-}
-.adventure-particle.p1 { left: 8%;  top: 72%; animation-duration: 9s;  animation-delay: 0s; }
-.adventure-particle.p2 { left: 22%; top: 18%; animation-duration: 11s; animation-delay: 1s; }
-.adventure-particle.p3 { left: 45%; top: 60%; animation-duration: 7s;  animation-delay: 2s; }
-.adventure-particle.p4 { left: 65%; top: 14%; animation-duration: 10s; animation-delay: 0.5s; }
-.adventure-particle.p5 { left: 80%; top: 55%; animation-duration: 12s; animation-delay: 1.5s; }
-.adventure-particle.p6 { left: 90%; top: 22%; animation-duration: 8s;  animation-delay: 2.5s; }
-@keyframes adventureFloat {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-30px) scale(1.15); }
-}
-.adventure-content {
-  position: relative;
-  z-index: 1;
-  text-align: center;
-  padding: 32px 24px;
-  background: rgba(0,0,0,0.25);
-  border-radius: 24px;
-  backdrop-filter: blur(6px);
-  color: #fff;
-  max-width: 320px;
-}
-.adventure-title { font-size: 22px; margin: 0 0 8px; }
-.adventure-desc { font-size: 14px; opacity: 0.9; margin: 0 0 20px; line-height: 1.5; }
-.adventure-dynamic-island-btn {
-  background: #000;
-  color: #fff;
-  padding: 12px 28px;
-  font-size: 15px;
-  font-weight: 600;
-}
-.adventure-dynamic-island-btn.active { background: #fff; color: #000; }
-.adventure-status { margin-top: 14px; font-size: 13px; opacity: 0.9; min-height: 18px; }
-
-/* 動態島冒險：預覽圖／解鎖條件清單／鎖住時的按鈕樣式 */
 .adventure-preview-img {
   display: block;
   width: 100%;
-  max-width: 280px;
+  max-width: 220px;
   height: auto;
-  margin: 0 auto 16px;
-  border-radius: 14px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  margin: 0 auto 14px;
+  border-radius: 10px;
+}
+.adventure-desc {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
 }
 .adventure-conditions {
   list-style: none;
-  margin: 0 0 20px;
+  margin: 0 0 16px;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  text-align: left;
 }
 .adventure-cond {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--card-border);
   font-size: 13px;
-  opacity: 0.75;
+  color: var(--text-muted);
 }
-.adventure-cond.done { opacity: 1; }
-.adventure-cond .adv-check { font-size: 15px; flex-shrink: 0; }
+.adventure-cond:last-child { border-bottom: none; }
+.adventure-cond.done { color: var(--text-main); }
+.adventure-cond .adv-check {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--card-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #fff;
+}
+.adventure-cond.done .adv-check { background: var(--accent); border-color: var(--accent); }
 .adventure-cond .adv-label { flex: 1; }
-.adventure-cond.done .adv-label { text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, 0.5); }
-.adventure-cond .adv-progress { font-size: 12px; opacity: 0.8; white-space: nowrap; }
-.adventure-dynamic-island-btn[disabled] {
-  background: rgba(255, 255, 255, 0.18);
-  color: rgba(255, 255, 255, 0.75);
-  cursor: not-allowed;
+.adventure-cond .adv-progress { font-size: 12px; color: var(--text-faint); white-space: nowrap; }
+.adventure-btn {
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  cursor: pointer;
 }
-/* 還沒解鎖時，讓整張卡片看起來比較「未啟用」：漸層動畫先暫停、飄浮的表情符號先不動 */
-.adventure-panel.adventure-locked { animation-play-state: paused; filter: saturate(0.65); }
-.adventure-panel.adventure-locked .adventure-particle { animation-play-state: paused; }
+.adventure-btn[disabled] { background: var(--card-border); color: var(--text-faint); cursor: not-allowed; }
+.adventure-btn.active { background: var(--text-main); }
+.adventure-status { margin: 10px 0 0; font-size: 12px; color: var(--text-faint); min-height: 16px; }
 
