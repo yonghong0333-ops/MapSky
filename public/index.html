@@ -199,7 +199,6 @@
         <button class="tab-btn hidden" data-tab="compare">多城市比較</button>
         <button class="tab-btn hidden" data-tab="map">地圖選點</button>
         <button class="tab-btn hidden" data-tab="typhoon">🌀 颱風</button>
-        <button class="tab-btn hidden" data-tab="adventure">🧭 冒險</button>
       </nav>
 
       <section id="forecastPanel" class="tab-panel active">
@@ -267,6 +266,23 @@
               <span id="humidityValue" class="extra-info-value current-stat-empty">暫無資料</span>
             </div>
           </div>
+        </div>
+
+        <div id="adventurePanel" class="adventure-panel">
+        <div class="adventure-bg">
+          <span class="adventure-particle p1">✨</span>
+          <span class="adventure-particle p2">🌤️</span>
+          <span class="adventure-particle p3">⭐</span>
+          <span class="adventure-particle p4">☁️</span>
+          <span class="adventure-particle p5">🌙</span>
+          <span class="adventure-particle p6">✨</span>
+        </div>
+        <div class="adventure-content">
+          <h2 class="adventure-title">🏝️ 動態島冒險</h2>
+          <p class="adventure-desc">把目前的天氣帶到動態島與鎖定畫面，不用打開 App 也能一眼看到。</p>
+          <button id="dynamicIslandBtn" class="dynamic-island-btn adventure-dynamic-island-btn" type="button" aria-label="顯示於動態島">🏝️ 動態島</button>
+          <p id="adventureStatus" class="adventure-status"></p>
+        </div>
         </div>
       </section>
 
@@ -975,28 +991,12 @@
             <button class="tools-menu-item" data-tab="compare"><span class="tool-icon">🏙️</span><span class="tool-label">多城市比較</span></button>
             <button class="tools-menu-item" data-tab="map"><span class="tool-icon">🗺️</span><span class="tool-label">地圖選點</span></button>
             <button class="tools-menu-item" data-tab="typhoon"><span class="tool-icon">🌀</span><span class="tool-label">颱風</span></button>
-            <button class="tools-menu-item" data-tab="adventure"><span class="tool-icon">🧭</span><span class="tool-label">冒險</span></button>
             <button class="tools-menu-item hidden" data-tab="alerts"><span class="tool-icon">⚠️</span><span class="tool-label">警特報</span><span id="toolsAlertBadge" class="alert-tab-badge hidden">0</span></button>
           </div>
         </div>
       </section>
 
-      <section id="adventurePanel" class="tab-panel adventure-panel">
-        <div class="adventure-bg">
-          <span class="adventure-particle p1">✨</span>
-          <span class="adventure-particle p2">🌤️</span>
-          <span class="adventure-particle p3">⭐</span>
-          <span class="adventure-particle p4">☁️</span>
-          <span class="adventure-particle p5">🌙</span>
-          <span class="adventure-particle p6">✨</span>
-        </div>
-        <div class="adventure-content">
-          <h2 class="adventure-title">🏝️ 動態島冒險</h2>
-          <p class="adventure-desc">把目前的天氣帶到動態島與鎖定畫面，不用打開 App 也能一眼看到。</p>
-          <button id="dynamicIslandBtn" class="dynamic-island-btn adventure-dynamic-island-btn" type="button" aria-label="顯示於動態島">🏝️ 動態島</button>
-          <p id="adventureStatus" class="adventure-status"></p>
-        </div>
-      </section>
+      
       <section id="settingsPanel" class="tab-panel">
         <div class="settings-page">
           <h2 class="settings-page-title">設定</h2>

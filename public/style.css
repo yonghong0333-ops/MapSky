@@ -3004,7 +3004,12 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
 .ty-al-raw { margin: 6px 0 0; font-size: 12px; line-height: 1.6; color: #6b7280; overflow-wrap: anywhere; }
 .ty-al-raw.hidden { display: none; }
 
-/* ---- 冒險分頁：把目前天氣帶到動態島／鎖定畫面（iOS） ---- */
+/* ---- 首頁最下面：把目前天氣帶到動態島／鎖定畫面（iOS）----
+   本來是獨立分頁，是個 .tab-panel，跟 .adventure-panel 同時各自宣告了 display，
+   兩條規則優先權一樣、看誰寫在後面，.adventure-panel 排在 .tab-panel 後面所以贏了，
+   結果不管有沒有切到那個分頁都會整塊擠在首頁最下面、贴著下面的導覽列，才會「離太近」。
+   現在它本來就是首頁的一個區塊、不再是分頁，直接給它跟上面「其他資訊」一樣的上邊距，
+   下面也留一點空隙（頁面本身對底部導覽列已經留了安全間距，這裡不用留太多）。 */
 .dynamic-island-btn {
   border: none;
   border-radius: 999px;
@@ -3013,12 +3018,13 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
 
 .adventure-panel {
   position: relative;
-  min-height: 65vh;
+  min-height: 300px;
   overflow: hidden;
   border-radius: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin: 22px 0 8px;
   background: linear-gradient(-45deg, #6a5acd, #ff6f91, #2ec4b6, #ffd166);
   background-size: 400% 400%;
   animation: adventureGradient 12s ease infinite;
