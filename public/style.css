@@ -3074,3 +3074,44 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
 }
 .adventure-dynamic-island-btn.active { background: #fff; color: #000; }
 .adventure-status { margin-top: 14px; font-size: 13px; opacity: 0.9; min-height: 18px; }
+
+/* 動態島冒險：預覽圖／解鎖條件清單／鎖住時的按鈕樣式 */
+.adventure-preview-img {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+  margin: 0 auto 16px;
+  border-radius: 14px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+.adventure-conditions {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.adventure-cond {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  opacity: 0.75;
+}
+.adventure-cond.done { opacity: 1; }
+.adventure-cond .adv-check { font-size: 15px; flex-shrink: 0; }
+.adventure-cond .adv-label { flex: 1; }
+.adventure-cond.done .adv-label { text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, 0.5); }
+.adventure-cond .adv-progress { font-size: 12px; opacity: 0.8; white-space: nowrap; }
+.adventure-dynamic-island-btn[disabled] {
+  background: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.75);
+  cursor: not-allowed;
+}
+/* 還沒解鎖時，讓整張卡片看起來比較「未啟用」：漸層動畫先暫停、飄浮的表情符號先不動 */
+.adventure-panel.adventure-locked { animation-play-state: paused; filter: saturate(0.65); }
+.adventure-panel.adventure-locked .adventure-particle { animation-play-state: paused; }
+

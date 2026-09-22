@@ -1266,6 +1266,7 @@ function renderWeather(location) {
   el("currentIcon").innerHTML = iconForWx(wxNow, isNightTime(wx.time[0].startTime));
   lastWeatherSnapshot = { temp: `${minNow}~${maxNow}°C`, wx: wxNow, startTime: wx.time[0].startTime };
   sendToDynamicIsland(); // 動態島已經開著的話，資料更新（每次選城市、每 5 分鐘）就跟著更新
+  advNoteWeather(wxNow); // 動態島冒險：解鎖條件「遇到晴時多雲／遇到下雨」的偵測點
   el("currentTemp").textContent = `${minNow}–${maxNow}°C`;
   el("currentDesc").textContent = wxNow;
   el("currentDetail").textContent =
@@ -3729,17 +3730,113 @@ function sfSymbolForWx(text, night) {
   return "thermometer.medium";
 }
 
+// ---------------- 動態島冒險（設定頁裡的解鎖小遊戲）----------------
+// 「動態島」功能（把天氣顯示在 iOS 動態島／鎖定畫面）要集滿 3 個條件才能使用：
+//   1. 連續 3 天打開 App（用裝置本地日期算連續天數，中間斷過一天就從 1 重新算）
+//   2. 遇到「晴時多雲」的天氣（不限哪個縣市，畫面上顯示過一次就算，見 advNoteWeather）
+//   3. 遇到下雨的天氣（小雨／大雨／陣雨／雷陣雨…只要文字裡有「雨」都算）
+// 三個全部達成一次以後就永久解鎖，之後就算連續簽到斷掉也不會重新鎖上。
+// 只存在這台裝置（localStorage），不會送到伺服器，換裝置或清瀏覽器資料要重新集。
+const ADV_KEY = "mapsky_adventure";
+
+function advLoad() {
+  const fallback = { streak: 0, lastCheckin: null, sawCloudy: false, sawRain: false, unlocked: false };
+  try {
+    const v = JSON.parse(localStorage.getItem(ADV_KEY) || "null");
+    return v && typeof v === "object" ? Object.assign(fallback, v) : fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+function advSave(state) {
+  try {
+    localStorage.setItem(ADV_KEY, JSON.stringify(state));
+  } catch (e) {
+    /* 存不了就算了，頂多這次沒記到，下次再判斷一次 */
+  }
+}
+function advIsUnlocked(state) {
+  return state.unlocked || (state.streak >= 3 && state.sawCloudy && state.sawRain);
+}
+
+// 每天第一次打開 App 呼叫一次：算連續簽到天數
+function advCheckIn() {
+  const state = advLoad();
+  const today = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD（裝置本地日期）
+  if (state.lastCheckin !== today) {
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    const yesterday = y.toLocaleDateString("sv-SE");
+    state.streak = state.lastCheckin === yesterday ? state.streak + 1 : 1;
+    state.lastCheckin = today;
+    if (advIsUnlocked(state)) state.unlocked = true;
+    advSave(state);
+  }
+  advRenderSettingsCard(state);
+}
+
+// 每次天氣資料更新（選城市、每 5 分鐘刷新）呼叫一次：偵測有沒有遇到目標天氣
+function advNoteWeather(wxText) {
+  if (!wxText) return;
+  const state = advLoad();
+  let changed = false;
+  if (!state.sawCloudy && wxText.includes("晴時多雲")) {
+    state.sawCloudy = true;
+    changed = true;
+  }
+  if (!state.sawRain && wxText.includes("雨")) {
+    state.sawRain = true;
+    changed = true;
+  }
+  if (!changed) return;
+  if (advIsUnlocked(state)) state.unlocked = true;
+  advSave(state);
+  advRenderSettingsCard(state);
+}
+
+function advRenderSettingsCard(state) {
+  state = state || advLoad();
+  const unlocked = advIsUnlocked(state);
+
+  const setCond = (id, done, progress) => {
+    const li = el(id);
+    if (!li) return;
+    li.classList.toggle("done", done);
+    const check = li.querySelector(".adv-check");
+    if (check) check.textContent = done ? "✅" : "⬜";
+    const prog = li.querySelector(".adv-progress");
+    if (prog) prog.textContent = progress || "";
+  };
+  setCond("advCondStreak", state.streak >= 3, state.streak >= 3 ? "" : `（目前連續 ${state.streak} 天）`);
+  setCond("advCondCloudy", state.sawCloudy);
+  setCond("advCondRain", state.sawRain);
+
+  const panel = el("adventurePanel");
+  if (panel) panel.classList.toggle("adventure-locked", !unlocked);
+
+  updateDynamicIslandBtnUI(state);
+}
+
 let dynamicIslandOn = false;
-function updateDynamicIslandBtnUI() {
+function updateDynamicIslandBtnUI(state) {
   const btn = el("dynamicIslandBtn");
   if (!btn) return;
+  const unlocked = advIsUnlocked(state || advLoad());
+  const status = el("adventureStatus");
+  if (!unlocked) {
+    btn.disabled = true;
+    btn.classList.remove("active");
+    btn.textContent = "🔒 尚未解鎖";
+    if (status) status.textContent = "集滿上面 3 個條件，就能把天氣顯示在動態島 / 鎖定畫面";
+    return;
+  }
+  btn.disabled = false;
   btn.textContent = dynamicIslandOn ? "🏝️ 結束動態島" : "🏝️ 動態島";
   btn.classList.toggle("active", dynamicIslandOn);
-  const status = el("adventureStatus");
   if (status) {
     status.textContent = dynamicIslandOn
       ? `${currentCity ? currentCity.label + "・" : ""}動態島顯示中，把 App 滑掉也不會消失`
-      : "點一下按鈕，把天氣顯示在動態島 / 鎖定畫面";
+      : "已解鎖！點一下按鈕，把天氣顯示在動態島 / 鎖定畫面";
   }
 }
 
@@ -3752,11 +3849,13 @@ async function sendToDynamicIsland() {
     cityName: currentCity.label,
   });
 }
-updateDynamicIslandBtnUI();
+
+advCheckIn(); // 進頁面時算一次今天的連續簽到
 
 const dynamicIslandBtn = el("dynamicIslandBtn");
 if (dynamicIslandBtn) {
   dynamicIslandBtn.addEventListener("click", async () => {
+    if (!advIsUnlocked(advLoad())) return; // 按鈕本身也是 disabled，這裡多一層保險
     if (!window.MapSkyNative?.isNative) {
       setStatus("動態島功能僅支援 iOS App，網頁版無法使用");
       return;
