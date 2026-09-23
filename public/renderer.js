@@ -3887,7 +3887,7 @@ function updateDynamicIslandBtnUI(state) {
   if (!unlocked) {
     btn.disabled = true;
     btn.classList.remove("active");
-    btn.textContent = "尚未解鎖";
+    btn.textContent = "🔒 尚未解鎖";
     if (status) status.textContent = "集滿上面 3 個條件，就能把天氣顯示在動態島 / 鎖定畫面";
     return;
   }

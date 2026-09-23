@@ -3009,14 +3009,19 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
    做花俏的背景或標題，集滿 3 個條件才能用；未達成時整張卡片維持一樣的樣子，只有
    下面按鈕跟核取記號會呈現「還不能點」的狀態。 */
 .adventure-card {
-  /* 螢光漸層底色，跟手機示意圖裡動態島本身的漸層一個色系；底色變深了，
-     裡面的文字、勾選圈、按鈕都要跟著換成看得清楚的顏色（見下面）。 */
-  background: linear-gradient(135deg, #7b2ff7 0%, #f72585 40%, #00e5ff 75%, #d4ff00 100%);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 14px;
-  padding: 16px;
+  /* 深墨綠玻璃霧面卡片，跟手機示意圖的漸層拉開層次，讓上面那張動態島預覽圖
+     跟底下的勾選清單當主角；backdrop-filter 做出半透明毛玻璃感，襯著首頁
+     底色透出來一點顏色，不是純色塊。 */
+  background: linear-gradient(160deg, rgba(20, 48, 44, 0.68) 0%, rgba(10, 74, 68, 0.55) 55%, rgba(16, 40, 56, 0.6) 100%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 18px;
+  padding: 18px;
   margin-top: 22px;
-  box-shadow: 0 10px 26px rgba(123, 47, 247, 0.35);
+  box-shadow: 0 10px 26px rgba(10, 40, 35, 0.3);
+  position: relative;
+  overflow: hidden;
 }
 .adventure-preview-img {
   display: block;
@@ -3027,11 +3032,31 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
   border-radius: 10px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
+.adventure-title {
+  margin: 0 0 8px;
+  font-size: 19px;
+  font-weight: 800;
+  color: #fff;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.adventure-sparkle {
+  display: inline-block;
+  animation: adventureSparkle 2.4s ease-in-out infinite;
+}
+@keyframes adventureSparkle {
+  0%, 100% { opacity: 0.5; transform: scale(0.9) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.15) rotate(15deg); }
+}
 .adventure-desc {
   margin: 0 0 14px;
   font-size: 13px;
   line-height: 1.6;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.88);
+  text-align: center;
 }
 .adventure-conditions {
   list-style: none;
@@ -3043,39 +3068,47 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
   align-items: center;
   gap: 10px;
   padding: 8px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.28);
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.8);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
 }
 .adventure-cond:last-child { border-bottom: none; }
-.adventure-cond.done { color: #fff; font-weight: 600; }
+.adventure-cond.done { color: rgba(255, 255, 255, 0.65); }
+.adventure-cond.done .adv-label { text-decoration: line-through; }
 .adventure-cond .adv-check {
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.6);
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 800;
   color: #fff;
 }
-.adventure-cond.done .adv-check { background: #fff; border-color: #fff; color: #7b2ff7; }
+.adventure-cond.done .adv-check { background: #34c759; border-color: #34c759; color: #fff; }
 .adventure-cond .adv-label { flex: 1; }
-.adventure-cond .adv-progress { font-size: 12px; color: rgba(255, 255, 255, 0.75); white-space: nowrap; }
+.adventure-cond .adv-progress { font-size: 12px; font-weight: 500; color: rgba(255, 255, 255, 0.65); white-space: nowrap; }
 .adventure-btn {
   width: 100%;
   border: none;
-  border-radius: 10px;
-  padding: 12px 16px;
+  border-radius: 999px;
+  padding: 13px 16px;
   font-size: 14px;
   font-weight: 700;
-  color: #7b2ff7;
+  color: #12312c;
   background: #fff;
   cursor: pointer;
 }
-.adventure-btn[disabled] { background: rgba(255, 255, 255, 0.3); color: rgba(255, 255, 255, 0.75); cursor: not-allowed; }
+.adventure-btn[disabled] {
+  background: rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.8);
+  cursor: not-allowed;
+}
 .adventure-btn.active { background: #1a1a2e; color: #fff; }
-.adventure-status { margin: 10px 0 0; font-size: 12px; color: rgba(255, 255, 255, 0.85); min-height: 16px; }
+.adventure-status { margin: 10px 0 0; font-size: 12px; color: rgba(255, 255, 255, 0.85); text-align: center; min-height: 16px; }
 
