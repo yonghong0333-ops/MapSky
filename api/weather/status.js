@@ -15,6 +15,7 @@ const { getAllSubscriptions, removeSubscription } = require("../_lib/push-store"
 const { addAnnouncement, getAnnouncementsSince } = require("../_lib/announcements");
 const { sendPush, ensureConfigured } = require("../_lib/web-push");
 const { getBetaTesters, addBetaTester, removeBetaTester } = require("../_lib/beta-testers");
+const { getAdventureSkipList, addAdventureSkip, removeAdventureSkip } = require("../_lib/adventure-skip");
 
 // 一般登入使用者打這支只會拿到 hasKey（給前端判斷要不要顯示「尚未設定授權碼」提示）。
 // 管理員加上 ?admin=1 才會多回傳後台管理要看的系統狀態，不是隨便誰都看得到。
@@ -195,6 +196,48 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    // 「動態島冒險」略過名單的指派/踢除，只有超級管理員能做——跟上面的公開測試版
+    // 資格名單是分開的兩份名單，各管各的，互不影響。
+    if (action === "list-adventure-skip") {
+      if (!(await isSuperAdminSession(payload))) {
+        return res.status(403).json({ ok: false, reason: "not-super-admin" });
+      }
+      const list = await getAdventureSkipList();
+      return res.status(200).json({ ok: true, list });
+    }
+    if (action === "add-adventure-skip") {
+      if (!(await isSuperAdminSession(payload))) {
+        return res.status(403).json({ ok: false, reason: "not-super-admin" });
+      }
+      try {
+        const { memberId } = body;
+        if (!memberId || typeof memberId !== "string") {
+          return res.status(400).json({ ok: false, reason: "missing-member-id" });
+        }
+        const resolved = await resolveMemberId(memberId.trim());
+        if (!resolved) {
+          return res.status(404).json({ ok: false, reason: "member-not-found" });
+        }
+        const list = await addAdventureSkip(resolved);
+        return res.status(200).json({ ok: true, list });
+      } catch (e) {
+        return res.status(400).json({ ok: false, reason: "action-failed", message: e.message });
+      }
+    }
+    if (action === "remove-adventure-skip") {
+      if (!(await isSuperAdminSession(payload))) {
+        return res.status(403).json({ ok: false, reason: "not-super-admin" });
+      }
+      try {
+        const { provider, id } = body;
+        if (!provider || !id) return res.status(400).json({ ok: false, reason: "missing-provider-or-id" });
+        const list = await removeAdventureSkip({ provider, id });
+        return res.status(200).json({ ok: true, list });
+      } catch (e) {
+        return res.status(400).json({ ok: false, reason: "action-failed", message: e.message });
+      }
+    }
+
     // 管理員名單的指派/踢除，只有超級管理員能做
     if (!(await isSuperAdminSession(payload))) {
       return res.status(403).json({ ok: false, reason: "not-super-admin" });
@@ -246,12 +289,13 @@ module.exports = async function handler(req, res) {
     configured: isConfigured(id),
   }));
 
-  const [amSuperAdmin, dynamicAdmins, nicknameCooldownDays, maintenanceMode, betaTesters] = await Promise.all([
+  const [amSuperAdmin, dynamicAdmins, nicknameCooldownDays, maintenanceMode, betaTesters, adventureSkipList] = await Promise.all([
     isSuperAdminSession(payload),
     getDynamicAdmins(),
     getNicknameCooldownDays(),
     isMaintenanceMode(),
     getBetaTesters(),
+    getAdventureSkipList(),
   ]);
 
   res.status(200).json({
@@ -276,5 +320,7 @@ module.exports = async function handler(req, res) {
       : null,
     // 公開測試版資格名單，一樣只有超級管理員看得到/管得到。
     betaTesters: amSuperAdmin ? betaTesters : null,
+    // 「動態島冒險」略過名單，一樣只有超級管理員看得到/管得到。
+    adventureSkipList: amSuperAdmin ? adventureSkipList : null,
   });
 };

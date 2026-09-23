@@ -934,6 +934,7 @@ function renderAdminList(data) {
   const card = el("adminManageCard");
   const desktopCard = el("adminDesktopCard");
   const betaCard = el("adminBetaCard");
+  const skipCard = el("adminAdventureSkipCard");
   if (desktopCard) desktopCard.classList.toggle("hidden", !data.isSuperAdmin);
   if (betaCard) betaCard.classList.toggle("hidden", !data.isSuperAdmin || !data.betaTesters);
   if (betaCard && data.isSuperAdmin && data.betaTesters) {
@@ -955,6 +956,30 @@ function renderAdminList(data) {
         btn.addEventListener("click", async () => {
           if (!confirm("確定要把這個帳號從公開測試版名單移除嗎？")) return;
           await callBetaAction("remove-beta-tester", { provider: btn.dataset.provider, id: btn.dataset.id });
+        });
+      });
+    }
+  }
+  if (skipCard) skipCard.classList.toggle("hidden", !data.isSuperAdmin || !data.adventureSkipList);
+  if (skipCard && data.isSuperAdmin && data.adventureSkipList) {
+    const skipListEl = el("adminAdventureSkipList");
+    if (skipListEl) {
+      skipListEl.innerHTML = data.adventureSkipList.length
+        ? data.adventureSkipList
+            .map(
+              (t) =>
+                `<div class="admin-list-row">
+                  <span>🏝️ ${t.name}（${t.key}）</span>
+                  <button class="admin-adventure-skip-revoke-btn" data-provider="${t.provider}" data-id="${t.id}" type="button">移除</button>
+                </div>`
+            )
+            .join("")
+        : "<p class=\"admin-list-empty\">目前沒有人在略過名單裡</p>";
+
+      skipListEl.querySelectorAll(".admin-adventure-skip-revoke-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("確定要把這個帳號從略過名單移除嗎？移除後對方要重新集滿 3 個條件才能用。")) return;
+          await callAdventureSkipAction("remove-adventure-skip", { provider: btn.dataset.provider, id: btn.dataset.id });
         });
       });
     }
@@ -1033,6 +1058,27 @@ async function callBetaAction(action, body) {
   }
 }
 
+async function callAdventureSkipAction(action, body) {
+  const msgEl = el("adminAdventureSkipAssignMsg");
+  try {
+    const resp = await fetch(`/api/weather/status?admin=1&action=${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      if (msgEl) msgEl.textContent = `失敗：${data.reason || "未知錯誤"}`;
+      return;
+    }
+    if (msgEl) msgEl.textContent = action === "add-adventure-skip" ? "已加入名單" : "已移除";
+    adminStatusLoaded = false; // 名單變了，下次要重新載入
+    loadAdminStatus();
+  } catch (e) {
+    if (msgEl) msgEl.textContent = "失敗：網路錯誤";
+  }
+}
+
 const adminAssignForm = el("adminAssignForm");
 if (adminAssignForm) {
   adminAssignForm.addEventListener("submit", async (event) => {
@@ -1053,6 +1099,18 @@ if (adminBetaAssignForm) {
     const memberId = midInput.value.trim();
     if (!memberId) return;
     await callBetaAction("add-beta-tester", { memberId });
+    midInput.value = "";
+  });
+}
+
+const adminAdventureSkipAssignForm = el("adminAdventureSkipAssignForm");
+if (adminAdventureSkipAssignForm) {
+  adminAdventureSkipAssignForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const midInput = el("adminAdventureSkipAssignMid");
+    const memberId = midInput.value.trim();
+    if (!memberId) return;
+    await callAdventureSkipAction("add-adventure-skip", { memberId });
     midInput.value = "";
   });
 }
@@ -3756,7 +3814,10 @@ function advSave(state) {
   }
 }
 function advIsUnlocked(state) {
-  return state.unlocked || (state.streak >= 3 && state.sawCloudy && state.sawRain);
+  // window.__mapskyAdventureSkip 是後端在登入時算好的（後台「略過名單」+ 超級管理員），
+  // 見 web-shim.js 的 initAuthGate()。不受名單控制的一般使用者這個值是 false，
+  // 完全不影響本來「集滿 3 個條件」的判斷。
+  return state.unlocked || (state.streak >= 3 && state.sawCloudy && state.sawRain) || Boolean(window.__mapskyAdventureSkip);
 }
 
 // 每天第一次打開 App 呼叫一次：算連續簽到天數
@@ -3833,9 +3894,13 @@ function updateDynamicIslandBtnUI(state) {
   btn.disabled = false;
   btn.textContent = dynamicIslandOn ? "結束動態島" : "動態島";
   btn.classList.toggle("active", dynamicIslandOn);
+  const state2 = state || advLoad();
+  const viaSkip = window.__mapskyAdventureSkip && !state2.unlocked && !(state2.streak >= 3 && state2.sawCloudy && state2.sawRain);
   if (status) {
     status.textContent = dynamicIslandOn
       ? `${currentCity ? currentCity.label + "・" : ""}動態島顯示中，把 App 滑掉也不會消失`
+      : viaSkip
+      ? "管理員已為你開通，不用集滿條件也能使用"
       : "點一下按鈕，把天氣顯示在動態島 / 鎖定畫面";
   }
 }

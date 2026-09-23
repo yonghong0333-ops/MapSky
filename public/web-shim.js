@@ -1349,6 +1349,9 @@
         const adminTabBtn = el("adminTabBtn");
         if (adminTabBtn) adminTabBtn.classList.remove("hidden");
       }
+      // 「動態島冒險」解鎖條件要不要跳過：後端在 /api/auth/session 算好了（略過名單 +
+      // 超級管理員），renderer.js 的 advIsUnlocked() 會讀這個全域變數。
+      window.__mapskyAdventureSkip = Boolean(session.adventureSkip);
       startAppAfterLogin();
       return;
     }
