@@ -267,6 +267,20 @@
             </div>
           </div>
         </div>
+
+        <!-- 「動態島冒險」從設定頁移回首頁最下方：集滿 3 個條件解鎖以後，直接
+             在首頁底下就能看到、按下去，不用特地切到設定頁找。 -->
+        <div id="adventurePanel" class="adventure-card adventure-locked">
+          <img src="icons/adventure-preview.png" alt="動態島顯示目前天氣的預覽畫面" class="adventure-preview-img" width="1024" height="256" loading="lazy" />
+          <p class="adventure-desc">把天氣顯示在動態島與鎖定畫面上，不用打開 App 也能看到。集滿以下 3 個條件即可使用：</p>
+          <ul id="adventureConditions" class="adventure-conditions">
+            <li id="advCondStreak" class="adventure-cond"><span class="adv-check"></span><span class="adv-label">連續簽到 3 天</span><span class="adv-progress"></span></li>
+            <li id="advCondCloudy" class="adventure-cond"><span class="adv-check"></span><span class="adv-label">遇到「晴時多雲」的天氣</span></li>
+            <li id="advCondRain" class="adventure-cond"><span class="adv-check"></span><span class="adv-label">遇到下雨的天氣</span></li>
+          </ul>
+          <button id="dynamicIslandBtn" class="adventure-btn" type="button" aria-label="顯示於動態島" disabled>尚未解鎖</button>
+          <p id="adventureStatus" class="adventure-status"></p>
+        </div>
       </section>
 
       <section id="weeklyPanel" class="tab-panel">
@@ -995,17 +1009,6 @@
           <h2 class="settings-page-title">設定</h2>
           <div id="settingsAccountSlot"></div>
           <div id="appUpdateSlot"></div>
-          <div id="adventurePanel" class="adventure-card adventure-locked">
-            <img src="icons/adventure-preview.png" alt="動態島顯示目前天氣的預覽畫面" class="adventure-preview-img" width="1024" height="256" loading="lazy" />
-            <p class="adventure-desc">把天氣顯示在動態島與鎖定畫面上，不用打開 App 也能看到。集滿以下 3 個條件即可使用：</p>
-            <ul id="adventureConditions" class="adventure-conditions">
-              <li id="advCondStreak" class="adventure-cond"><span class="adv-check"></span><span class="adv-label">連續簽到 3 天</span><span class="adv-progress"></span></li>
-              <li id="advCondCloudy" class="adventure-cond"><span class="adv-check"></span><span class="adv-label">遇到「晴時多雲」的天氣</span></li>
-              <li id="advCondRain" class="adventure-cond"><span class="adv-check"></span><span class="adv-label">遇到下雨的天氣</span></li>
-            </ul>
-            <button id="dynamicIslandBtn" class="adventure-btn" type="button" aria-label="顯示於動態島" disabled>尚未解鎖</button>
-            <p id="adventureStatus" class="adventure-status"></p>
-          </div>
         </div>
       </section>
 
