@@ -3819,6 +3819,16 @@ function advIsUnlocked(state) {
   // 完全不影響本來「集滿 3 個條件」的判斷。
   return state.unlocked || (state.streak >= 3 && state.sawCloudy && state.sawRain) || Boolean(window.__mapskyAdventureSkip);
 }
+// 跟上面 advIsUnlocked 不一樣的地方：這個「不」把 __mapskyAdventureSkip 算進去。
+// 只有真的集滿 3 個條件才算「真正解鎖」，才可以寫進 localStorage 永久記住。
+// __mapskyAdventureSkip 是跟著登入的那個帳號走的、當次 session 才有效的旁路，
+// 絕對不能被存成裝置層級的 state.unlocked=true——不然同一台裝置只要曾經被
+// 管理員（或略過名單裡的人）登入過一次，之後換成任何一般使用者在同一台
+// 裝置上登入，都會因為 localStorage 裡殘留的 unlocked:true 而免任務直接解鎖，
+// 這是真的漏洞，不是「管理員自己開發功能不用跟自己過不去」那種設計內的方便。
+function advEarnedUnlock(state) {
+  return state.unlocked || (state.streak >= 3 && state.sawCloudy && state.sawRain);
+}
 
 // 每天第一次打開 App 呼叫一次：算連續簽到天數
 function advCheckIn() {
@@ -3830,7 +3840,7 @@ function advCheckIn() {
     const yesterday = y.toLocaleDateString("sv-SE");
     state.streak = state.lastCheckin === yesterday ? state.streak + 1 : 1;
     state.lastCheckin = today;
-    if (advIsUnlocked(state)) state.unlocked = true;
+    if (advEarnedUnlock(state)) state.unlocked = true;
     advSave(state);
   }
   advRenderSettingsCard(state);
@@ -3850,7 +3860,7 @@ function advNoteWeather(wxText) {
     changed = true;
   }
   if (!changed) return;
-  if (advIsUnlocked(state)) state.unlocked = true;
+  if (advEarnedUnlock(state)) state.unlocked = true;
   advSave(state);
   advRenderSettingsCard(state);
 }
