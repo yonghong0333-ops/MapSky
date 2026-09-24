@@ -3063,6 +3063,10 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
   margin: 0 0 16px;
   padding: 0;
 }
+/* 解鎖之後（不管是集滿 3 個條件、還是管理員直接開通），renderer.js 會幫
+   #adventureConditions 加上這個 .hidden：任務清單沒有意義了，不用再留著
+   提醒使用者去簽到／等特定天氣，卡片變成單純「說明 + 按鈕」。 */
+.adventure-conditions.hidden { display: none; }
 .adventure-cond {
   display: flex;
   align-items: center;

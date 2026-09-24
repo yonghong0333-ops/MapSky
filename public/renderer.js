@@ -3875,6 +3875,19 @@ function advRenderSettingsCard(state) {
   const panel = el("adventurePanel");
   if (panel) panel.classList.toggle("adventure-locked", !unlocked);
 
+  // 已經解鎖之後，「連續簽到 3 天／遇到晴時多雲／遇到下雨」這些任務清單
+  // 就沒有意義了（任務是拿來解鎖用的，解鎖後永遠都用得到，不會再變回鎖住），
+  // 留著只是佔位置。解鎖後直接收起清單，說明文字也跟著換成不提條件的版本；
+  // 還沒解鎖時維持原樣，讓使用者知道還差哪些條件。
+  const conditions = el("adventureConditions");
+  if (conditions) conditions.classList.toggle("hidden", unlocked);
+  const desc = document.querySelector("#adventurePanel .adventure-desc");
+  if (desc) {
+    desc.textContent = unlocked
+      ? "把天氣顯示在動態島與鎖定畫面上，不用打開 App 也能看到。"
+      : "把天氣顯示在動態島與鎖定畫面上，不用打開 App 也能看到。集滿以下 3 個條件即可使用：";
+  }
+
   updateDynamicIslandBtnUI(state);
 }
 
