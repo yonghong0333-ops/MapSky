@@ -3133,7 +3133,7 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
   color: rgba(255, 255, 255, 0.8);
   cursor: not-allowed;
 }
-.adventure-btn.active { background: #fff; color: #12312c; }
+.adventure-btn.active { background: #12312c; color: #fff; }
 .adventure-status { margin: 10px 0 0; font-size: 12px; color: rgba(255, 255, 255, 0.85); text-align: center; min-height: 16px; }
 
 /* 啟用之後取代宣傳卡的精簡狀態卡：一行的膠囊卡片，螢光色描邊，不再佔一大塊版面 */
