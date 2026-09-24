@@ -3891,12 +3891,19 @@ function advRenderSettingsCard(state) {
   updateDynamicIslandBtnUI(state);
 }
 
-let dynamicIslandOn = false;
+const DYNAMIC_ISLAND_ON_KEY = "mapsky_dynamic_island_on";
+// 只記使用者上次有沒有按開，開機時用來還原卡片顯示；動態島本身要不要接著出現，
+// 還是看 sendToDynamicIsland() 真的呼叫原生端一次（LiveActivityPlugin.start()
+// 自己認得上次沒關掉的 Live Activity，見 Swift 端註解）。
+let dynamicIslandOn = (() => {
+  try { return localStorage.getItem(DYNAMIC_ISLAND_ON_KEY) === "1"; } catch (e) { return false; }
+})();
 function updateDynamicIslandBtnUI(state) {
   const btn = el("dynamicIslandBtn");
   if (!btn) return;
   const unlocked = advIsUnlocked(state || advLoad());
   const status = el("adventureStatus");
+  updateAdventureCardSwap(unlocked); // 解鎖前一律顯示宣傳卡；解鎖後由 dynamicIslandOn 決定顯示哪一張
   if (!unlocked) {
     btn.disabled = true;
     btn.classList.remove("active");
@@ -3928,6 +3935,17 @@ async function sendToDynamicIsland() {
   });
 }
 
+function updateAdventureCardSwap(unlocked) {
+  const promo = el("adventurePanel");
+  const enabled = el("adventureEnabledCard");
+  if (!promo || !enabled) return;
+  const showEnabled = unlocked && dynamicIslandOn;
+  promo.classList.toggle("hidden", showEnabled);
+  enabled.classList.toggle("hidden", !showEnabled);
+  const sub = el("adventureEnabledSub");
+  if (sub) sub.textContent = currentCity ? `${currentCity.label}．已顯示在動態島 / 鎖定畫面` : "已顯示在動態島 / 鎖定畫面";
+}
+
 advCheckIn(); // 進頁面時算一次今天的連續簽到
 
 const dynamicIslandBtn = el("dynamicIslandBtn");
@@ -3951,10 +3969,20 @@ if (dynamicIslandBtn) {
         await sendToDynamicIsland();
         dynamicIslandOn = true;
       }
+      try { localStorage.setItem(DYNAMIC_ISLAND_ON_KEY, dynamicIslandOn ? "1" : "0"); } catch (e) {}
       updateDynamicIslandBtnUI();
     } finally {
       dynamicIslandBtn.disabled = false;
     }
+  });
+}
+
+// 精簡狀態卡上的「關閉」按鈕：直接轉發給上面那顆按鈕，共用同一套開關／原生呼叫邏輯，
+// 不用再寫一次 endDynamicIsland() 的流程。
+const dynamicIslandOffBtn = el("dynamicIslandOffBtn");
+if (dynamicIslandOffBtn) {
+  dynamicIslandOffBtn.addEventListener("click", () => {
+    if (dynamicIslandBtn) dynamicIslandBtn.click();
   });
 }
 

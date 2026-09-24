@@ -3004,33 +3004,53 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
 .ty-al-raw { margin: 6px 0 0; font-size: 12px; line-height: 1.6; color: #6b7280; overflow-wrap: anywhere; }
 .ty-al-raw.hidden { display: none; }
 
-/* ---- 設定頁：動態島（把目前天氣顯示在 iOS 動態島／鎖定畫面）----
-   跟頁面上其他設定卡片（暱稱與大頭貼、模擬颱風警報…）同一套白底卡片樣式，沒有另外
-   做花俏的背景或標題，集滿 3 個條件才能用；未達成時整張卡片維持一樣的樣子，只有
-   下面按鈕跟核取記號會呈現「還不能點」的狀態。 */
-.adventure-card {
-  /* 深墨綠玻璃霧面卡片，跟手機示意圖的漸層拉開層次，讓上面那張動態島預覽圖
-     跟底下的勾選清單當主角；backdrop-filter 做出半透明毛玻璃感，襯著首頁
-     底色透出來一點顏色，不是純色塊。 */
-  background: linear-gradient(160deg, rgba(20, 48, 44, 0.68) 0%, rgba(10, 74, 68, 0.55) 55%, rgba(16, 40, 56, 0.6) 100%);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 18px;
-  padding: 18px;
-  margin-top: 22px;
-  box-shadow: 0 10px 26px rgba(10, 40, 35, 0.3);
+/* ---- 首頁最下面：動態島冒險（把目前天氣顯示在 iOS 動態島／鎖定畫面）----
+   熱帶島嶼風格：會動的漸層背景＋飄浮的表情符號，中間疊一塊霧面深色卡片放文字、
+   任務清單（沒解鎖時顯示，解鎖後 renderer.js 會幫 #adventureConditions 加上
+   .hidden 直接藏起來）跟按鈕。#adventurePanel 這個 id、.adventure-locked 這個
+   class 名稱都留著沒改，renderer.js 是用這兩個抓元素、判斷有沒有解鎖的，不用動 JS。 */
+.adventure-panel {
   position: relative;
   overflow: hidden;
+  border-radius: 20px;
+  margin-top: 22px;
+  padding: 4px;
+  background: linear-gradient(-45deg, #6a5acd, #2ec4b6, #20b2aa, #ff6f91);
+  background-size: 400% 400%;
+  animation: adventureGradient 12s ease infinite;
 }
-.adventure-preview-img {
-  display: block;
-  width: 100%;
-  max-width: 100%; /* 原本卡死在 220px，卡片變寬也放不大；改成貼齊卡片寬度，圖本身是 4:1 的長條，變寬也會跟著變高 */
-  height: auto;
-  margin: 0 auto 14px;
-  border-radius: 10px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+.adventure-panel.hidden { display: none; }
+@keyframes adventureGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.adventure-bg { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.adventure-particle {
+  position: absolute;
+  font-size: 24px;
+  opacity: 0.85;
+  animation: adventureFloat 8s ease-in-out infinite;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
+}
+.adventure-particle.p1 { left: 8%;  top: 14%; animation-duration: 9s;  animation-delay: 0s; }
+.adventure-particle.p2 { left: 24%; top: 68%; animation-duration: 11s; animation-delay: 1s; }
+.adventure-particle.p3 { left: 46%; top: 20%; animation-duration: 7s;  animation-delay: 2s; }
+.adventure-particle.p4 { left: 64%; top: 62%; animation-duration: 10s; animation-delay: 0.5s; }
+.adventure-particle.p5 { left: 82%; top: 18%; animation-duration: 12s; animation-delay: 1.5s; }
+.adventure-particle.p6 { left: 92%; top: 60%; animation-duration: 8s;  animation-delay: 2.5s; }
+@keyframes adventureFloat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-14px) scale(1.12); }
+}
+.adventure-content {
+  position: relative;
+  z-index: 1;
+  padding: 22px 20px;
+  border-radius: 17px;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 .adventure-title {
   margin: 0 0 8px;
@@ -3055,7 +3075,7 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
   margin: 0 0 14px;
   font-size: 13px;
   line-height: 1.6;
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(255, 255, 255, 0.9);
   text-align: center;
 }
 .adventure-conditions {
@@ -3072,8 +3092,8 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
   align-items: center;
   gap: 10px;
   padding: 8px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
-  font-size: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 13px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.85);
 }
@@ -3082,30 +3102,30 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
 .adventure-cond.done .adv-label { text-decoration: line-through; }
 .adventure-cond .adv-check {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 6px;
-  border: 1.5px solid rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.08);
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   color: #fff;
 }
 .adventure-cond.done .adv-check { background: #34c759; border-color: #34c759; color: #fff; }
 .adventure-cond .adv-label { flex: 1; }
-.adventure-cond .adv-progress { font-size: 12px; font-weight: 500; color: rgba(255, 255, 255, 0.65); white-space: nowrap; }
+.adventure-cond .adv-progress { font-size: 12px; font-weight: 500; color: rgba(255, 255, 255, 0.7); white-space: nowrap; }
 .adventure-btn {
   width: 100%;
   border: none;
   border-radius: 999px;
   padding: 13px 16px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
-  color: #12312c;
-  background: #fff;
+  color: #fff;
+  background: #000;
   cursor: pointer;
 }
 .adventure-btn[disabled] {
@@ -3113,6 +3133,40 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
   color: rgba(255, 255, 255, 0.8);
   cursor: not-allowed;
 }
-.adventure-btn.active { background: #1a1a2e; color: #fff; }
+.adventure-btn.active { background: #fff; color: #12312c; }
 .adventure-status { margin: 10px 0 0; font-size: 12px; color: rgba(255, 255, 255, 0.85); text-align: center; min-height: 16px; }
+
+/* 啟用之後取代宣傳卡的精簡狀態卡：一行的膠囊卡片，螢光色描邊，不再佔一大塊版面 */
+.adventure-enabled-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 22px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--card-bg);
+  border: 1.5px solid transparent;
+  background-image: linear-gradient(var(--card-bg), var(--card-bg)),
+    linear-gradient(120deg, #6a5acd, #2ec4b6, #ff6f91);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
+}
+.adventure-enabled-card.hidden { display: none; }
+.adventure-enabled-icon { font-size: 26px; flex-shrink: 0; }
+.adventure-enabled-text { flex: 1; min-width: 0; }
+.adventure-enabled-title { font-size: 14px; font-weight: 700; color: var(--text-main); }
+.adventure-enabled-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.adventure-enabled-off {
+  flex-shrink: 0;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+.adventure-enabled-off:active { background: var(--card-border); }
 

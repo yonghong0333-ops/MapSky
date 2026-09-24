@@ -270,17 +270,37 @@
 
         <!-- 「動態島冒險」從設定頁移回首頁最下方：集滿 3 個條件解鎖以後，直接
              在首頁底下就能看到、按下去，不用特地切到設定頁找。 -->
-        <div id="adventurePanel" class="adventure-card adventure-locked">
-          <img src="icons/adventure-preview.png" alt="動態島顯示目前天氣的預覽畫面" class="adventure-preview-img" width="1024" height="256" loading="lazy" />
-          <h3 class="adventure-title">🏝️ 動態島冒險<span class="adventure-sparkle">✨</span></h3>
-          <p id="adventureDesc" class="adventure-desc">把天氣顯示在動態島與鎖定畫面上，不用打開 App 也能看到。集滿以下 3 個條件即可使用：</p>
-          <ul id="adventureConditions" class="adventure-conditions">
-            <li id="advCondStreak" class="adventure-cond"><span class="adv-check"></span><span class="adv-label">連續簽到 3 天</span><span class="adv-progress"></span></li>
-            <li id="advCondCloudy" class="adventure-cond"><span class="adv-check"></span><span class="adv-label">遇到「晴時多雲」的天氣</span></li>
-            <li id="advCondRain" class="adventure-cond"><span class="adv-check"></span><span class="adv-label">遇到下雨的天氣</span></li>
-          </ul>
-          <button id="dynamicIslandBtn" class="adventure-btn" type="button" aria-label="顯示於動態島" disabled>尚未解鎖</button>
-          <p id="adventureStatus" class="adventure-status"></p>
+        <div id="adventurePanel" class="adventure-panel adventure-locked">
+          <div class="adventure-bg">
+            <span class="adventure-particle p1">✨</span>
+            <span class="adventure-particle p2">🌤️</span>
+            <span class="adventure-particle p3">⭐</span>
+            <span class="adventure-particle p4">☁️</span>
+            <span class="adventure-particle p5">🌙</span>
+            <span class="adventure-particle p6">✨</span>
+          </div>
+          <div class="adventure-content">
+            <h3 class="adventure-title">🏝️ 動態島冒險<span class="adventure-sparkle">✨</span></h3>
+            <p id="adventureDesc" class="adventure-desc">把天氣顯示在動態島與鎖定畫面上，不用打開 App 也能看到。集滿以下 3 個條件即可使用：</p>
+            <ul id="adventureConditions" class="adventure-conditions">
+              <li id="advCondStreak" class="adventure-cond"><span class="adv-check"></span><span class="adv-label">連續簽到 3 天</span><span class="adv-progress"></span></li>
+              <li id="advCondCloudy" class="adventure-cond"><span class="adv-check"></span><span class="adv-label">遇到「晴時多雲」的天氣</span></li>
+              <li id="advCondRain" class="adventure-cond"><span class="adv-check"></span><span class="adv-label">遇到下雨的天氣</span></li>
+            </ul>
+            <button id="dynamicIslandBtn" class="adventure-btn" type="button" aria-label="顯示於動態島" disabled>尚未解鎖</button>
+            <p id="adventureStatus" class="adventure-status"></p>
+          </div>
+        </div>
+
+        <!-- 啟用之後，把上面那張「動態島冒險」宣傳卡換成這張精簡的狀態卡；
+             兩張互斥顯示，切換邏輯在 renderer.js 的 updateDynamicIslandBtnUI()。 -->
+        <div id="adventureEnabledCard" class="adventure-enabled-card hidden">
+          <span class="adventure-enabled-icon">🏝️</span>
+          <div class="adventure-enabled-text">
+            <div class="adventure-enabled-title">動態島冒險進行中</div>
+            <div id="adventureEnabledSub" class="adventure-enabled-sub"></div>
+          </div>
+          <button id="dynamicIslandOffBtn" class="adventure-enabled-off" type="button">關閉</button>
         </div>
       </section>
 
