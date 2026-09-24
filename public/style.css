@@ -3125,7 +3125,7 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
   font-size: 15px;
   font-weight: 700;
   color: #fff;
-  background: #000;
+  background: #ff3d81;
   cursor: pointer;
 }
 .adventure-btn[disabled] {
