@@ -1,17 +1,61 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --sidebar-bg: #f3f5f9;
-  --sidebar-border: #dfe4ec;
-  --card-bg: #ffffff;
-  --card-border: #e3e7ee;
-  --input-bg: #ffffff;
-  --input-border: #cfd6e0;
+  /* 毛玻璃（iOS 原生 UIVisualEffectView / Liquid Glass 風格）色調：
+     卡片、側欄、彈窗底色改成半透明白，搭配下面 --glass-blur 的
+     backdrop-filter 模糊＋飽和度，讓底下的桌布透出來，質感跟 iOS
+     原生的霧面玻璃一致，而不是純色卡片。 */
+  --sidebar-bg: rgba(255, 255, 255, 0.55);
+  --sidebar-border: rgba(255, 255, 255, 0.4);
+  --card-bg: rgba(255, 255, 255, 0.6);
+  --card-border: rgba(255, 255, 255, 0.45);
+  --input-bg: rgba(255, 255, 255, 0.8);
+  --input-border: rgba(207, 214, 224, 0.85);
   --text-main: #222b38;
   --text-muted: #6b7684;
   --text-faint: #93a0af;
   --accent: #2f6fed;
   --accent-hover: #2158c9;
+  /* 統一的毛玻璃模糊參數，跟底部導覽列原本用的數值一致，
+     整個 App 的玻璃質感才會一致。iOS 的 WKWebView 對
+     backdrop-filter 有原生的 CoreAnimation 加速，效果等同原生模糊。 */
+  --glass-blur: blur(20px) saturate(180%);
+}
+
+/* 套用毛玻璃的卡片／側欄／彈窗共用清單：模糊只加在這些「面板」層級的
+   容器上，不加在裡面每一列（如設定列表、警特報清單）身上——這也是
+   iOS 原生做法（例如 Apple 的「設定」App 只模糊整個側欄/彈出選單，
+   不會每一列都各自模糊），效能才不會因為大量小元素各自跑模糊而掉幀。 */
+.sidebar,
+.browser-gate-card,
+.onboarding-card,
+.login-gate-card,
+.modal-box,
+.profile-edit-card,
+.desktop-app-gate-card,
+.admin-card,
+.forecast-card,
+.compare-card,
+.seven-day-list,
+.extra-info-card,
+.tab-btn,
+.alerts-refresh-btn,
+.app-update-bar,
+.tools-menu-item,
+.settings-list-item,
+.settings-page .auth-bar,
+.adventure-enabled-card {
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+/* 少數舊版 in-app webview 不支援 backdrop-filter 時，退回不透明底色，
+   避免玻璃色卡片變成看起來髒髒的半透明色塊 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --sidebar-bg: #f3f5f9;
+    --card-bg: #ffffff;
+    --input-bg: #ffffff;
+  }
 }
 
 body {
@@ -2774,6 +2818,8 @@ body:not(:has(#forecastPanel.active)) #tyOverlay { display: none; }
   padding: 7px 16px;
   border-radius: 999px;
   cursor: pointer;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 .ty-collapse-btn:hover { background: rgba(255, 255, 255, 0.24); }
 .ty-collapse-btn--wide { width: 100%; padding: 13px 16px; font-size: 16px; border-radius: 14px; background: rgba(255, 255, 255, 0.92); color: #1d2740; border: 0; }
@@ -2786,6 +2832,8 @@ body:not(:has(#forecastPanel.active)) #tyOverlay { display: none; }
   overflow: hidden;
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 .ty-card-head {
   padding: 20px 20px 18px;
