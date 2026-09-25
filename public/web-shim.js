@@ -1,0 +1,1392 @@
+// ------------------------------------------------------------------
+// web-shim.js —— 網頁版適配層
+// 原本 apps/weather/renderer.js 是透過 Electron 的 window.weatherAPI（由
+// preload.js 用 ipcRenderer 橋接到 main process）拿資料。網頁版沒有 Electron，
+// 這支檔案在 renderer.js 載入「之前」先把同樣長相的 window.weatherAPI / window.appInfo
+// 補上，內部改成 fetch 呼叫 /api/weather/* 這幾支 serverless function。
+// renderer.js 本身完全不用改動。
+// ------------------------------------------------------------------
+(function () {
+  window.appInfo = { platform: "web" };
+
+  // 這個路徑指向 public/downloads/MapSky_Installbox.exe，是使用者自己包好、
+  // 手動放上去的安裝檔，跟後台「發佈新版桌面版」觸發的 GitHub Actions 自動化
+  // 流程完全脫鉤——那條線只負責「已安裝使用者的背景自動更新」，跟這個「網站
+  // 首次下載」的按鈕互不影響，也不會互相覆蓋。要換掉使用者下載到的安裝檔，
+  // 直接換掉 public/downloads/ 裡的這個檔案即可。
+  const WIN_DOWNLOAD_URL = "/downloads/MapSky_Installbox.exe";
+  // 跟 Windows 那份是同一套手動維護邏輯（見 public/downloads/README.md），
+  // 檔名故意跟 Windows 版共用同一個前綴 MapSky_Installbox，只有副檔名不同，
+  // 方便一眼看出是同一組安裝檔、只是不同平台。mac 版沒有簽章（沒有 Apple
+  // Developer Program 憑證），使用者第一次打開會被 Gatekeeper 擋，需要右鍵
+  // 「打開」，下面按鈕點下去之後順便帶一次提示文字說明這件事。
+  const MAC_DOWNLOAD_URL = "/downloads/MapSky_Installbox.dmg";
+
+  // 電腦版瀏覽器直接打開網站：一律擋住，逼使用者去下載桌面版，不放行到登入
+  // 畫面（也就不會跑 initAuthGate，不會打任何 /api/* ——不是只有畫面被蓋住
+  // 而已）。手機瀏覽器（isDesktopWidth 為 false）完全不受影響，跟以前一樣
+  // 正常使用；我們自己的 Electron 桌面版本身（window.mapskyWindowControls
+  // 存在）也正常放行，不然自己的桌面版會被自己擋住。
+  function guardDesktopAppRequired() {
+    const isDesktopWidth = window.matchMedia && window.matchMedia("(min-width: 901px)").matches;
+    if (!isDesktopWidth) return false;
+
+    const isOwnDesktopApp = Boolean(window.mapskyWindowControls);
+    if (isOwnDesktopApp) return false;
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const gate = el("desktopAppRequiredGate");
+      if (!gate) return;
+      gate.classList.remove("hidden");
+
+      const loginGate = el("loginGate");
+      if (loginGate) loginGate.classList.add("hidden");
+
+      const btn = el("desktopAppRequiredBtn");
+      if (!btn) return;
+      const macCmd = el("desktopAppRequiredMacCmd");
+      const macCmdCopyBtn = el("desktopAppRequiredMacCmdCopyBtn");
+
+      const platform = navigator.platform || "";
+      const ua = navigator.userAgent || "";
+      const isMac = /Mac/i.test(platform) || /Macintosh/i.test(ua);
+      const isWindows = /Win/i.test(platform) || /Windows/i.test(ua);
+
+      const WIN_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 88 88"><path fill="#ffffff" d="M0 0h42v42H0zM46 0h42v42H46zM0 46h42v42H0zM46 46h42v42H46z"/></svg>';
+
+      if (isWindows) {
+        btn.innerHTML = WIN_ICON_SVG + "<span>下載 Windows 版</span><span aria-hidden=\"true\">→</span>";
+        btn.disabled = false;
+        btn.onclick = () => window.open(WIN_DOWNLOAD_URL, "_blank");
+        if (macCmd) macCmd.classList.add("hidden");
+      } else if (isMac) {
+        const MAC_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 768 768" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="mapskyMacIconClip"><path d="M 53.761719 184 L 690 184 L 690 765 L 53.761719 765 Z M 53.761719 184 "/></clipPath></defs><g clip-path="url(#mapskyMacIconClip)"><path fill="#ffffff" d="M 592.25 405.894531 C 593.871094 488.617188 647.398438 532.410156 676.59375 550.25 C 687.945312 558.359375 692.8125 572.957031 687.945312 585.933594 C 679.835938 607.019531 665.238281 637.835938 640.910156 670.277344 C 608.46875 717.3125 574.410156 762.726562 519.261719 764.347656 C 465.738281 765.972656 449.519531 733.53125 389.503906 733.53125 C 329.492188 733.53125 310.03125 762.726562 259.75 764.347656 C 207.847656 765.972656 167.296875 714.070312 134.859375 667.03125 C 68.359375 572.957031 16.453125 399.410156 86.199219 282.628906 C 120.261719 224.238281 181.894531 186.933594 250.015625 186.933594 C 300.296875 185.308594 348.957031 220.992188 379.773438 220.992188 C 410.589844 220.992188 468.980469 180.445312 530.617188 185.308594 C 553.324219 186.933594 608.46875 193.417969 653.882812 235.589844 C 665.238281 246.945312 665.238281 266.40625 652.261719 277.761719 C 627.933594 300.46875 592.25 342.640625 592.25 405.894531 "/></g><path fill="#ffffff" d="M 491.6875 120.433594 C 514.394531 92.859375 530.617188 57.175781 532.238281 21.492188 C 532.238281 8.515625 522.507812 -1.214844 509.53125 2.027344 C 475.46875 10.136719 438.164062 31.222656 413.835938 57.175781 C 394.371094 83.125 373.285156 120.433594 373.285156 157.738281 C 373.285156 169.089844 383.015625 177.199219 392.75 175.578125 C 431.675781 172.335938 468.980469 149.628906 491.6875 120.433594 "/></svg>';
+        btn.innerHTML = MAC_ICON_SVG + "<span>下載 Mac 版</span><span aria-hidden=\"true\">→</span>";
+        btn.disabled = false;
+        btn.onclick = () => window.open(MAC_DOWNLOAD_URL, "_blank");
+        // Mac 版沒有簽章，Gatekeeper 有時候不會給「右鍵打開」這個選項可用
+        // （顯示「無法打開，因為 Apple 無法檢查其是否包含惡意軟體」且沒有
+        // 例外按鈕），這時候唯一的辦法是打開「終端機」清掉隔離屬性。指令
+        // 複製起來直接貼上執行就好，不用自己打、也不用去查路徑對不對。
+        if (macCmd) {
+          macCmd.classList.remove("hidden");
+          if (macCmdCopyBtn) {
+            macCmdCopyBtn.onclick = async () => {
+              const cmd = "xattr -cr /Applications/MapSky.app";
+              try {
+                await navigator.clipboard.writeText(cmd);
+              } catch {
+                // 部分環境（例如不是 https、或使用者還沒跟頁面互動過）
+                // clipboard API 會直接丟錯，退回用隱藏 textarea + execCommand
+                // 這個舊方法，一樣能把指令複製到剪貼簿。
+                const ta = document.createElement("textarea");
+                ta.value = cmd;
+                ta.style.position = "fixed";
+                ta.style.opacity = "0";
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                try { document.execCommand("copy"); } catch {}
+                document.body.removeChild(ta);
+              }
+              const original = macCmdCopyBtn.textContent;
+              macCmdCopyBtn.textContent = "已複製";
+              macCmdCopyBtn.disabled = true;
+              setTimeout(() => {
+                macCmdCopyBtn.textContent = original;
+                macCmdCopyBtn.disabled = false;
+              }, 1600);
+            };
+          }
+        }
+      } else {
+        btn.textContent = "目前僅支援 Windows／Mac 桌面版";
+        btn.disabled = true;
+        if (macCmd) macCmd.classList.add("hidden");
+      }
+    });
+
+    return true;
+  }
+
+  const blockedByDesktopGate = guardDesktopAppRequired();
+
+  // 手機瀏覽器打開、還沒加到主畫面就先鎖住畫面，逼使用者先加入主畫面
+  // （或先換成 Safari）才能繼續用。桌面版（寬螢幕）不受影響，直接放行——
+  // 「加入主畫面」本來就是行動裝置的概念，桌面瀏覽器沒有這回事。
+  (function guardBrowserGate() {
+    const isDesktopWidth = window.matchMedia && window.matchMedia("(min-width: 901px)").matches;
+    if (isDesktopWidth) return;
+
+    // Capacitor 包出來的原生 App（iOS／Android 殼）本身就已經是「安裝好」的
+    // 狀態，不該再顯示這個給行動瀏覽器看的「加入主畫面／請用 Safari 開啟」
+    // 引導畫面。capacitor.config.json 裡的 ios.appendUserAgent 把 "MapSkyiOS"
+    // 加進了 User-Agent，這裡用它當作「目前是不是原生 App」的判斷依據；
+    // 順便也判斷 window.Capacitor 是否存在，兩者符合其一就直接放行。
+    const isNativeShell = /MapSkyiOS/i.test(navigator.userAgent || "") ||
+      Boolean(window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform());
+    if (isNativeShell) return;
+
+    const byMediaQuery = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+    const byIosFlag = window.navigator && window.navigator.standalone === true;
+    const isStandalone = Boolean(byMediaQuery || byIosFlag);
+    if (isStandalone) return;
+
+    const ua = navigator.userAgent || "";
+    const isSafari = /^((?!chrome|android|crios|fxios|edgios|opios|opr\/).)*safari/i.test(ua);
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const gate = document.getElementById("browserGate");
+      if (!gate) return;
+      gate.classList.remove("hidden");
+
+      const safariVariant = document.getElementById("browserGateSafari");
+      const otherVariant = document.getElementById("browserGateOtherBrowser");
+
+      if (isSafari) {
+        if (safariVariant) safariVariant.classList.remove("hidden");
+        // 這兩顆按鈕（小圖示 + 下面那顆大的圓角按鈕）都是同一個元件、同一段
+        // 分享邏輯，按了會分享 App 連結本身（這個畫面還沒進到主程式，還沒有
+        // 城市/天氣資料可以分享）。
+        // 提醒：navigator.share() 跳出的系統分享清單不會有「加入主畫面」這個
+        // 選項，那個只有 Safari 自己工具列上的分享圖示才有，這裡按了只是
+        // 單純示範「分享」這個動作長什麼樣子，真正加入主畫面還是要點螢幕
+        // 最下面 Safari 自己的工具列。
+        const shareApp = async () => {
+          const url = window.location.origin + window.location.pathname;
+          if (navigator.share) {
+            try {
+              await navigator.share({ title: "MapSky 天氣", text: "MapSky —— 好用的天氣 App", url });
+            } catch (e) {
+              /* 使用者自己取消分享，不用特別處理 */
+            }
+            return;
+          }
+          try {
+            await navigator.clipboard.writeText(url);
+          } catch (e) {
+            /* 複製也失敗就算了，不影響主要的加入主畫面流程 */
+          }
+        };
+        const gateShareBtn = document.getElementById("browserGateShareBtn");
+        if (gateShareBtn) gateShareBtn.addEventListener("click", shareApp);
+        const gateShareBigBtn = document.getElementById("browserGateShareBigBtn");
+        if (gateShareBigBtn) gateShareBigBtn.addEventListener("click", shareApp);
+      } else {
+        if (otherVariant) otherVariant.classList.remove("hidden");
+        const urlEl = document.getElementById("browserGateUrlValue");
+        if (urlEl) urlEl.textContent = window.location.href;
+        const copyBtn = document.getElementById("browserGateCopyBtn");
+        const msgEl = document.getElementById("browserGateCopyMsg");
+        if (copyBtn) {
+          copyBtn.addEventListener("click", async () => {
+            try {
+              await navigator.clipboard.writeText(window.location.href);
+              if (msgEl) msgEl.textContent = "已複製，去 Safari 貼上打開吧";
+            } catch (e) {
+              if (msgEl) msgEl.textContent = "複製失敗，請手動選取上面的網址複製";
+            }
+          });
+        }
+      }
+    });
+  })();
+
+  // 註冊 service worker，讓瀏覽器把這個網站判定為「可安裝的 App」，
+  // 「加到主畫面」後系統會當成獨立軟體開啟，而不是網頁捷徑。
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {
+        // 註冊失敗（例如非 https 環境）不影響網站其他功能，安靜忽略即可。
+      });
+    });
+  }
+
+  const updatedListeners = [];
+  const alertsUpdatedListeners = [];
+
+  async function getJson(url) {
+    const resp = await fetch(url);
+    return resp.json();
+  }
+
+  window.weatherAPI = {
+    getApiKeyStatus: () => getJson("/api/weather/status"),
+
+    getCity: async (label) => {
+      const r = await getJson(`/api/weather/city?label=${encodeURIComponent(label)}`);
+      return r.ok ? r.data : null;
+    },
+
+    getAll: () => getJson("/api/weather/all"),
+    forceRefresh: () => getJson("/api/weather/all?refresh=1"),
+
+    getAlerts: () => getJson("/api/weather/alerts"),
+    forceRefreshAlerts: () => getJson("/api/weather/alerts?refresh=1"),
+    getTyphoonProbability: () => getJson("/api/weather/typhoon"),
+    getSunTimes: () => getJson("/api/weather/astro?type=sun"),
+    getMoonTimes: () => getJson("/api/weather/astro?type=moon"),
+    getUvIndex: () => getJson("/api/weather/astro?type=uv"),
+    getWeeklyForecast: () => getJson("/api/weather/astro?type=weekly"),
+    getWindObservation: () => getJson("/api/weather/wind"),
+
+    onUpdated: (cb) => updatedListeners.push(cb),
+    onAlertsUpdated: (cb) => alertsUpdatedListeners.push(cb),
+  };
+
+  // 網頁版沒有常駐 process 可以主動推播，改成定時輪詢後觸發跟原本一樣的 callback，
+  // renderer.js 裡的 onUpdated / onAlertsUpdated 邏輯完全不用改。
+  // 這段輪詢只在登入成功、renderer.js 被載入之後才會啟動（見 startAppAfterLogin）。
+  const POLL_MS = 5 * 60 * 1000;
+  function startPolling() {
+    setInterval(async () => {
+      try {
+        const data = await window.weatherAPI.getAlerts();
+        if (data.ok) {
+          const activeCount = (data.alerts || []).filter((a) => a.isActive).length;
+          alertsUpdatedListeners.forEach((cb) => cb({ updatedAt: data.updatedAt, activeCount }));
+        }
+      } catch {
+        /* 網路暫時失敗就等下一輪 */
+      }
+    }, POLL_MS);
+  }
+
+  // ---------------- 登入狀態 / 使用者列 ----------------
+  const PROVIDER_ICON = {
+    google: null, // 用內建 SVG（見下方），不用圖檔
+    facebook: "login-icons/facebook.png",
+    microsoft: "login-icons/microsoft.png",
+    discord: "login-icons/discord.png",
+    github: "login-icons/github.png",
+    yahoo: "login-icons/yahoo.png",
+  };
+
+  const GOOGLE_SVG = `<svg viewBox="0 0 48 48" width="18" height="18"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 7 29.5 5 24 5c-7.7 0-14.4 4.3-17.7 10.7z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.3-2.1 14-5.5l-6.5-5.5c-2 1.5-4.6 2.5-7.5 2.5-5.2 0-9.6-3.5-11.2-8.2l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.5 5.5C41.9 35.6 44 30.2 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>`;
+
+  function el(id) {
+    return document.getElementById(id);
+  }
+
+  async function loadProviders() {
+    const { providers } = await getJson("/api/auth/providers");
+    return providers;
+  }
+
+  async function loadSession() {
+    return getJson("/api/auth/session");
+  }
+
+  function currentAvatarSrc(session) {
+    return (session.profile && (session.profile.avatarDataUrl || session.profile.avatarUrl)) || "";
+  }
+
+  function currentDisplayName(session) {
+    return (session.profile && (session.profile.nickname || session.profile.name)) || "使用者";
+  }
+
+  // 「設定」的圖示（底部導覽列 + 桌面分頁列）換成使用者大頭貼，沒有大頭貼就
+  // 維持原本的齒輪圖示／emoji，不用特別處理「沒有圖」的狀態。
+  function applySettingsAvatarIcon(src) {
+    if (!src) return;
+    const bottomIconSpan = document.querySelector('.bottom-nav-btn[data-bottom="settings"] .bottom-nav-icon');
+    if (bottomIconSpan) {
+      bottomIconSpan.innerHTML = `<img src="${src}" class="bottom-nav-avatar-img" alt="">`;
+    }
+    const tabBtn = document.querySelector('.tab-btn[data-tab="settings"]');
+    if (tabBtn) {
+      tabBtn.innerHTML = `<img src="${src}" class="tab-avatar-img" alt="">設定`;
+    }
+  }
+  window.applySettingsAvatarIcon = applySettingsAvatarIcon;
+
+  // 桌面版：頂部導覽列只留「首頁／警特報／工具／後台管理」。設定的入口改成標題列右上角
+  // 的大頭貼（桌面殼會去點這顆 .tab-btn[data-tab="settings"]，所以按鈕留在 DOM 只是藏
+  // 起來）。純網頁瀏覽器沒有那顆大頭貼，所以網頁版仍然照舊顯示「設定」分頁。
+  if (window.mapskyWindowControls) {
+    // 桌面殼在最上方自己畫了一條 36px 的標題列（網頁被 html margin-top 往下推）。固定定位的
+    // 全螢幕元素（例如颱風警報畫面）不會跟著被推下去，所以把這個高度告訴 CSS，讓它們避開標題列。
+    document.documentElement.style.setProperty("--mapsky-titlebar-h", "36px");
+
+    // 桌面版：系統定位最多等 20 秒。外殼（electron/preload.js）為了讓使用者有時間按授權視窗的
+    // 「允許」，把等待上限拉到 10 分鐘；但系統一直沒回應時（例如授權沒對上這一版），
+    // 標題列和側邊欄就會卡上 10 分鐘。這裡在外面再包一層：超過 20 秒沒答覆就當逾時（code 3），
+    // 讓各處的備援流程接手；之後系統若才回座標，會被瀏覽器記下，下次呼叫（maximumAge 內）
+    // 直接取用，不會浪費。
+    if (navigator.geolocation && !navigator.geolocation.__mapskyCapped) {
+      const geo = navigator.geolocation;
+      const inner = geo.getCurrentPosition.bind(geo);
+      // 2 分鐘：第一次要給使用者時間讀系統的定位授權視窗、按下「允許」（太短的話，還在看視窗
+      // 就會被當成逾時、改用 IP 定位）。系統已經明確回答（允許／不允許／取不到）時不受這個限制。
+      const CAP_MS = 120000;
+      geo.getCurrentPosition = function (ok, fail, opts) {
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          if (fail) {
+            fail({
+              code: 3,
+              message: "MapSky: system location timed out",
+              PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3,
+            });
+          }
+        }, CAP_MS);
+        return inner(
+          (pos) => { if (settled) return; settled = true; clearTimeout(timer); if (ok) ok(pos); },
+          (err) => { if (settled) return; settled = true; clearTimeout(timer); if (fail) fail(err); },
+          opts
+        );
+      };
+      geo.__mapskyCapped = true;
+    }
+
+    const hideSettingsTab = () => {
+      const btn = document.querySelector('.tabs .tab-btn[data-tab="settings"]');
+      if (btn) btn.classList.add("hidden");
+      // 桌面版的導覽已經改由標題列右上角大頭貼選單處理，整條頂部分頁列直接藏起來。
+      // 按鈕還留在 DOM 裡（選單、工具頁都是去 click 它們），只是不顯示。
+      const tabsNav = document.querySelector("nav.tabs");
+      if (tabsNav) tabsNav.style.display = "none";
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", hideSettingsTab);
+    else hideSettingsTab();
+
+    // 桌面版：左邊側邊欄（城市選單／查詢／定位／收藏城市）的收合把手，貼在側邊欄右緣中間，
+    // 點一下隱藏、再點一下打開，狀態記在 localStorage。只在桌面殼裡建立，手機版不受影響；
+    // 視窗窄到 900px 以下時改走原本的漢堡抽屜，這顆把手會自動隱藏。
+    const setupSidebarToggle = () => {
+      const app = document.querySelector(".app");
+      if (!app || document.getElementById("sidebarCollapseHandle")) return;
+      const KEY = "mapsky_sidebar_collapsed";
+      const style = document.createElement("style");
+      style.textContent = `
+        #sidebarCollapseHandle {
+          position: fixed; top: 50%; left: 261px; transform: translateY(-50%);
+          width: 18px; height: 56px; padding: 0; z-index: 60;
+          display: flex; align-items: center; justify-content: center;
+          border: 1px solid var(--card-border); border-radius: 9px;
+          background: var(--card-bg); color: var(--text-main);
+          font-size: 15px; line-height: 1; cursor: pointer;
+          box-shadow: 0 2px 8px rgba(20, 26, 40, 0.18); opacity: 0.85;
+        }
+        #sidebarCollapseHandle:hover { opacity: 1; }
+        #sidebarCollapseHandle[data-collapsed="true"] { left: 0; border-left: none; border-radius: 0 9px 9px 0; }
+        body:not(.auth-ok) #sidebarCollapseHandle { display: none; }
+        #sidebarCollapseHandle { transition: left 0.25s ease, opacity 0.2s ease, border-radius 0.25s ease; }
+        @media (min-width: 901px) {
+          /* 用負的 margin-left 把側邊欄滑出畫面，裡面的內容不會跟著重新排版；
+             收起來之後再 visibility:hidden，避免 Tab 鍵還能focus到看不見的按鈕。 */
+          .sidebar { flex-shrink: 0; transition: margin-left 0.25s ease, opacity 0.25s ease, visibility 0s; }
+          .app.sidebar-collapsed .sidebar {
+            margin-left: -270px; opacity: 0; visibility: hidden; pointer-events: none;
+            transition: margin-left 0.25s ease, opacity 0.25s ease, visibility 0s 0.25s;
+          }
+        }
+        /* 第一次載入時直接套用上次的狀態，不要播動畫 */
+        html.sidebar-noanim .sidebar, html.sidebar-noanim #sidebarCollapseHandle { transition: none !important; }
+        @media (prefers-reduced-motion: reduce) {
+          .sidebar, #sidebarCollapseHandle { transition: none !important; }
+        }
+        @media (max-width: 900px) { #sidebarCollapseHandle { display: none; } }
+      `;
+      document.head.appendChild(style);
+
+      const handle = document.createElement("button");
+      handle.id = "sidebarCollapseHandle";
+      handle.type = "button";
+      document.body.appendChild(handle);
+
+      const apply = (collapsed) => {
+        app.classList.toggle("sidebar-collapsed", collapsed);
+        handle.dataset.collapsed = collapsed ? "true" : "false";
+        handle.textContent = collapsed ? "›" : "‹";
+        const label = collapsed ? "顯示側邊欄" : "隱藏側邊欄";
+        handle.title = label;
+        handle.setAttribute("aria-label", label);
+      };
+      let collapsed = false;
+      try { collapsed = localStorage.getItem(KEY) === "1"; } catch (e) {}
+      document.documentElement.classList.add("sidebar-noanim");
+      apply(collapsed);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        document.documentElement.classList.remove("sidebar-noanim");
+      }));
+      handle.addEventListener("click", () => {
+        collapsed = !collapsed;
+        apply(collapsed);
+        try { localStorage.setItem(KEY, collapsed ? "1" : "0"); } catch (e) {}
+      });
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupSidebarToggle);
+    else setupSidebarToggle();
+
+    // 桌面版：點標題列左邊的「MapSky」logo 回首頁（未來 36 小時預報）。標題列是外殼
+    // （electron/main.js）在網頁載入後才動態插進來的，所以要等它出現再綁；整條標題列
+    // 又是視窗拖曳區，logo 這塊要設成 no-drag 才點得到。
+    const setupBrandHome = () => {
+      let observer = null;
+      const bind = () => {
+        const info = document.getElementById("__mapsky_weather_info__");
+        const brand = info ? info.previousElementSibling : null;
+        if (!brand) return;
+        if (observer) observer.disconnect();
+        if (brand.dataset.homeBound === "1") return;
+        brand.dataset.homeBound = "1";
+        brand.style.setProperty("-webkit-app-region", "no-drag");
+        brand.style.cursor = "pointer";
+        brand.title = "回首頁（未來 36 小時預報）";
+        brand.addEventListener("click", () => {
+          const home = document.querySelector('.tab-btn[data-tab="forecast"]');
+          if (home) home.click();
+        });
+      };
+      observer = new MutationObserver(bind);
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+      bind();
+    };
+    setupBrandHome();
+
+    // 桌面版：滑鼠移到標題列的網路狀態（訊號格＋「已連線」）時顯示 Ping 值。
+    // 外殼（electron/main.js）其實有畫一個提示框，但它接在標題列裡面，而標題列是
+    // overflow:hidden、高度只有 36px，提示框往下掛就被裁掉看不到。所以這裡另外在
+    // body 上畫一個提示框，位置貼著網路狀態下方；Ping 也是自己量（對站台根目錄打不快取的
+    // HEAD 請求，量往返時間），滑上去馬上量一次，停留期間每 2 秒更新。
+    // 之後若外殼那邊修好了、原本的提示框會出現，記得把這段拿掉，不然會兩個重疊。
+    const setupPingTip = () => {
+      let observer = null;
+      let tip = null;
+      let timer = null;
+      let hovering = false;
+
+      const findWifi = () => {
+        const bar = document.getElementById("__mapsky_titlebar__");
+        if (!bar) return null;
+        for (const d of bar.querySelectorAll("div")) {
+          if (d.style.position === "relative" && d.style.cursor === "default" && /已連線|離線/.test(d.textContent)) return d;
+        }
+        return null;
+      };
+
+      const measure = async () => {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 5000);
+        const start = performance.now();
+        try {
+          await fetch(location.origin + "/?__ping=" + Date.now(), { method: "HEAD", cache: "no-store", signal: ctrl.signal });
+          return Math.round(performance.now() - start);
+        } catch (e) {
+          return null;
+        } finally {
+          clearTimeout(t);
+        }
+      };
+
+      const place = (wifi) => {
+        const r = wifi.getBoundingClientRect();
+        tip.style.left = r.left + r.width / 2 + "px";
+        tip.style.top = r.bottom + 6 + "px";
+      };
+
+      const tick = async (wifi) => {
+        if (!hovering) return;
+        if (!navigator.onLine) {
+          tip.textContent = "離線";
+        } else {
+          const ms = await measure();
+          if (!hovering) return;
+          tip.textContent = ms == null ? "Ping 量測失敗" : "Ping " + ms + " ms";
+        }
+        place(wifi);
+        timer = setTimeout(() => tick(wifi), 2000);
+      };
+
+      const bind = () => {
+        const wifi = findWifi();
+        if (!wifi) return;
+        if (observer) observer.disconnect();
+        if (wifi.dataset.pingTipBound === "1") return;
+        wifi.dataset.pingTipBound = "1";
+
+        tip = document.createElement("div");
+        tip.id = "mapskyPingTip";
+        tip.style.cssText =
+          "position:fixed;transform:translateX(-50%);padding:4px 9px;border-radius:7px;" +
+          "background:#111827;color:#fff;font:11px -apple-system,'Segoe UI',sans-serif;" +
+          "white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s ease;" +
+          "box-shadow:0 6px 16px rgba(0,0,0,.35);z-index:2147483647;";
+        document.body.appendChild(tip);
+
+        wifi.addEventListener("mouseenter", () => {
+          hovering = true;
+          tip.textContent = navigator.onLine ? "量測中…" : "離線";
+          place(wifi);
+          tip.style.opacity = "1";
+          clearTimeout(timer);
+          tick(wifi);
+        });
+        wifi.addEventListener("mouseleave", () => {
+          hovering = false;
+          clearTimeout(timer);
+          tip.style.opacity = "0";
+        });
+      };
+
+      observer = new MutationObserver(bind);
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+      bind();
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupPingTip);
+    else setupPingTip();
+
+    // 桌面版：進入軟體時主動跳出「通知」授權。
+    // 定位的授權視窗不用另外做：標題列一開起來就會讀系統定位，macOS 還沒問過的話就會在那時候跳出來。
+    // 通知比較特別：macOS 要等 App「第一次真的顯示通知」才會問，光呼叫 requestPermission 不會跳，
+    // 所以第一次會顯示一則「通知已開啟」，好讓系統彈出授權視窗；之後不再重複顯示。
+    // 延後幾秒，跟定位的授權視窗錯開，避免兩個視窗同時跳出來。
+    // 注意：macOS 每種授權只會問一次，使用者按過「允許」或「不允許」之後就不會再跳，
+    // 之後要改只能到「系統設定」裡調整。
+    const promptNotificationPermission = async () => {
+      if (!("Notification" in window)) return;
+      try {
+        if (Notification.permission === "default") await Notification.requestPermission();
+        if (Notification.permission !== "granted") return;
+        let primed = false;
+        try { primed = localStorage.getItem("mapsky_notif_primed") === "1"; } catch (e) {}
+        if (primed) return;
+        new Notification("MapSky", { body: "通知已開啟", silent: true });
+        try { localStorage.setItem("mapsky_notif_primed", "1"); } catch (e) {}
+      } catch (e) { /* 拿不到就算了，不影響其他功能 */ }
+    };
+    const schedulePermissionPrompts = () => setTimeout(promptNotificationPermission, 8000);
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", schedulePermissionPrompts);
+    else schedulePermissionPrompts();
+  }
+
+  // 把選好的圖片縮小成正方形小圖再轉成 base64，不然直接把原圖傳上去
+  // 存進 Redis 很容易一張圖就好幾 MB，這裡統一縮到最長邊 160px、JPEG 壓縮。
+  function resizeImageFile(file, maxSize = 160, quality = 0.8) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("讀取圖片失敗"));
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("圖片格式無法讀取"));
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > height) {
+            if (width > maxSize) {
+              height = Math.round(height * (maxSize / width));
+              width = maxSize;
+            }
+          } else if (height > maxSize) {
+            width = Math.round(width * (maxSize / height));
+            height = maxSize;
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // 使用者在引導畫面沒選照片的話，就直接把這張預設圖存成他「真正」的
+  // 大頭貼（不是前端裝出來的樣子，是後端資料庫裡真的存這張），這樣之後
+  // 任何地方讀 avatarDataUrl 都會正常拿到圖片，不會再有特殊 fallback 邏輯。
+  const DEFAULT_AVATAR_DATA_URL = "data:image/jpeg;base64,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";
+
+  // ---- 第一次登入的引導畫面：取暱稱、選大頭貼（都選填），完成或跳過都會
+  // 呼叫後端標記 onboarded，下次登入就不會再跳出來了。 ----
+  function showOnboarding(session) {
+    const gate = el("onboardingGate");
+    if (!gate) return;
+    gate.classList.remove("hidden");
+
+    const avatarInput = el("onboardingAvatarInput");
+    const avatarBtn = el("onboardingAvatarBtn");
+    const avatarPreview = el("onboardingAvatarPreview");
+    const avatarPlaceholder = el("onboardingAvatarPlaceholder");
+    const nicknameInput = el("onboardingNicknameInput");
+    const doneBtn = el("onboardingDoneBtn");
+    if (!avatarInput || !avatarBtn || !nicknameInput || !doneBtn) return;
+
+    nicknameInput.addEventListener("input", () => {
+      nicknameInput.classList.remove("onboarding-input-error");
+    });
+
+    let pendingAvatarDataUrl = null;
+
+    avatarBtn.addEventListener("click", () => avatarInput.click());
+    avatarInput.addEventListener("change", async () => {
+      const file = avatarInput.files && avatarInput.files[0];
+      if (!file) return;
+      try {
+        const dataUrl = await resizeImageFile(file);
+        pendingAvatarDataUrl = dataUrl;
+        avatarPreview.src = dataUrl;
+        avatarPreview.classList.remove("hidden");
+        if (avatarPlaceholder) avatarPlaceholder.classList.add("hidden");
+      } catch (e) {
+        alert("大頭貼讀取失敗，請換一張圖片再試一次。");
+      } finally {
+        avatarInput.value = "";
+      }
+    });
+
+    async function saveAndFinish(patch) {
+      try {
+        await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(Object.assign({ onboarded: true }, patch)),
+        });
+      } catch (e) {
+        /* 存不了也不要卡住使用者，至少讓他先進去用 */
+      }
+      gate.classList.add("hidden");
+      // 重新整理讓設定頁、頭像這些地方直接讀到剛剛存的最新資料，
+      // 不用另外手動同步好幾個地方的畫面。
+      window.location.reload();
+    }
+
+    doneBtn.addEventListener("click", () => {
+      const nickname = nicknameInput.value.trim();
+      if (!nickname) {
+        nicknameInput.focus();
+        nicknameInput.classList.add("onboarding-input-error");
+        return;
+      }
+      doneBtn.disabled = true;
+      const patch = { nickname };
+      // 沒選照片的話，直接用預設圖當作他「真正」的大頭貼存起來
+      patch.avatarDataUrl = pendingAvatarDataUrl || DEFAULT_AVATAR_DATA_URL;
+      saveAndFinish(patch);
+    });
+  }
+
+  function buildUserBar(session) {
+    const bar = document.createElement("div");
+    bar.id = "authBar";
+    bar.className = "auth-bar";
+    const midRow = session.memberId
+      ? `<div class="auth-mid-row">
+          <span class="auth-mid-label">我的會員 ID（MID）</span>
+          <span class="auth-mid-value" id="authMidValue">${escapeHtml(session.memberId)}</span>
+          <button id="authMidCopyBtn" class="auth-mid-copy-btn" type="button">
+          <img id="authMidCopyIconDefault" src="icons/copy-icon.png" class="auth-mid-copy-icon" alt="複製" />
+          <img id="authMidCopyIconDone" src="icons/copied-check-green.png" class="auth-mid-copy-icon hidden" alt="已複製" />
+        </button>
+        </div>
+        <p class="auth-mid-hint">想申請成為管理員的話，把這組 ID 複製後傳給管理員就可以了。</p>`
+      : "";
+
+    const avatarSrc = currentAvatarSrc(session);
+    const displayName = currentDisplayName(session);
+    // 預設頭像直接內嵌成 SVG，不再另外載入外部圖檔——這樣就不會受到圖片
+    // 路徑、快取、部署時機這些變數影響，跟其他一定會顯示的文字內容一樣可靠。
+    const defaultAvatarSvg = `<svg viewBox="0 0 512 512" class="auth-avatar-img" role="img" aria-label="預設頭像">
+      <circle cx="256" cy="256" r="256" fill="#c9ced6"/>
+      <circle cx="256" cy="196" r="86" fill="#fff"/>
+      <path d="M112 420c0-90 64-150 144-150s144 60 144 150c-38 46-92 72-144 72s-106-26-144-72z" fill="#fff"/>
+    </svg>`;
+    const avatarInner = avatarSrc
+      ? `<img class="auth-avatar-img" src="${avatarSrc}" alt="大頭貼" />`
+      : defaultAvatarSvg;
+
+    bar.innerHTML = `
+      <div class="auth-user">
+        <div class="auth-avatar-wrap">
+          ${avatarInner}
+        </div>
+        <div class="auth-user-info">
+          <span class="auth-user-name">${escapeHtml(displayName)}</span>
+          <span class="auth-user-provider">(${escapeHtml(session.provider)})</span>
+        </div>
+        <button id="authLogoutBtn" class="auth-logout-btn" type="button">登出</button>
+      </div>
+      ${midRow}`;
+
+    const copyBtn = bar.querySelector("#authMidCopyBtn");
+    const copyIconDefault = bar.querySelector("#authMidCopyIconDefault");
+    const copyIconDone = bar.querySelector("#authMidCopyIconDone");
+    if (copyBtn && copyIconDefault && copyIconDone) {
+      copyBtn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(session.memberId);
+          copyIconDefault.classList.add("hidden");
+          copyIconDone.classList.remove("hidden");
+          copyBtn.classList.add("copied"); // 複製成功後藍色底色按鈕消失，只留綠色勾勾圖示
+          setTimeout(() => {
+            copyIconDone.classList.add("hidden");
+            copyIconDefault.classList.remove("hidden");
+            copyBtn.classList.remove("copied");
+          }, 5000);
+        } catch (e) {
+          /* 複製失敗就算了，使用者還是能自己手動選取文字複製 */
+        }
+      });
+    }
+    return bar;
+  }
+
+  // ---------------- 暱稱與大頭貼（獨立的編輯專區，跟上面的帳號摘要卡分開）----------------
+  function buildProfileEditCard(session) {
+    const card = document.createElement("div");
+    card.id = "profileEditCard";
+    card.className = "profile-edit-card";
+
+    const avatarSrc = currentAvatarSrc(session);
+    const defaultAvatarSvg = `<svg viewBox="0 0 512 512" class="profile-edit-avatar-img" role="img" aria-label="預設頭像">
+      <circle cx="256" cy="256" r="256" fill="#c9ced6"/>
+      <circle cx="256" cy="196" r="86" fill="#fff"/>
+      <path d="M112 420c0-90 64-150 144-150s144 60 144 150c-38 46-92 72-144 72s-106-26-144-72z" fill="#fff"/>
+    </svg>`;
+    const avatarInner = avatarSrc
+      ? `<img id="profileEditAvatarImg" class="profile-edit-avatar-img" src="${avatarSrc}" alt="大頭貼" />`
+      : defaultAvatarSvg.replace("<svg ", '<svg id="profileEditAvatarImg" ');
+
+    card.innerHTML = `
+      <h3 class="profile-edit-title">✏️ 暱稱與大頭貼</h3>
+      <div class="profile-edit-avatar-row">
+        <div class="profile-edit-avatar-wrap">${avatarInner}</div>
+        <div class="profile-edit-avatar-actions">
+          <button id="profileAvatarChangeBtn" class="profile-avatar-change-btn" type="button">更換大頭貼</button>
+          <input id="profileAvatarFileInput" type="file" accept="image/*" class="hidden" />
+          <p class="profile-edit-hint">建議使用正方形圖片，會自動縮小處理。</p>
+        </div>
+      </div>
+      <div class="profile-edit-nickname-row">
+        <label for="profileNicknameInput" class="profile-edit-label">暱稱</label>
+        <div class="profile-edit-nickname-inline">
+          <input id="profileNicknameInput" type="text" maxlength="20" placeholder="輸入暱稱（最多 20 字）" value="${escapeHtml((session.profile && session.profile.nickname) || "")}" />
+          <button id="profileNicknameSaveBtn" class="profile-nickname-save-btn" type="button">儲存</button>
+        </div>
+        <p id="profileNicknameMsg" class="profile-edit-hint"></p>
+      </div>
+    `;
+
+    // ---- 大頭貼上傳 ----
+    const avatarChangeBtn = card.querySelector("#profileAvatarChangeBtn");
+    const avatarFileInput = card.querySelector("#profileAvatarFileInput");
+    if (avatarChangeBtn && avatarFileInput) {
+      avatarChangeBtn.addEventListener("click", () => avatarFileInput.click());
+      avatarFileInput.addEventListener("change", async () => {
+        const file = avatarFileInput.files && avatarFileInput.files[0];
+        if (!file) return;
+        avatarChangeBtn.disabled = true;
+        avatarChangeBtn.textContent = "上傳中…";
+        try {
+          const dataUrl = await resizeImageFile(file);
+          const resp = await fetch("/api/auth/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ avatarDataUrl: dataUrl }),
+          });
+          const result = await resp.json();
+          if (!resp.ok || !result.ok) throw new Error((result && result.reason) || "上傳失敗");
+          session.profile.avatarDataUrl = dataUrl;
+
+          const imgEl = card.querySelector("#profileEditAvatarImg");
+          if (imgEl && imgEl.tagName === "IMG") {
+            imgEl.src = dataUrl;
+          } else if (imgEl) {
+            const newImg = document.createElement("img");
+            newImg.id = "profileEditAvatarImg";
+            newImg.className = "profile-edit-avatar-img";
+            newImg.alt = "大頭貼";
+            newImg.src = dataUrl;
+            imgEl.replaceWith(newImg);
+          }
+          // 上面帳號摘要卡的小頭像、底部導覽列/分頁列的設定圖示，都跟著換新
+          const barAvatar = document.querySelector("#authBar .auth-avatar-img");
+          if (barAvatar && barAvatar.tagName === "IMG") barAvatar.src = dataUrl;
+          applySettingsAvatarIcon(dataUrl);
+        } catch (e) {
+          alert("大頭貼上傳失敗，請換一張圖片再試一次。");
+        } finally {
+          avatarChangeBtn.disabled = false;
+          avatarChangeBtn.textContent = "更換大頭貼";
+          avatarFileInput.value = "";
+        }
+      });
+    }
+
+    // ---- 暱稱編輯 ----
+    const nicknameInput = card.querySelector("#profileNicknameInput");
+    const nicknameSaveBtn = card.querySelector("#profileNicknameSaveBtn");
+    const nicknameMsg = card.querySelector("#profileNicknameMsg");
+
+    // 算一下暱稱是不是還在冷卻期內：後端存了上次改名的時間
+    // （session.profile.nicknameChangedAt）跟目前設定的冷卻天數
+    // （session.nicknameCooldownDays），兩個都有值才需要算，缺一個
+    // 就當作沒有冷卻限制（沒改過名字，或後台沒開冷卻功能）。
+    function nicknameCooldownRemainingDays() {
+      const days = session.nicknameCooldownDays;
+      const changedAt = session.profile && session.profile.nicknameChangedAt;
+      if (!days || !changedAt) return 0;
+      const cooldownMs = days * 24 * 60 * 60 * 1000;
+      const elapsedMs = Date.now() - changedAt;
+      if (elapsedMs >= cooldownMs) return 0;
+      return Math.ceil((cooldownMs - elapsedMs) / (24 * 60 * 60 * 1000));
+    }
+
+    const remainingDays = nicknameCooldownRemainingDays();
+    if (remainingDays > 0 && nicknameInput && nicknameSaveBtn) {
+      nicknameInput.disabled = true;
+      nicknameSaveBtn.disabled = true;
+      if (nicknameMsg) nicknameMsg.textContent = `暱稱改過了，還要等 ${remainingDays} 天才能再改一次。`;
+    }
+
+    if (nicknameSaveBtn && nicknameInput) {
+      nicknameSaveBtn.addEventListener("click", async () => {
+        const value = nicknameInput.value.trim();
+        nicknameSaveBtn.disabled = true;
+        if (nicknameMsg) nicknameMsg.textContent = "";
+        try {
+          const resp = await fetch("/api/auth/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nickname: value }),
+          });
+          const result = await resp.json();
+          if (!resp.ok || !result.ok) {
+            if (result && result.reason === "nickname-cooldown") {
+              if (nicknameMsg) nicknameMsg.textContent = `暱稱改過了，還要等 ${result.remainingDays} 天才能再改一次。`;
+              return;
+            }
+            throw new Error((result && result.reason) || "儲存失敗");
+          }
+          session.profile.nickname = value;
+          const barName = document.querySelector("#authBar .auth-user-name");
+          if (barName) barName.textContent = value || session.profile.name || "使用者";
+          if (nicknameMsg) nicknameMsg.textContent = "已儲存 ✅";
+        } catch (e) {
+          if (nicknameMsg) nicknameMsg.textContent = "儲存失敗，請再試一次。";
+        } finally {
+          nicknameSaveBtn.disabled = false;
+        }
+      });
+    }
+
+    return card;
+  }
+
+  // ---------------- 暱稱與大頭貼：設定頁上收合成一條，點下去才彈出編輯卡片 ----------------
+  function buildProfileEditEntry(session) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.id = "profileEditEntryBtn";
+    row.className = "settings-list-item";
+    row.innerHTML = `
+      <span class="settings-list-item-icon">✏️</span>
+      <span class="settings-list-item-label">暱稱與大頭貼</span>
+      <span class="settings-list-item-arrow">›</span>
+    `;
+
+    row.addEventListener("click", () => {
+      const slot = el("profileEditPanelSlot");
+      if (slot) {
+        slot.innerHTML = "";
+        slot.appendChild(buildProfileEditCard(session));
+      }
+      // 沒有對應的頂部分頁按鈕（這是設定底下的子頁面，不是主導覽項目），
+      // 所以自己重現一次 renderer.js 那邊「切分頁」該做的事：清掉舊的
+      // active、把這個分頁標成 active、頁首（城市名稱那排）跟其他設定類
+      // 分頁一樣要藏起來。底部導覽列的「設定」維持亮著就好，不用去動它。
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+      const panel = el("profileEditPanel");
+      if (panel) panel.classList.add("active");
+      const mainHeader = document.querySelector(".main-header");
+      if (mainHeader) mainHeader.classList.add("hidden");
+    });
+
+    const backBtn = el("profileEditBackBtn");
+    if (backBtn && !backBtn.dataset.bound) {
+      backBtn.dataset.bound = "1";
+      backBtn.addEventListener("click", () => {
+        const settingsTabBtn = document.querySelector('.tab-btn[data-tab="settings"]');
+        if (settingsTabBtn) settingsTabBtn.click();
+      });
+    }
+
+    return row;
+  }
+
+  function buildGateButtons(providers) {
+    return providers
+      .map((p) => {
+        const icon = p.id === "google" ? GOOGLE_SVG : `<img src="${PROVIDER_ICON[p.id]}" alt="" />`;
+        const disabled = p.configured ? "" : "disabled title=\"尚未設定\"";
+        return `<a class="login-gate-btn" href="/api/auth/login?provider=${p.id}" ${disabled}>${icon}<span>使用 ${escapeHtml(p.label)} 登入</span></a>`;
+      })
+      .join("");
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  // VAPID 公鑰是 base64url 字串，瀏覽器的 pushManager.subscribe 要吃 Uint8Array，中間要轉換一次。
+  function urlBase64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }
+
+  // 是不是用「加到主畫面」的獨立模式打開的（而不是一般瀏覽器分頁）。
+  // iOS Safari 用 navigator.standalone，其他瀏覽器看 display-mode media query。
+  // 掛在 window.appInfo 上是因為 renderer.js 要等登入成功才會被動態載入進來，
+  // 晚於這支檔案執行，需要一個地方存這個判斷結果給它用。
+  function isStandalonePwa() {
+    const byMediaQuery = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+    const byIosFlag = window.navigator && window.navigator.standalone === true;
+    return Boolean(byMediaQuery || byIosFlag);
+  }
+  window.appInfo.isStandalone = isStandalonePwa();
+
+  const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+
+  // 訂閱推播。silent=true 時不跳 alert（給「加到主畫面自動詢問」用，
+  // 使用者還沒表態就自動彈的情境下，失敗了默默放棄就好，不用打擾他）。
+  async function subscribeToPush(session, { silent = false } = {}) {
+    if (!pushSupported()) return false;
+    if (!session.vapidPublicKey) {
+      if (!silent) alert("目前尚未設定推播金鑰，請聯絡管理員。");
+      return false;
+    }
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        if (!silent) alert("需要允許通知權限才能開啟推播。");
+        return false;
+      }
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(session.vapidPublicKey),
+      });
+      await fetch("/api/auth/session?action=push-subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription: sub.toJSON() }),
+      });
+      return true;
+    } catch (e) {
+      if (!silent) alert("設定推播時發生錯誤，請再試一次。");
+      return false;
+    }
+  }
+
+  async function unsubscribeFromPush() {
+    if (!pushSupported()) return false;
+    const reg = await navigator.serviceWorker.ready;
+    const existing = await reg.pushManager.getSubscription();
+    if (!existing) return true;
+    await fetch("/api/auth/session?action=push-unsubscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: existing.endpoint }),
+    });
+    await existing.unsubscribe();
+    return true;
+  }
+
+  // 加到主畫面、用獨立 App 模式打開時，如果使用者還沒表態過要不要通知
+  // （Notification.permission 還是預設值 "default"），自動幫他跳出系統的
+  // 允許通知彈窗，不用特地跑去設定頁找。使用者一旦選過允許/拒絕，
+  // permission 就不會再是 "default"，這裡也就不會再自動跳出來。
+  async function maybeAutoPromptPush(session) {
+    if (!pushSupported()) return;
+    if (!isStandalonePwa()) return;
+    if (Notification.permission !== "default") return;
+    if (!session.vapidPublicKey) return;
+    const alreadySubscribed = await navigator.serviceWorker.ready.then((reg) => reg.pushManager.getSubscription());
+    if (alreadySubscribed) return;
+    await subscribeToPush(session, { silent: true });
+  }
+
+  // ---------------- 桌面版：公告通知（取代網頁推播） ----------------
+  // 管理員發公告時，伺服器除了送網頁推播，也會把公告存起來（api/_lib/announcements.js）。
+  // 桌面版 App 開著（最小化也算）的時候，每分鐘問一次「有沒有比上次更新的公告」，有就跳系統通知。
+  // 限制：App 完全關掉時收不到；下次打開會補一次錯過的公告（最多 10 則）。
+  // 第一次啟用時只記下「現在」的時間，不會把以前的舊公告一次全部跳出來。
+  const DESKTOP_NOTIFY_KEY = "mapsky_desktop_notify"; // "0" = 使用者自己關掉
+  const DESKTOP_ANN_LAST_KEY = "mapsky_ann_last_ts";
+  const desktopNotifyOn = () => {
+    try { return localStorage.getItem(DESKTOP_NOTIFY_KEY) !== "0"; } catch (e) { return true; }
+  };
+
+  let announcementPolling = false;
+  async function pollDesktopAnnouncements() {
+    if (announcementPolling) return;
+    announcementPolling = true;
+    try {
+      if (!desktopNotifyOn()) return;
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      let lastRaw = null;
+      try { lastRaw = localStorage.getItem(DESKTOP_ANN_LAST_KEY); } catch (e) {}
+      const since = lastRaw ? Number(lastRaw) || 0 : 0;
+      const resp = await fetch("/api/weather/status?announcements=1&since=" + since, { cache: "no-store" });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data || !data.ok) return;
+      if (!lastRaw) {
+        try { localStorage.setItem(DESKTOP_ANN_LAST_KEY, String(data.now)); } catch (e) {}
+        return;
+      }
+      let maxTs = since;
+      for (const a of data.announcements || []) {
+        const n = new Notification(a.title || "MapSky", { body: a.body || "" });
+        n.onclick = () => { try { window.focus(); } catch (e) {} };
+        if (a.ts > maxTs) maxTs = a.ts;
+      }
+      if (maxTs > since) {
+        try { localStorage.setItem(DESKTOP_ANN_LAST_KEY, String(maxTs)); } catch (e) {}
+      }
+    } catch (e) {
+      /* 網路不通等等，下一分鐘再問 */
+    } finally {
+      announcementPolling = false;
+    }
+  }
+
+  let announcementsStarted = false;
+  function startDesktopAnnouncements() {
+    if (!window.mapskyWindowControls || announcementsStarted) return;
+    announcementsStarted = true;
+    setTimeout(pollDesktopAnnouncements, 12000); // 等啟動時的通知授權（約 8 秒）先處理完
+    setInterval(pollDesktopAnnouncements, 60 * 1000);
+    window.addEventListener("focus", pollDesktopAnnouncements);
+  }
+
+  function buildDesktopNotificationEntry() {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.id = "pushNotificationBtn";
+    row.className = "settings-list-item";
+    row.innerHTML = `
+      <span class="settings-list-item-icon">🔔</span>
+      <span class="settings-list-item-label">推播通知</span>
+      <span class="settings-list-item-arrow" id="pushNotificationState">…</span>
+    `;
+    const stateEl = row.querySelector("#pushNotificationState");
+
+    const refreshState = () => {
+      if (!("Notification" in window)) {
+        stateEl.textContent = "此環境不支援";
+        return;
+      }
+      stateEl.textContent = desktopNotifyOn() && Notification.permission === "granted" ? "已開啟 ✓" : "點擊開啟";
+    };
+
+    row.addEventListener("click", async () => {
+      if (!("Notification" in window)) return;
+      // 已開啟 → 點一下關閉
+      if (desktopNotifyOn() && Notification.permission === "granted") {
+        try { localStorage.setItem(DESKTOP_NOTIFY_KEY, "0"); } catch (e) {}
+        refreshState();
+        return;
+      }
+      row.disabled = true;
+      try {
+        const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+        if (permission !== "granted") {
+          alert("需要允許通知權限才能開啟推播，請到「系統設定 → 通知」允許 MapSky。");
+          return;
+        }
+        try { localStorage.setItem(DESKTOP_NOTIFY_KEY, "1"); } catch (e) {}
+        new Notification("MapSky", { body: "推播通知已開啟" });
+        pollDesktopAnnouncements();
+      } catch (e) {
+        alert("設定通知時發生錯誤，請再試一次。");
+      } finally {
+        row.disabled = false;
+        refreshState();
+      }
+    });
+
+    refreshState();
+    return row;
+  }
+
+  // ---------------- 推播通知：訂閱／取消訂閱一條列表項目 ----------------
+  function buildPushNotificationEntry(session) {
+    // 桌面版（Electron 外殼）沒有 Google 的推播服務，網頁推播一定訂閱失敗，
+    // 改用下面的「公告通知」：App 開著時定時去問伺服器有沒有新公告，用系統通知顯示。
+    if (window.mapskyWindowControls) return buildDesktopNotificationEntry();
+    const row = document.createElement("button");
+    row.type = "button";
+    row.id = "pushNotificationBtn";
+    row.className = "settings-list-item";
+    row.innerHTML = `
+      <span class="settings-list-item-icon">🔔</span>
+      <span class="settings-list-item-label">推播通知</span>
+      <span class="settings-list-item-arrow" id="pushNotificationState">…</span>
+    `;
+    const stateEl = row.querySelector("#pushNotificationState");
+
+    async function refreshState() {
+      if (!pushSupported()) {
+        stateEl.textContent = "此瀏覽器不支援";
+        return null;
+      }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      stateEl.textContent = sub ? "已開啟 ✓" : "點擊開啟";
+      return sub;
+    }
+
+    row.addEventListener("click", async () => {
+      if (!pushSupported()) return;
+      row.disabled = true;
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const existing = await reg.pushManager.getSubscription();
+        if (existing) {
+          await unsubscribeFromPush();
+        } else {
+          await subscribeToPush(session);
+        }
+      } catch (e) {
+        alert("設定推播時發生錯誤，請再試一次。");
+      } finally {
+        row.disabled = false;
+        refreshState();
+      }
+    });
+
+    refreshState();
+    return row;
+  }
+
+  // ---------------- 軟體更新（只有桌面安裝版才有）----------------
+  // window.mapskyAppUpdate 是桌面版 preload.js 才會注入的橋接，純網頁瀏覽器
+  // 版本沒有這個東西，這裡用它存不存在來判斷要不要顯示這張卡片——網站本身
+  // 沒有「安裝更新」的概念，重新整理就是最新版了，不需要在這裡多顯示什麼。
+  //
+  // 更新頻道選擇器只有「有資格」的帳號才會顯示對應選項（session 裡的
+  // updateChannelAccess，後台管理指派的公開測試版名單 / 超級管理員）——
+  // 這是體驗層面的引導，不是安全機制，真正決定使用者抓不抓得到某個頻道的
+  // 安裝檔還是看 GitHub Releases 本身公不公開。
+  function buildAppUpdateEntry(session) {
+    if (!window.mapskyAppUpdate) return null;
+
+    const access = (session && session.updateChannelAccess) || {};
+    const channelOptions = [{ value: "stable", label: "正式版" }];
+    if (access.publicBeta) channelOptions.push({ value: "public-beta", label: "公開測試版" });
+    if (access.internalBeta) channelOptions.push({ value: "internal-beta", label: "一般測試版（僅自己）" });
+
+    const bar = document.createElement("div");
+    bar.className = "app-update-bar";
+    bar.innerHTML = `
+      <div class="app-update-icon"><img src="icons/logo-dark-64.png" alt="MapSky" /></div>
+      <div class="app-update-info">
+        <span class="app-update-name">MapSky 桌面版</span>
+        <span class="app-update-version" id="appUpdateVersion">目前版本 …</span>
+        <span class="app-update-status" id="appUpdateStatus">已是最新版本</span>
+        ${channelOptions.length > 1 ? `
+          <label class="app-update-channel-row">
+            更新頻道：
+            <select id="appUpdateChannelSelect">
+              ${channelOptions.map((o) => `<option value="${o.value}">${o.label}</option>`).join("")}
+            </select>
+          </label>
+        ` : ""}
+      </div>
+      <button id="appUpdateBtn" class="app-update-btn hidden" type="button">立即更新並重新啟動</button>
+    `;
+
+    const versionEl = bar.querySelector("#appUpdateVersion");
+    const statusEl = bar.querySelector("#appUpdateStatus");
+    const btnEl = bar.querySelector("#appUpdateBtn");
+    const channelSelect = bar.querySelector("#appUpdateChannelSelect");
+
+    if (window.mapskyAppUpdate.getVersion) {
+      window.mapskyAppUpdate.getVersion()
+        .then((v) => { versionEl.textContent = "目前版本 v" + v; })
+        .catch(() => {});
+    }
+
+    if (channelSelect && window.mapskyAppUpdate.getChannel) {
+      window.mapskyAppUpdate.getChannel()
+        .then((ch) => { channelSelect.value = ch || "stable"; })
+        .catch(() => {});
+      channelSelect.addEventListener("change", () => {
+        window.mapskyAppUpdate.setChannel(channelSelect.value);
+        statusEl.textContent = "已切換頻道，正在檢查更新…";
+      });
+    }
+
+    if (window.mapskyAppUpdate.onUpdateAvailable) {
+      window.mapskyAppUpdate.onUpdateAvailable((info) => {
+        statusEl.textContent = "發現新版本 v" + ((info && info.version) || "") + "，正在背景下載…";
+      });
+    }
+    if (window.mapskyAppUpdate.onDownloaded) {
+      window.mapskyAppUpdate.onDownloaded((version) => {
+        statusEl.textContent = "新版本 v" + version + " 已下載完成";
+        btnEl.classList.remove("hidden");
+      });
+    }
+
+    btnEl.addEventListener("click", () => {
+      btnEl.disabled = true;
+      btnEl.textContent = "重新啟動中…";
+      window.mapskyAppUpdate.installNow();
+    });
+
+    return bar;
+  }
+
+  // ---------------- 設定入口（帳號資訊 + 登出）----------------
+  // 「設定」跟其他分頁（未來 7 天／溫度趨勢圖…）一樣是真正的 tab-panel，
+  // 頂部導覽列的「⚙️ 設定」本身就是那顆 .tab-btn[data-tab="settings"]，
+  // 換頁邏輯統一交給 renderer.js 處理，這裡不用再另外綁點擊轉發。
+
+  const LOGIN_ERROR_LABEL = {
+    access_denied: "已取消登入",
+  };
+
+  function showGateError() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("login") !== "error") return;
+    const reason = params.get("reason") || "";
+    const errEl = el("loginGateError");
+    if (errEl) {
+      errEl.textContent = `登入失敗，請再試一次。${LOGIN_ERROR_LABEL[reason] ? `（${LOGIN_ERROR_LABEL[reason]}）` : ""}`;
+      errEl.classList.remove("hidden");
+    }
+    // 清掉網址上的 query string，避免重新整理又跳一次錯誤訊息
+    window.history.replaceState({}, "", window.location.pathname);
+  }
+
+  // 一定要先登入才能開啟功能：預設整個 .app 是隱藏的（見 CSS），
+  // 只有確認 session 有效後才在 body 加上 auth-ok，讓主畫面顯示出來。
+  function showMaintenanceScreen(session, providers) {
+    const gate = el("maintenanceGate");
+    const loginGate = el("loginGate");
+    if (loginGate) loginGate.classList.add("hidden");
+    if (gate) gate.classList.remove("hidden");
+
+    const link = el("maintenanceAdminLoginBtn");
+    if (link && !link.dataset.bound) {
+      link.dataset.bound = "1";
+      link.addEventListener("click", () => {
+        if (gate) gate.classList.add("hidden");
+        if (loginGate) loginGate.classList.remove("hidden");
+        const statusEl = el("loginGateStatus");
+        const buttonsEl = el("loginGateButtons");
+        if (!session.loggedIn) {
+          if (statusEl) statusEl.textContent = "請先登入管理員帳號：";
+          if (buttonsEl) {
+            buttonsEl.innerHTML = buildGateButtons(providers);
+            buttonsEl.classList.remove("hidden");
+          }
+        } else if (statusEl) {
+          statusEl.textContent = "這個帳號不是管理員，維護模式期間無法使用。";
+        }
+      });
+    }
+  }
+
+  async function initAuthGate() {
+    showGateError();
+    const statusEl = el("loginGateStatus");
+    const buttonsEl = el("loginGateButtons");
+
+    let providers, session;
+    try {
+      [providers, session] = await Promise.all([loadProviders(), loadSession()]);
+    } catch {
+      if (statusEl) statusEl.textContent = "無法連線到登入伺服器，請重新整理再試一次。";
+      return;
+    }
+
+    // 維護模式：後台開關打開時，除了管理員以外一律鎖住，連 App 本體
+    // （renderer.js）都不會載入，不只是畫面被蓋住而已。管理員登入後
+    // 這裡會是 false，正常往下走原本的流程。
+    const isAdminUser = Boolean(session.loggedIn && session.isAdmin);
+    if (session.maintenanceMode && !isAdminUser) {
+      showMaintenanceScreen(session, providers);
+      return;
+    }
+
+    if (session.loggedIn) {
+      document.body.classList.add("auth-ok");
+      if (!session.profile.onboarded) showOnboarding(session);
+      const slot = el("settingsAccountSlot");
+      if (slot) {
+        slot.innerHTML = "";
+        slot.appendChild(buildUserBar(session));
+        slot.appendChild(buildProfileEditEntry(session));
+        slot.appendChild(buildPushNotificationEntry(session));
+        maybeAutoPromptPush(session);
+        startDesktopAnnouncements();
+        applySettingsAvatarIcon(currentAvatarSrc(session));
+        const logoutBtn = el("authLogoutBtn");
+        if (logoutBtn) {
+          logoutBtn.addEventListener("click", async () => {
+            await fetch("/api/auth/logout", { method: "POST" });
+            window.location.href = "/";
+          });
+        }
+      }
+      const updateSlot = el("appUpdateSlot");
+      if (updateSlot) {
+        updateSlot.innerHTML = "";
+        const updateBar = buildAppUpdateEntry(session);
+        if (updateBar) updateSlot.appendChild(updateBar);
+      }
+      // 只有 ADMIN_IDS 白名單內的帳號才會看到「後台管理」入口。這裡只是
+      // 決定要不要「顯示」，真正的權限檢查在後端 /api/weather/status?admin=1
+      // 那邊做，藏起來只是體驗上不要讓一般使用者看到用不到的按鈕。
+      // 桌面版的入口就是頂部導覽列那顆 adminTabBtn；手機版底部導覽列
+      // （adminBottomBtn）維持原本邏輯不動。
+      if (session.isAdmin) {
+        const adminBtn = el("adminBottomBtn");
+        if (adminBtn) adminBtn.classList.remove("hidden");
+        const adminTabBtn = el("adminTabBtn");
+        if (adminTabBtn) adminTabBtn.classList.remove("hidden");
+      }
+      // 「動態島冒險」解鎖條件要不要跳過：後端在 /api/auth/session 算好了（略過名單 +
+      // 超級管理員），renderer.js 的 advIsUnlocked() 會讀這個全域變數。
+      window.__mapskyAdventureSkip = Boolean(session.adventureSkip);
+      startAppAfterLogin();
+      return;
+    }
+
+    // 未登入：把主畫面繼續擋著，只在登入畫面上顯示可用的登入方式
+    if (statusEl) statusEl.textContent = "請先登入以下任一帳號：";
+    if (buttonsEl) {
+      buttonsEl.innerHTML = buildGateButtons(providers);
+      buttonsEl.classList.remove("hidden");
+    }
+  }
+
+  // 只有登入成功才把真正的功能（renderer.js + 輪詢）載入進來，
+  // 沒登入的話 renderer.js 完全不會被載入，/api/weather/* 也不會被呼叫，
+  // 不只是畫面被擋住而已。
+  let appStarted = false;
+  function startAppAfterLogin() {
+    if (appStarted) return;
+    appStarted = true;
+    startPolling();
+    const script = document.createElement("script");
+    script.src = "renderer.js";
+    document.body.appendChild(script);
+  }
+
+  if (!blockedByDesktopGate) {
+    document.addEventListener("DOMContentLoaded", initAuthGate);
+  }
+})();
