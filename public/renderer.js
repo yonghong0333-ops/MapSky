@@ -3908,22 +3908,59 @@ const DYNAMIC_ISLAND_ON_KEY = "mapsky_dynamic_island_on";
 let dynamicIslandOn = (() => {
   try { return localStorage.getItem(DYNAMIC_ISLAND_ON_KEY) === "1"; } catch (e) { return false; }
 })();
+
+// 按「使用」先不會直接開動態島，是先展開模式／時間選單，選好按「開始使用」才
+// 真的呼叫原生端。選單本身只是畫面上的暫存狀態，不用存 localStorage——每次
+// 重新打開都是預設值（目前天氣、30 分鐘），這幾個變數只在使用者停留在這個
+// 選單的當下有意義。
+let adventurePickerOpen = false;
+let adventureSelectedMode = "current-weather"; // 目前只有這一種，先把選單架好方便之後加別的模式
+const ADV_DURATION_STEP_MIN = 5;
+const ADV_DURATION_MIN = 5;
+const ADV_DURATION_MAX = 120;
+let adventureDurationMinutes = 30;
+
+function updateAdventureDurationUI() {
+  const valueEl = el("adventureDurationValue");
+  if (valueEl) valueEl.textContent = `${adventureDurationMinutes} 分鐘`;
+  const minusBtn = el("adventureDurationMinus");
+  const plusBtn = el("adventureDurationPlus");
+  if (minusBtn) minusBtn.disabled = adventureDurationMinutes <= ADV_DURATION_MIN;
+  if (plusBtn) plusBtn.disabled = adventureDurationMinutes >= ADV_DURATION_MAX;
+}
+
 function updateDynamicIslandBtnUI(state) {
   const btn = el("dynamicIslandBtn");
   if (!btn) return;
   const unlocked = advIsUnlocked(state || advLoad());
   const status = el("adventureStatus");
+  const picker = el("adventurePicker");
   updateAdventureCardSwap(unlocked); // 解鎖前一律顯示宣傳卡；解鎖後由 dynamicIslandOn 決定顯示哪一張
   if (!unlocked) {
     btn.disabled = true;
     btn.classList.remove("active");
     btn.textContent = "🔒 尚未解鎖";
+    if (picker) picker.classList.add("hidden");
+    adventurePickerOpen = false;
     if (status) status.textContent = "集滿上面 3 個條件，就能把天氣顯示在動態島 / 鎖定畫面";
     return;
   }
   btn.disabled = false;
-  btn.textContent = dynamicIslandOn ? "結束使用" : "使用";
-  btn.classList.toggle("active", dynamicIslandOn);
+  // 已經在動態島顯示中的時候，宣傳卡整張被 updateAdventureCardSwap() 換成精簡狀態卡
+  // 了（見上面），選單自然跟著一起被藏起來，這裡只要確保「還沒開」的時候選單
+  // 開關狀態是對的就好。
+  if (dynamicIslandOn) {
+    btn.textContent = "結束使用";
+    btn.classList.add("active");
+    adventurePickerOpen = false;
+  } else {
+    btn.textContent = "使用";
+    btn.classList.remove("active");
+  }
+  if (picker) {
+    picker.classList.toggle("hidden", !adventurePickerOpen);
+    if (adventurePickerOpen) updateAdventureDurationUI();
+  }
   const state2 = state || advLoad();
   const viaSkip = window.__mapskyAdventureSkip && !state2.unlocked && !(state2.streak >= 3 && state2.sawCloudy && state2.sawRain);
   if (status) {
@@ -3931,7 +3968,7 @@ function updateDynamicIslandBtnUI(state) {
       ? `${currentCity ? currentCity.label + "・" : ""}動態島顯示中，把 App 滑掉也不會消失`
       : viaSkip
       ? "管理員已為你開通，不用集滿條件也能使用"
-      : "點一下按鈕，把天氣顯示在動態島 / 鎖定畫面";
+      : "點一下按鈕，選模式跟顯示時間";
   }
 }
 
@@ -3942,6 +3979,8 @@ async function sendToDynamicIsland() {
     condition: lastWeatherSnapshot.wx,
     conditionSymbol: sfSymbolForWx(lastWeatherSnapshot.wx, isNightTime(lastWeatherSnapshot.startTime)),
     cityName: currentCity.label,
+    mode: adventureSelectedMode, // 目前只有 "current-weather"，先把欄位傳過去，原生端之後加新模式再讀這個
+    durationMinutes: adventureDurationMinutes, // 原生端如果支援到期自動關閉，就讀這個；還不支援的話先忽略也不影響現有行為
   });
 }
 
@@ -3962,6 +4001,61 @@ const dynamicIslandBtn = el("dynamicIslandBtn");
 if (dynamicIslandBtn) {
   dynamicIslandBtn.addEventListener("click", async () => {
     if (!advIsUnlocked(advLoad())) return; // 按鈕本身也是 disabled，這裡多一層保險
+    if (dynamicIslandOn) {
+      // 已經在動態島顯示中：這顆按鈕變成「結束使用」，直接關掉，跟選單無關。
+      if (!window.MapSkyNative?.isNative) {
+        setStatus("動態島功能僅支援 iOS App，網頁版無法使用");
+        return;
+      }
+      dynamicIslandBtn.disabled = true;
+      try {
+        await window.MapSkyNative.endDynamicIsland();
+        dynamicIslandOn = false;
+        try { localStorage.setItem(DYNAMIC_ISLAND_ON_KEY, "0"); } catch (e) {}
+        updateDynamicIslandBtnUI();
+      } finally {
+        dynamicIslandBtn.disabled = false;
+      }
+      return;
+    }
+    // 還沒開：按這顆先不直接呼叫原生端，展開／收合下面那塊模式跟顯示時間選單，
+    // 選好之後要按選單裡的「開始使用」才真的動作。
+    adventurePickerOpen = !adventurePickerOpen;
+    updateDynamicIslandBtnUI();
+  });
+}
+
+// 選單裡的模式選項：目前只有「目前天氣」一種，先架好之後要加別的模式（例如
+// 未來的降雨預報、空氣品質）只要多加幾顆 .adventure-mode-opt 按鈕，這段選取
+// 邏輯不用改。
+document.querySelectorAll(".adventure-mode-opt").forEach((optBtn) => {
+  optBtn.addEventListener("click", () => {
+    document.querySelectorAll(".adventure-mode-opt").forEach((b) => b.classList.toggle("active", b === optBtn));
+    adventureSelectedMode = optBtn.dataset.mode || adventureSelectedMode;
+  });
+});
+
+// 顯示時間 ➖／➕，1 格 5 分鐘，範圍 5～120 分鐘。
+const adventureDurationMinusBtn = el("adventureDurationMinus");
+if (adventureDurationMinusBtn) {
+  adventureDurationMinusBtn.addEventListener("click", () => {
+    adventureDurationMinutes = Math.max(ADV_DURATION_MIN, adventureDurationMinutes - ADV_DURATION_STEP_MIN);
+    updateAdventureDurationUI();
+  });
+}
+const adventureDurationPlusBtn = el("adventureDurationPlus");
+if (adventureDurationPlusBtn) {
+  adventureDurationPlusBtn.addEventListener("click", () => {
+    adventureDurationMinutes = Math.min(ADV_DURATION_MAX, adventureDurationMinutes + ADV_DURATION_STEP_MIN);
+    updateAdventureDurationUI();
+  });
+}
+
+// 選單裡的「開始使用」：選好模式跟時間之後，真正呼叫原生端把天氣送到動態島。
+const adventureStartBtn = el("adventureStartBtn");
+if (adventureStartBtn) {
+  adventureStartBtn.addEventListener("click", async () => {
+    if (!advIsUnlocked(advLoad())) return;
     if (!window.MapSkyNative?.isNative) {
       setStatus("動態島功能僅支援 iOS App，網頁版無法使用");
       return;
@@ -3970,19 +4064,15 @@ if (dynamicIslandBtn) {
       setStatus("請先選擇城市，等天氣資料載入後再試");
       return;
     }
-    dynamicIslandBtn.disabled = true;
+    adventureStartBtn.disabled = true;
     try {
-      if (dynamicIslandOn) {
-        await window.MapSkyNative.endDynamicIsland();
-        dynamicIslandOn = false;
-      } else {
-        await sendToDynamicIsland();
-        dynamicIslandOn = true;
-      }
-      try { localStorage.setItem(DYNAMIC_ISLAND_ON_KEY, dynamicIslandOn ? "1" : "0"); } catch (e) {}
+      dynamicIslandOn = true;
+      await sendToDynamicIsland();
+      try { localStorage.setItem(DYNAMIC_ISLAND_ON_KEY, "1"); } catch (e) {}
+      adventurePickerOpen = false;
       updateDynamicIslandBtnUI();
     } finally {
-      dynamicIslandBtn.disabled = false;
+      adventureStartBtn.disabled = false;
     }
   });
 }
