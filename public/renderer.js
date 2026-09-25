@@ -3922,7 +3922,7 @@ function updateDynamicIslandBtnUI(state) {
     return;
   }
   btn.disabled = false;
-  btn.textContent = dynamicIslandOn ? "結束動態島" : "動態島";
+  btn.textContent = dynamicIslandOn ? "結束使用" : "使用";
   btn.classList.toggle("active", dynamicIslandOn);
   const state2 = state || advLoad();
   const viaSkip = window.__mapskyAdventureSkip && !state2.unlocked && !(state2.streak >= 3 && state2.sawCloudy && state2.sawRain);
