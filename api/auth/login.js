@@ -39,10 +39,37 @@ async function handleDesktopExchange(req, res) {
   }
 
   if (!token) {
+    if (req.query.redirect === "1") return sendExchangeError(res, "交換碼已過期或已使用過，請重新登入一次");
     return res.status(400).json({ error: "交換碼已過期或已使用過，請重新登入一次" });
   }
 
+  // iOS／Android 原生殼：App 用 mapsky://login-complete?xchg=... 拿到交換碼後，
+  // 導覽「目前這個 WebView」回來打這支網址（帶 redirect=1），而不是像桌面版
+  // Electron 殼那樣用 fetch 換 JSON 再自己動手設 cookie。好處是這次請求本身
+  // 就是 WebView 的一次正常頁面導覽，Set-Cookie 由 WebView 自己的 cookie jar
+  // 接住，跟網頁版 callback.js 最後做的事一模一樣，不需要另外寫原生程式碼
+  // 操作 WKWebView 的 cookie store。
+  if (req.query.redirect === "1") {
+    res.setHeader("Set-Cookie", serializeCookie("nexora_session", token, { maxAge: 60 * 60 * 24 * 7 }));
+    res.writeHead(302, { Location: "/?login=success" });
+    return res.end();
+  }
+
   return res.status(200).json({ token });
+}
+
+function sendExchangeError(res, message) {
+  const html = `<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>登入失敗 - MapSky</title></head>
+<body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:560px;margin:48px auto;padding:0 20px;line-height:1.7;color:#1f2937">
+<h2>登入失敗</h2>
+<p>${message}</p>
+<p><a href="/" style="display:inline-block;padding:10px 18px;background:#1d4ed8;color:#fff;border-radius:8px;text-decoration:none">回到 MapSky 重新登入</a></p>
+</body></html>`;
+  res.status(400).setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.send(html);
 }
 
 module.exports = async function handler(req, res) {
