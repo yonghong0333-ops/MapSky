@@ -9,6 +9,15 @@
 (function () {
   window.appInfo = { platform: "web" };
 
+  // 是不是在 Capacitor 包出來的原生殼（iOS／Android App）裡執行。
+  // capacitor.config.json 的 ios.appendUserAgent 把 "MapSkyiOS" 加進了
+  // User-Agent，這裡拿來當判斷依據；window.Capacitor 是否存在也一起判斷，
+  // 兩者符合其一即可。guardBrowserGate（要不要顯示「加入主畫面」引導畫面）
+  // 跟下面的原生登入流程都靠這個變數判斷。
+  const isNativeShell = /MapSkyiOS/i.test(navigator.userAgent || "") ||
+    Boolean(window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform());
+  window.appInfo.isNativeApp = isNativeShell;
+
   // 這個路徑指向 public/downloads/MapSky_Installbox.exe，是使用者自己包好、
   // 手動放上去的安裝檔，跟後台「發佈新版桌面版」觸發的 GitHub Actions 自動化
   // 流程完全脫鉤——那條線只負責「已安裝使用者的背景自動更新」，跟這個「網站
@@ -120,11 +129,7 @@
 
     // Capacitor 包出來的原生 App（iOS／Android 殼）本身就已經是「安裝好」的
     // 狀態，不該再顯示這個給行動瀏覽器看的「加入主畫面／請用 Safari 開啟」
-    // 引導畫面。capacitor.config.json 裡的 ios.appendUserAgent 把 "MapSkyiOS"
-    // 加進了 User-Agent，這裡用它當作「目前是不是原生 App」的判斷依據；
-    // 順便也判斷 window.Capacitor 是否存在，兩者符合其一就直接放行。
-    const isNativeShell = /MapSkyiOS/i.test(navigator.userAgent || "") ||
-      Boolean(window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform());
+    // 引導畫面（isNativeShell 定義在檔案最上面）。
     if (isNativeShell) return;
 
     const byMediaQuery = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
@@ -924,10 +929,78 @@
       .map((p) => {
         const icon = p.id === "google" ? GOOGLE_SVG : `<img src="${PROVIDER_ICON[p.id]}" alt="" />`;
         const disabled = p.configured ? "" : "disabled title=\"尚未設定\"";
-        return `<a class="login-gate-btn" href="/api/auth/login?provider=${p.id}" ${disabled}>${icon}<span>使用 ${escapeHtml(p.label)} 登入</span></a>`;
+        // data-provider 給原生 App 那段攔截點擊用（見 initNativeLoginFlow），
+        // href 保留給一般網頁版／桌面版沿用原本「直接導覽過去」的行為。
+        return `<a class="login-gate-btn" data-provider="${p.id}" href="/api/auth/login?provider=${p.id}" ${disabled}>${icon}<span>使用 ${escapeHtml(p.label)} 登入</span></a>`;
       })
       .join("");
   }
+
+  // ------------------------------------------------------------------
+  // 原生 App（iOS／Android 殼）的登入流程。
+  // Google 等 OAuth 供應商不允許在一般內嵌 WebView 裡完成登入（會被擋、或
+  // 跳出「不安全」警告），所以不能讓登入頁直接在 App 主畫面的 WebView 裡
+  // 導覽過去。正確做法：用系統提供的「App 內瀏覽器」（iOS 是
+  // SFSafariViewController，透過 @capacitor/browser 開啟，畫面上是從下方
+  // 滑出的分頁，體驗上仍在 App 裡，但技術上是獨立、貨真價實的瀏覽器分頁，
+  // 不會被 Google 擋）完成登入，完成後導去自訂網址 mapsky://login-complete
+  // ?xchg=... 把結果交回 App（跟桌面版 Electron 殼是同一套機制，見
+  // electron/main.js 的 openLoginInSystemBrowser／handleAuthCallbackUrl，
+  // 以及 api/auth/callback.js、api/auth/login.js 的 xchg 交換碼設計）。
+  // App 端（AppDelegate.swift）收到 mapsky:// 這個網址會轉交給 Capacitor 的
+  // App plugin，這裡監聽它的 appUrlOpen 事件，拿到交換碼後導覽「目前這個
+  // WebView」去 /api/auth/login?xchg=...&redirect=1，讓伺服器直接在這個
+  // WebView 的這次頁面請求裡把 session cookie 設好、302 導回首頁，跟網頁版
+  // callback.js 最後做的事完全一樣，不需要額外寫原生程式碼去操作 cookie。
+  function initNativeLoginFlow() {
+    if (!isNativeShell) return;
+
+    function capPlugin(name) {
+      return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins[name];
+    }
+
+    async function openNativeLogin(providerId) {
+      const Browser = capPlugin("Browser");
+      const url = `${window.location.origin}/api/auth/login?provider=${encodeURIComponent(providerId)}&desktop=1`;
+      if (Browser && Browser.open) {
+        try {
+          await Browser.open({ url });
+          return;
+        } catch (e) {
+          /* App 內瀏覽器開不起來就退回原本的導覽方式 */
+        }
+      }
+      window.location.href = url;
+    }
+
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest(".login-gate-btn");
+      if (!btn || btn.hasAttribute("disabled")) return;
+      const providerId = btn.dataset.provider;
+      if (!providerId) return;
+      e.preventDefault();
+      openNativeLogin(providerId);
+    });
+
+    const App = capPlugin("App");
+    if (App && App.addListener) {
+      App.addListener("appUrlOpen", async ({ url }) => {
+        let xchg;
+        try {
+          xchg = new URL(url).searchParams.get("xchg");
+        } catch {
+          return;
+        }
+        if (!xchg) return;
+        const Browser = capPlugin("Browser");
+        if (Browser && Browser.close) {
+          try { await Browser.close(); } catch { /* 忽略，可能本來就已經關了 */ }
+        }
+        window.location.href = `/api/auth/login?xchg=${encodeURIComponent(xchg)}&redirect=1`;
+      });
+    }
+  }
+  initNativeLoginFlow();
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
