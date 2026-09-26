@@ -288,36 +288,12 @@
               <li id="advCondRain" class="adventure-cond"><span class="adv-check"></span><span class="adv-label">遇到下雨的天氣</span></li>
             </ul>
             <button id="dynamicIslandBtn" class="adventure-btn" type="button" aria-label="顯示於動態島" disabled>尚未解鎖</button>
-            <!-- 按「使用」先不會直接打開動態島，是先跳出下面這塊底部彈窗讓
-                 使用者選模式跟顯示時間，選好按「開始使用」才真的呼叫原生端。
-                 四種模式對應 MapSkyWidgetLiveActivity.swift 那四種畫面，
-                 時間用 ➖／➕ 微調，1 格 5 分鐘。 -->
-            <div id="adventurePickerBackdrop" class="adventure-picker-backdrop hidden"></div>
-            <div id="adventurePicker" class="adventure-picker hidden">
-              <div class="adventure-picker-handle"></div>
-              <div class="adventure-picker-header">
-                <span class="adventure-picker-title">選擇模式與顯示時間</span>
-                <button type="button" id="adventurePickerCloseBtn" class="adventure-picker-close" aria-label="關閉">✕</button>
-              </div>
-              <div class="adventure-picker-row">
-                <span class="adventure-picker-label">模式</span>
-                <div class="adventure-mode-options">
-                  <button type="button" class="adventure-mode-opt active" data-mode="weather">目前天氣</button>
-                  <button type="button" class="adventure-mode-opt" data-mode="uv">紫外線</button>
-                  <button type="button" class="adventure-mode-opt" data-mode="wind">風速</button>
-                  <button type="button" class="adventure-mode-opt" data-mode="typhoon">颱風警報</button>
-                </div>
-              </div>
-              <div class="adventure-picker-row">
-                <span class="adventure-picker-label">顯示時間</span>
-                <div class="adventure-duration-stepper">
-                  <button type="button" id="adventureDurationMinus" class="adventure-stepper-btn" aria-label="減少 5 分鐘">－</button>
-                  <span id="adventureDurationValue" class="adventure-duration-value">30 分鐘</span>
-                  <button type="button" id="adventureDurationPlus" class="adventure-stepper-btn" aria-label="增加 5 分鐘">＋</button>
-                </div>
-              </div>
-              <button type="button" id="adventureStartBtn" class="adventure-btn adventure-start-btn">開始使用</button>
-            </div>
+            <!-- 彈窗跟遮罩本體已經搬到 </body> 前面去了（見檔案最下面），
+                 這裡原本放的位置留著這行註解說明原因：外層的 .adventure-content
+                 有 backdrop-filter，會讓裡面 position:fixed 的子元素「定位基準」
+                 被換成這張卡片而不是整個螢幕，加上 .adventure-panel 還有
+                 overflow:hidden，兩個疊在一起彈窗會被裁切、卡在卡片範圍裡出不來。
+                 搬到 body 最外層之後就不會再被任何卡片的毛玻璃或 overflow 影響。 -->
             <p id="adventureStatus" class="adventure-status"></p>
           </div>
         </div>
@@ -1138,6 +1114,39 @@
     </div>
     <div id="rainOverlayBody" class="ty-overlay-body"></div>
     <div class="ty-overlay-actions"></div>
+  </div>
+
+  <!-- 「動態島冒險」的彈窗跟背景遮罩：故意放在 body 最外層、不放在
+       .adventure-panel 卡片裡面，因為那張卡片的 .adventure-content
+       有 backdrop-filter（毛玻璃），會讓裡面 position:fixed 的子元素
+       被關在卡片範圍內定位、又被 .adventure-panel 的 overflow:hidden
+       裁掉，畫面上就是「被切一半、卡在卡片裡」。放在這裡，兩個問題都
+       不會發生，彈窗才能真的貼齊整個手機螢幕滑出來。 -->
+  <div id="adventurePickerBackdrop" class="adventure-picker-backdrop hidden"></div>
+  <div id="adventurePicker" class="adventure-picker hidden">
+    <div class="adventure-picker-handle"></div>
+    <div class="adventure-picker-header">
+      <span class="adventure-picker-title">選擇模式與顯示時間</span>
+      <button type="button" id="adventurePickerCloseBtn" class="adventure-picker-close" aria-label="關閉">✕</button>
+    </div>
+    <div class="adventure-picker-row">
+      <span class="adventure-picker-label">模式</span>
+      <div class="adventure-mode-options">
+        <button type="button" class="adventure-mode-opt active" data-mode="weather">目前天氣</button>
+        <button type="button" class="adventure-mode-opt" data-mode="uv">紫外線</button>
+        <button type="button" class="adventure-mode-opt" data-mode="wind">風速</button>
+        <button type="button" class="adventure-mode-opt" data-mode="typhoon">颱風警報</button>
+      </div>
+    </div>
+    <div class="adventure-picker-row">
+      <span class="adventure-picker-label">顯示時間</span>
+      <div class="adventure-duration-stepper">
+        <button type="button" id="adventureDurationMinus" class="adventure-stepper-btn" aria-label="減少 5 分鐘">－</button>
+        <span id="adventureDurationValue" class="adventure-duration-value">30 分鐘</span>
+        <button type="button" id="adventureDurationPlus" class="adventure-stepper-btn" aria-label="增加 5 分鐘">＋</button>
+      </div>
+    </div>
+    <button type="button" id="adventureStartBtn" class="adventure-btn adventure-start-btn">開始使用</button>
   </div>
 
   <script src="web-shim.js"></script>
