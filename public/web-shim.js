@@ -1002,6 +1002,83 @@
   }
   initNativeLoginFlow();
 
+  // ------------------------------------------------------------------
+  // 原生 App 的推播通知（iOS，@capacitor/push-notifications）。
+  //
+  // 跟網頁版的 Web Push（VAPID，見 initPushUI/subscribeToPush 之類的既有
+  // 邏輯，如果這個檔案裡有的話）是兩條平行線：瀏覽器走 Web Push 標準，
+  // iOS 原生殼走蘋果自己的 APNs，拿到的 token 格式、註冊方式都不一樣，
+  // 沒辦法共用同一支 API，所以另外接一條路：
+  //   1. 進 App 之後跟使用者要通知權限、跟系統拿 APNs device token。
+  //   2. 拿到 token 就 POST 給 /api/push/register-device 存起來（伺服器那
+  //      邊 api/_lib/apns-store.js、api/_lib/apns-push.js 已經接好，管理員
+  //      發公告推播時會同時送到這裡登記過的所有裝置，見 api/weather/
+  //      status.js 的 push-send 這個 action）。
+  //   3. 使用者點了推播通知、或 App 在前景收到推播時，導去警特報頁籤，
+  //      比照網頁版點下方導覽列「警特報」分頁的行為。
+  function initNativePushFlow() {
+    if (!isNativeShell) return;
+
+    function capPlugin(name) {
+      return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins[name];
+    }
+
+    const PushNotifications = capPlugin("PushNotifications");
+    if (!PushNotifications) return;
+
+    async function registerTokenWithServer(token) {
+      try {
+        await fetch("/api/push/register-device", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+      } catch (e) {
+        // 存 token 失敗不影響 App 本身能不能用，靜靜失敗就好，下次重開
+        // App、或下次 requestPermissions 觸發 registration 事件時會再試一次。
+      }
+    }
+
+    function goToTyphoonTab() {
+      // 跟原生底部導覽列點「警特報」是同一個動作：模擬點擊網頁裡
+      // data-bottom="typhoon" 的按鈕，讓網頁自己的切換分頁邏輯照舊運作。
+      const btn = document.querySelector('[data-bottom="typhoon"]');
+      if (btn) btn.click();
+    }
+
+    PushNotifications.addListener("registration", (token) => {
+      if (token && token.value) registerTokenWithServer(token.value);
+    });
+
+    PushNotifications.addListener("registrationError", (err) => {
+      console.error("APNs 註冊失敗", err);
+    });
+
+    PushNotifications.addListener("pushNotificationReceived", () => {
+      // App 開著（前景）收到推播：目前不特別彈自訂提示，交給系統橫幅
+      // 顯示（AppDelegate 如果有設定前景也顯示通知的話）；這裡先留空，
+      // 之後如果要在 App 內另外彈提示，加在這裡即可。
+    });
+
+    PushNotifications.addListener("pushNotificationActionPerformed", () => {
+      goToTyphoonTab();
+    });
+
+    // 進 App 就直接要權限＋註冊，不特別等使用者去設定頁按按鈕——推播對
+    // 這個 App 來說是「颱風/天氣警特報公告」，希望預設就是開著的。使用者
+    // 之後還是可以在 iOS 系統設定裡自己關掉這個 App 的通知權限。
+    PushNotifications.requestPermissions()
+      .then((result) => {
+        if (result.receive === "granted") {
+          PushNotifications.register();
+        }
+      })
+      .catch((e) => {
+        console.error("requestPermissions 失敗", e);
+      });
+  }
+  initNativePushFlow();
+
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
