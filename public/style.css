@@ -3191,17 +3191,16 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
    不變，動畫結束後才真的讓它不能互動（pointer-events / visibility）。*/
 .adventure-picker {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 14px;
+  right: 14px;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   z-index: 1001;
   margin: 0;
-  padding: 10px 16px calc(18px + env(safe-area-inset-bottom, 0px));
-  border-radius: 20px 20px 0 0;
+  padding: 10px 16px 18px;
+  border-radius: 24px;
   background: #12312c;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-bottom: none;
-  box-shadow: 0 -10px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
   max-height: 75vh;
   overflow-y: auto;
   transform: translateY(0);
@@ -3209,7 +3208,7 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
   transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s;
 }
 .adventure-picker.hidden {
-  transform: translateY(110%);
+  transform: translateY(calc(100% + 40px));
   visibility: hidden;
   pointer-events: none;
   transition: transform 0.22s ease-in, visibility 0s linear 0.22s;
