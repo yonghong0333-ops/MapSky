@@ -3194,7 +3194,7 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
   left: 14px;
   right: 14px;
   bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-  z-index: 1001;
+  z-index: 99999;
   margin: 0;
   padding: 10px 16px 18px;
   border-radius: 24px;
@@ -3247,7 +3247,7 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
 .adventure-picker-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 99998;
   background: rgba(0, 0, 0, 0.45);
   opacity: 1;
   transition: opacity 0.28s ease;
