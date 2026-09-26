@@ -1002,6 +1002,86 @@
   }
   initNativeLoginFlow();
 
+  // ------------------------------------------------------------------
+  // 原生 App 的推播通知（iOS，@capacitor/push-notifications）。
+  //
+  // 跟網頁版的 Web Push（VAPID，見 initPushUI/subscribeToPush 之類的既有
+  // 邏輯，如果這個檔案裡有的話）是兩條平行線：瀏覽器走 Web Push 標準，
+  // iOS 原生殼走蘋果自己的 APNs，拿到的 token 格式、註冊方式都不一樣，
+  // 沒辦法共用同一支 API，所以另外接一條路：
+  //   1. 進 App 之後跟使用者要通知權限、跟系統拿 APNs device token。
+  //   2. 拿到 token 就 POST 給 /api/push/register-device 存起來（伺服器那
+  //      邊 api/_lib/apns-store.js、api/_lib/apns-push.js 已經接好，管理員
+  //      發公告推播時會同時送到這裡登記過的所有裝置，見 api/weather/
+  //      status.js 的 push-send 這個 action）。
+  //   3. 使用者點了推播通知、或 App 在前景收到推播時，導去警特報頁籤，
+  //      比照網頁版點下方導覽列「警特報」分頁的行為。
+  function initNativePushFlow() {
+    if (!isNativeShell) return;
+
+    function capPlugin(name) {
+      return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins[name];
+    }
+
+    const PushNotifications = capPlugin("PushNotifications");
+    if (!PushNotifications) return;
+
+    async function registerTokenWithServer(token) {
+      try {
+        // 用跟網頁版 Web Push 訂閱同一支 API（api/auth/session.js），用
+        // action 參數區分是 iOS 裝置 token 還是瀏覽器訂閱物件，不用另外
+        // 開一支端點。
+        await fetch("/api/auth/session?action=push-subscribe-ios", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+      } catch (e) {
+        // 存 token 失敗不影響 App 本身能不能用，靜靜失敗就好，下次重開
+        // App、或下次 requestPermissions 觸發 registration 事件時會再試一次。
+      }
+    }
+
+    function goToTyphoonTab() {
+      // 跟原生底部導覽列點「警特報」是同一個動作：模擬點擊網頁裡
+      // data-bottom="typhoon" 的按鈕，讓網頁自己的切換分頁邏輯照舊運作。
+      const btn = document.querySelector('[data-bottom="typhoon"]');
+      if (btn) btn.click();
+    }
+
+    PushNotifications.addListener("registration", (token) => {
+      if (token && token.value) registerTokenWithServer(token.value);
+    });
+
+    PushNotifications.addListener("registrationError", (err) => {
+      console.error("APNs 註冊失敗", err);
+    });
+
+    PushNotifications.addListener("pushNotificationReceived", () => {
+      // App 開著（前景）收到推播：目前不特別彈自訂提示，交給系統橫幅
+      // 顯示（AppDelegate 如果有設定前景也顯示通知的話）；這裡先留空，
+      // 之後如果要在 App 內另外彈提示，加在這裡即可。
+    });
+
+    PushNotifications.addListener("pushNotificationActionPerformed", () => {
+      goToTyphoonTab();
+    });
+
+    // 進 App 就直接要權限＋註冊，不特別等使用者去設定頁按按鈕——推播對
+    // 這個 App 來說是「颱風/天氣警特報公告」，希望預設就是開著的。使用者
+    // 之後還是可以在 iOS 系統設定裡自己關掉這個 App 的通知權限。
+    PushNotifications.requestPermissions()
+      .then((result) => {
+        if (result.receive === "granted") {
+          PushNotifications.register();
+        }
+      })
+      .catch((e) => {
+        console.error("requestPermissions 失敗", e);
+      });
+  }
+  initNativePushFlow();
+
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
@@ -1192,90 +1272,11 @@
     return row;
   }
 
-  // ---------------- iOS 原生 App：推播通知 ----------------
-  // 原生殼（AppDelegate／entitlements／背景模式）都已經接好 APNs 轉發，
-  // window.MapSkyNative.enablePushNotifications() 是 MapSkyViewController.swift
-  // 注入的橋接，把 Capacitor 官方 @capacitor/push-notifications 外掛「先要
-  // 權限、權限給了才 register」包成一次呼叫。裝置 token／推播事件本身，走
-  // 的是該外掛自己的事件系統（Capacitor.Plugins.PushNotifications.addListener），
-  // 這裡只是接住 token 存到自己的後端（api/auth/session 的
-  // push-subscribe-ios），跟網頁推播存 Web Push 訂閱是平行的兩條路。
-  const IOS_PUSH_TOKEN_KEY = "mapsky_ios_push_token";
-
-  function buildNativePushNotificationEntry() {
-    const row = document.createElement("button");
-    row.type = "button";
-    row.id = "pushNotificationBtn";
-    row.className = "settings-list-item";
-    row.innerHTML = `
-      <span class="settings-list-item-icon">🔔</span>
-      <span class="settings-list-item-label">推播通知</span>
-      <span class="settings-list-item-arrow" id="pushNotificationState">…</span>
-    `;
-    const stateEl = row.querySelector("#pushNotificationState");
-
-    function refreshState() {
-      let hasToken = false;
-      try { hasToken = Boolean(localStorage.getItem(IOS_PUSH_TOKEN_KEY)); } catch (e) {}
-      stateEl.textContent = hasToken ? "已開啟 ✓" : "點擊開啟";
-    }
-
-    async function registerToken(token) {
-      try { localStorage.setItem(IOS_PUSH_TOKEN_KEY, token); } catch (e) {}
-      try {
-        await fetch("/api/auth/session?action=push-subscribe-ios", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token }),
-        });
-      } catch (e) {
-        // 網路問題送不出去也沒關係，token 已經存在 localStorage 了，
-        // 下次 App 開啟、網路恢復時使用者只要再點一次就能補送。
-      }
-      refreshState();
-    }
-
-    const push = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
-    if (push && push.addListener) {
-      push.addListener("registration", (result) => {
-        const token = result && (result.value || result.token);
-        if (token) registerToken(token);
-      });
-      push.addListener("registrationError", () => {
-        alert("開啟推播時發生錯誤，請確認已允許 MapSky 傳送通知（設定 → 通知）。");
-      });
-    }
-
-    row.addEventListener("click", async () => {
-      if (!window.MapSkyNative || !window.MapSkyNative.enablePushNotifications) {
-        alert("此版本 App 尚未支援推播，請更新 App 後再試。");
-        return;
-      }
-      row.disabled = true;
-      try {
-        await window.MapSkyNative.enablePushNotifications();
-        // 拿到 token 是上面 registration 監聽的非同步事件，不用在這裡等；
-        // 使用者在系統詢問框按下允許之後，狀態很快就會自己補上。
-      } catch (e) {
-        alert("需要允許通知權限才能開啟推播，請到「系統設定 → 通知」允許 MapSky。");
-      } finally {
-        row.disabled = false;
-        refreshState();
-      }
-    });
-
-    refreshState();
-    return row;
-  }
-
   // ---------------- 推播通知：訂閱／取消訂閱一條列表項目 ----------------
   function buildPushNotificationEntry(session) {
     // 桌面版（Electron 外殼）沒有 Google 的推播服務，網頁推播一定訂閱失敗，
     // 改用下面的「公告通知」：App 開著時定時去問伺服器有沒有新公告，用系統通知顯示。
     if (window.mapskyWindowControls) return buildDesktopNotificationEntry();
-    // iOS 原生殼：WKWebView 本身不支援標準網頁的 PushManager API，走 APNs
-    // 原生推播那一條路（見上面 buildNativePushNotificationEntry）。
-    if (isNativeShell) return buildNativePushNotificationEntry();
     const row = document.createElement("button");
     row.type = "button";
     row.id = "pushNotificationBtn";
