@@ -14,6 +14,8 @@ const { getNicknameCooldownDays, setNicknameCooldownDays, isMaintenanceMode, set
 const { getAllSubscriptions, removeSubscription } = require("../_lib/push-store");
 const { addAnnouncement, getAnnouncementsSince } = require("../_lib/announcements");
 const { sendPush, ensureConfigured } = require("../_lib/web-push");
+const { getAllTokens: getAllApnsTokens, removeToken: removeApnsToken } = require("../_lib/apns-store");
+const { sendApns, isConfigured: isApnsConfigured } = require("../_lib/apns-push");
 const { getBetaTesters, addBetaTester, removeBetaTester } = require("../_lib/beta-testers");
 const { getAdventureSkipList, addAdventureSkip, removeAdventureSkip } = require("../_lib/adventure-skip");
 
@@ -66,8 +68,10 @@ module.exports = async function handler(req, res) {
       if (!(await isAdminSession(payload))) {
         return res.status(403).json({ ok: false, reason: "not-admin" });
       }
-      if (!ensureConfigured()) {
-        return res.status(400).json({ ok: false, reason: "vapid-not-configured" });
+      const webPushReady = ensureConfigured();
+      const apnsReady = isApnsConfigured();
+      if (!webPushReady && !apnsReady) {
+        return res.status(400).json({ ok: false, reason: "push-not-configured" });
       }
       const title = (body.title || "").trim();
       const message = (body.body || "").trim();
@@ -86,10 +90,12 @@ module.exports = async function handler(req, res) {
       } catch (e) {
         console.error("addAnnouncement failed", e.message);
       }
-      const subs = await getAllSubscriptions();
       let sent = 0;
       let expired = 0;
       let failed = 0;
+
+      // 瀏覽器（Web Push / VAPID）——沒設定 VAPID 金鑰就整段跳過，不算失敗。
+      const subs = webPushReady ? await getAllSubscriptions() : [];
       await Promise.all(
         subs.map(async (sub) => {
           const result = await sendPush(sub, { title: "", body: combinedBody, url });
@@ -103,7 +109,34 @@ module.exports = async function handler(req, res) {
           }
         })
       );
-      return res.status(200).json({ ok: true, total: subs.length, sent, expired, failed });
+
+      // iOS 原生 App（APNs）——同一則公告，同時送給已註冊推播的 App 裝置。
+      // 沒設定 APNs 金鑰（見 apns-push.js 開頭說明）就整段跳過，不算失敗，
+      // 這樣還沒申請 Auth Key 之前，網頁推播依然照常運作、不會被這段擋住。
+      const apnsTokens = apnsReady ? await getAllApnsTokens() : [];
+      await Promise.all(
+        apnsTokens.map(async (token) => {
+          const result = await sendApns(token, { title, body: message, url });
+          if (result.ok) {
+            sent += 1;
+          } else if (result.expired) {
+            expired += 1;
+            await removeApnsToken(token);
+          } else {
+            failed += 1;
+          }
+        })
+      );
+
+      return res.status(200).json({
+        ok: true,
+        total: subs.length + apnsTokens.length,
+        sent,
+        expired,
+        failed,
+        webPushConfigured: webPushReady,
+        apnsConfigured: apnsReady,
+      });
     }
 
     // 觸發桌面版（.exe 外殼）重新編譯＋發佈到 GitHub Releases：只有超級
