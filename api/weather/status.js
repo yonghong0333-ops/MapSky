@@ -14,8 +14,8 @@ const { getNicknameCooldownDays, setNicknameCooldownDays, isMaintenanceMode, set
 const { getAllSubscriptions, removeSubscription } = require("../_lib/push-store");
 const { addAnnouncement, getAnnouncementsSince } = require("../_lib/announcements");
 const { sendPush, ensureConfigured } = require("../_lib/web-push");
-const { getAllTokens: getAllApnsTokens, removeToken: removeApnsToken } = require("../_lib/apns-store");
-const { sendApns, isConfigured: isApnsConfigured } = require("../_lib/apns-push");
+const { getAllIosTokens, removeIosToken } = require("../_lib/apns-store");
+const { sendApnsPush, isConfigured: isApnsConfigured } = require("../_lib/apns");
 const { getBetaTesters, addBetaTester, removeBetaTester } = require("../_lib/beta-testers");
 const { getAdventureSkipList, addAdventureSkip, removeAdventureSkip } = require("../_lib/adventure-skip");
 
@@ -71,7 +71,7 @@ module.exports = async function handler(req, res) {
       const webPushReady = ensureConfigured();
       const apnsReady = isApnsConfigured();
       if (!webPushReady && !apnsReady) {
-        return res.status(400).json({ ok: false, reason: "push-not-configured" });
+        return res.status(400).json({ ok: false, reason: "vapid-not-configured" });
       }
       const title = (body.title || "").trim();
       const message = (body.body || "").trim();
@@ -93,49 +93,59 @@ module.exports = async function handler(req, res) {
       let sent = 0;
       let expired = 0;
       let failed = 0;
-
-      // 瀏覽器（Web Push / VAPID）——沒設定 VAPID 金鑰就整段跳過，不算失敗。
-      const subs = webPushReady ? await getAllSubscriptions() : [];
-      await Promise.all(
-        subs.map(async (sub) => {
-          const result = await sendPush(sub, { title: "", body: combinedBody, url });
-          if (result.ok) {
-            sent += 1;
-          } else if (result.expired) {
-            expired += 1;
-            await removeSubscription(sub.endpoint);
-          } else {
-            failed += 1;
-          }
-        })
-      );
-
-      // iOS 原生 App（APNs）——同一則公告，同時送給已註冊推播的 App 裝置。
-      // 沒設定 APNs 金鑰（見 apns-push.js 開頭說明）就整段跳過，不算失敗，
-      // 這樣還沒申請 Auth Key 之前，網頁推播依然照常運作、不會被這段擋住。
-      const apnsTokens = apnsReady ? await getAllApnsTokens() : [];
-      await Promise.all(
-        apnsTokens.map(async (token) => {
-          const result = await sendApns(token, { title, body: message, url });
-          if (result.ok) {
-            sent += 1;
-          } else if (result.expired) {
-            expired += 1;
-            await removeApnsToken(token);
-          } else {
-            failed += 1;
-          }
-        })
-      );
-
+      if (webPushReady) {
+        const subs = await getAllSubscriptions();
+        await Promise.all(
+          subs.map(async (sub) => {
+            const result = await sendPush(sub, { title: "", body: combinedBody, url });
+            if (result.ok) {
+              sent += 1;
+            } else if (result.expired) {
+              expired += 1;
+              await removeSubscription(sub.endpoint);
+            } else {
+              failed += 1;
+            }
+          })
+        );
+      }
+      // iOS 原生 App：跟網頁推播是平行送的兩條路，一邊沒設定金鑰不影響另一邊，
+      // 這裡的 sent/expired/failed 直接併進同一組總數，回應多回三個 xxxIos
+      // 欄位方便後台介面分開顯示兩邊各自的成功數。
+      let sentIos = 0;
+      let expiredIos = 0;
+      let failedIos = 0;
+      if (apnsReady) {
+        const tokens = await getAllIosTokens();
+        await Promise.all(
+          tokens.map(async ({ token }) => {
+            const result = await sendApnsPush(token, {
+              aps: { alert: { title, body: message }, sound: "default" },
+              url,
+            });
+            if (result.ok) {
+              sentIos += 1;
+            } else if (result.status === 400 || result.status === 410) {
+              // 400 通常是 BadDeviceToken（環境不對／格式錯），410 是 Unregistered
+              // （使用者移除過 App）；兩種都代表這個 token 已經沒用，直接清掉。
+              expiredIos += 1;
+              await removeIosToken(token);
+            } else {
+              failedIos += 1;
+            }
+          })
+        );
+      }
       return res.status(200).json({
         ok: true,
-        total: subs.length + apnsTokens.length,
+        total: sent + expired + failed,
         sent,
         expired,
         failed,
-        webPushConfigured: webPushReady,
-        apnsConfigured: apnsReady,
+        totalIos: sentIos + expiredIos + failedIos,
+        sentIos,
+        expiredIos,
+        failedIos,
       });
     }
 
