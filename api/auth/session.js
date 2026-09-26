@@ -8,6 +8,7 @@ const { getUserProfile, setUserProfile } = require("../_lib/user-profile");
 const { getNicknameCooldownDays, isMaintenanceMode } = require("../_lib/app-settings");
 const { addSubscription, removeSubscription } = require("../_lib/push-store");
 const { getPublicKey } = require("../_lib/web-push");
+const { addIosToken, removeIosToken } = require("../_lib/apns-store");
 
 module.exports = async function handler(req, res) {
   const cookies = parseCookies(req);
@@ -42,6 +43,34 @@ module.exports = async function handler(req, res) {
     const endpoint = body && body.endpoint;
     if (!endpoint) return res.status(400).json({ ok: false, reason: "missing-endpoint" });
     await removeSubscription(endpoint);
+    return res.status(200).json({ ok: true });
+  }
+
+  // iOS 原生 App（Capacitor @capacitor/push-notifications）版本的訂閱／取消
+  // 訂閱，跟上面網頁推播是平行的兩支：存的是 APNs 裝置 token，不是 Web Push
+  // 訂閱物件，實際送推播見 api/weather/status.js 的 push-send。
+  if (req.method === "POST" && req.query.action === "push-subscribe-ios") {
+    let body = req.body;
+    if (typeof body === "string") {
+      try { body = JSON.parse(body); } catch { body = {}; }
+    }
+    const token = body && body.token;
+    if (!token || typeof token !== "string") {
+      return res.status(400).json({ ok: false, reason: "invalid-token" });
+    }
+    const saved = await addIosToken(token);
+    if (!saved) return res.status(502).json({ ok: false, reason: "save-failed" });
+    return res.status(200).json({ ok: true });
+  }
+
+  if (req.method === "POST" && req.query.action === "push-unsubscribe-ios") {
+    let body = req.body;
+    if (typeof body === "string") {
+      try { body = JSON.parse(body); } catch { body = {}; }
+    }
+    const token = body && body.token;
+    if (!token) return res.status(400).json({ ok: false, reason: "missing-token" });
+    await removeIosToken(token);
     return res.status(200).json({ ok: true });
   }
 
