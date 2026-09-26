@@ -3943,12 +3943,14 @@ function updateDynamicIslandBtnUI(state) {
   const unlocked = advIsUnlocked(state || advLoad());
   const status = el("adventureStatus");
   const picker = el("adventurePicker");
+  const pickerBackdrop = el("adventurePickerBackdrop");
   updateAdventureCardSwap(unlocked); // 解鎖前一律顯示宣傳卡；解鎖後由 dynamicIslandOn 決定顯示哪一張
   if (!unlocked) {
     btn.disabled = true;
     btn.classList.remove("active");
     btn.textContent = "🔒 尚未解鎖";
     if (picker) picker.classList.add("hidden");
+    if (pickerBackdrop) pickerBackdrop.classList.add("hidden");
     adventurePickerOpen = false;
     if (status) status.textContent = "集滿上面 3 個條件，就能把天氣顯示在動態島 / 鎖定畫面";
     return;
@@ -3969,6 +3971,7 @@ function updateDynamicIslandBtnUI(state) {
     picker.classList.toggle("hidden", !adventurePickerOpen);
     if (adventurePickerOpen) updateAdventureDurationUI();
   }
+  if (pickerBackdrop) pickerBackdrop.classList.toggle("hidden", !adventurePickerOpen);
   const state2 = state || advLoad();
   const viaSkip = window.__mapskyAdventureSkip && !state2.unlocked && !(state2.streak >= 3 && state2.sawCloudy && state2.sawRain);
   if (status) {
@@ -4076,6 +4079,21 @@ if (dynamicIslandBtn) {
 // 選單裡的模式選項：目前只有「目前天氣」一種，先架好之後要加別的模式（例如
 // 未來的降雨預報、空氣品質）只要多加幾顆 .adventure-mode-opt 按鈕，這段選取
 // 邏輯不用改。
+// 底部彈窗的收合：點右上角 ✕，或直接點背景遮罩，都只是收合選單、不會
+// 呼叫原生端；真的要開始要按彈窗裡的「開始使用」。
+function closeAdventurePicker() {
+  adventurePickerOpen = false;
+  updateDynamicIslandBtnUI();
+}
+const adventurePickerCloseBtn = el("adventurePickerCloseBtn");
+if (adventurePickerCloseBtn) {
+  adventurePickerCloseBtn.addEventListener("click", closeAdventurePicker);
+}
+const adventurePickerBackdropEl = el("adventurePickerBackdrop");
+if (adventurePickerBackdropEl) {
+  adventurePickerBackdropEl.addEventListener("click", closeAdventurePicker);
+}
+
 document.querySelectorAll(".adventure-mode-opt").forEach((optBtn) => {
   optBtn.addEventListener("click", () => {
     document.querySelectorAll(".adventure-mode-opt").forEach((b) => b.classList.toggle("active", b === optBtn));

@@ -288,11 +288,17 @@
               <li id="advCondRain" class="adventure-cond"><span class="adv-check"></span><span class="adv-label">遇到下雨的天氣</span></li>
             </ul>
             <button id="dynamicIslandBtn" class="adventure-btn" type="button" aria-label="顯示於動態島" disabled>尚未解鎖</button>
-            <!-- 按「使用」先不會直接打開動態島，是先展開這塊選單讓使用者選模式跟
-                 顯示時間，選好按「開始使用」才真的呼叫原生端。四種模式對應
-                 MapSkyWidgetLiveActivity.swift 那四種畫面，時間用 ➖／➕
-                 微調，1 格 5 分鐘。 -->
+            <!-- 按「使用」先不會直接打開動態島，是先跳出下面這塊底部彈窗讓
+                 使用者選模式跟顯示時間，選好按「開始使用」才真的呼叫原生端。
+                 四種模式對應 MapSkyWidgetLiveActivity.swift 那四種畫面，
+                 時間用 ➖／➕ 微調，1 格 5 分鐘。 -->
+            <div id="adventurePickerBackdrop" class="adventure-picker-backdrop hidden"></div>
             <div id="adventurePicker" class="adventure-picker hidden">
+              <div class="adventure-picker-handle"></div>
+              <div class="adventure-picker-header">
+                <span class="adventure-picker-title">選擇模式與顯示時間</span>
+                <button type="button" id="adventurePickerCloseBtn" class="adventure-picker-close" aria-label="關閉">✕</button>
+              </div>
               <div class="adventure-picker-row">
                 <span class="adventure-picker-label">模式</span>
                 <div class="adventure-mode-options">
