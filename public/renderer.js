@@ -3952,6 +3952,7 @@ function updateDynamicIslandBtnUI(state) {
     if (picker) picker.classList.add("hidden");
     if (pickerBackdrop) pickerBackdrop.classList.add("hidden");
     adventurePickerOpen = false;
+    window.MapSkyNative?.setTabBarHidden?.(false);
     if (status) status.textContent = "集滿上面 3 個條件，就能把天氣顯示在動態島 / 鎖定畫面";
     return;
   }
@@ -3972,6 +3973,14 @@ function updateDynamicIslandBtnUI(state) {
     if (adventurePickerOpen) updateAdventureDurationUI();
   }
   if (pickerBackdrop) pickerBackdrop.classList.toggle("hidden", !adventurePickerOpen);
+  // iOS 26+ 的原生列（UITabBar）浮在 WebView 最上層，網頁自己的 CSS z-index
+  // 再高都蓋不住它，只能請原生端自己把列收起來——這個橋接
+  // （window.MapSkyNative.setTabBarHidden）原生端早就做好了，只是一直沒有
+  // 網頁這邊實際去呼叫。非原生環境／舊版 App 沒有這支函式時，可選串連
+  // （?.）直接跳過，不會報錯。開彈窗收起原生列，關彈窗（不管是選了模式
+  // 開始使用、按 ✕、點背景遮罩、還是被上面 !unlocked 那段強制關閉）都會
+  // 讓原生列浮回來。
+  window.MapSkyNative?.setTabBarHidden?.(adventurePickerOpen);
   const state2 = state || advLoad();
   const viaSkip = window.__mapskyAdventureSkip && !state2.unlocked && !(state2.streak >= 3 && state2.sawCloudy && state2.sawRain);
   if (status) {
