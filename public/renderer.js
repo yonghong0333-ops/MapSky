@@ -1372,6 +1372,7 @@ function renderWeather(location) {
   el("currentIcon").innerHTML = iconForWx(wxNow, isNightTime(wx.time[0].startTime));
   lastWeatherSnapshot = { temp: `${minNow}~${maxNow}°C`, wx: wxNow, startTime: wx.time[0].startTime };
   sendToDynamicIsland(); // 動態島已經開著的話，資料更新（每次選城市、每 5 分鐘）就跟著更新
+  syncWeatherWidget(); // 鎖定畫面小工具：同一份天氣也推一份過去，小工具才不會一直顯示「請先開啟 App」
   advNoteWeather(wxNow); // 動態島冒險：解鎖條件「遇到晴時多雲／遇到下雨」的偵測點
   el("currentTemp").textContent = `${minNow}–${maxNow}°C`;
   el("currentDesc").textContent = wxNow;
@@ -3988,7 +3989,9 @@ let adventurePickerOpen = false;
 let adventureSelectedMode = "weather"; // 對應 MapSkyWidgetLiveActivity.swift 的四種模式之一
 const ADV_DURATION_STEP_MIN = 5;
 const ADV_DURATION_MIN = 5;
-const ADV_DURATION_MAX = 120;
+// 單次最長 8 小時（iOS 的 Live Activity 本身最多也只能跑 8 小時）。實際能選到多少
+// 還會再被「今天剩餘額度」限制——預設每天 180 分鐘，所以平常最多就是 3 小時。
+const ADV_DURATION_MAX = 480;
 let adventureDurationMinutes = 30;
 
 // 每天使用時間上限（後台可調，預設 180 分鐘，每天 05:00 重新計算）。數字以後端
@@ -3996,6 +3999,15 @@ let adventureDurationMinutes = 30;
 // 時後端的預扣（見 api/_lib/adventure-usage.js）。抓不到（例如網路不通、Redis
 // 沒設定）就當作沒有上限，不要因此讓整個功能不能用。
 let adventureUsage = null; // { limit, used, remaining, resetAt }
+
+// 分鐘數顯示：60 分鐘以上改用「X 小時 Y 分鐘」比較好讀（例如 180 → 3 小時）。
+function formatAdventureMinutes(total) {
+  const m = Math.max(0, Math.round(total));
+  if (m < 60) return `${m} 分鐘`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return r === 0 ? `${h} 小時` : `${h} 小時 ${r} 分鐘`;
+}
 
 function adventureDurationCap() {
   if (!adventureUsage) return ADV_DURATION_MAX;
@@ -4008,7 +4020,7 @@ function updateAdventureDurationUI() {
   const exhausted = cap < ADV_DURATION_MIN;
   if (!exhausted && adventureDurationMinutes > cap) adventureDurationMinutes = cap;
   const valueEl = el("adventureDurationValue");
-  if (valueEl) valueEl.textContent = exhausted ? "—" : `${adventureDurationMinutes} 分鐘`;
+  if (valueEl) valueEl.textContent = exhausted ? "—" : formatAdventureMinutes(adventureDurationMinutes);
   const minusBtn = el("adventureDurationMinus");
   const plusBtn = el("adventureDurationPlus");
   if (minusBtn) minusBtn.disabled = exhausted || adventureDurationMinutes <= ADV_DURATION_MIN;
@@ -4023,9 +4035,9 @@ function updateAdventureDurationUI() {
     } else if (adventureUsage.limit <= 0) {
       infoEl.textContent = "管理員目前暫時不開放使用";
     } else if (exhausted) {
-      infoEl.textContent = `今天的額度已用完（每天 ${adventureUsage.limit} 分鐘），明天早上 05:00 重新計算`;
+      infoEl.textContent = `今天的額度已用完（每天 ${formatAdventureMinutes(adventureUsage.limit)}），明天早上 05:00 重新計算`;
     } else {
-      infoEl.textContent = `今日剩餘 ${adventureUsage.remaining} 分鐘（每天上限 ${adventureUsage.limit} 分鐘，05:00 重新計算）`;
+      infoEl.textContent = `今日剩餘 ${formatAdventureMinutes(adventureUsage.remaining)}（每天上限 ${formatAdventureMinutes(adventureUsage.limit)}，05:00 重新計算）`;
     }
   }
 }
@@ -4059,7 +4071,7 @@ async function reserveAdventureMinutes(minutes) {
       return {
         allowed: false,
         message: data.remaining > 0
-          ? `今天只剩 ${data.remaining} 分鐘，請把顯示時間調短一點`
+          ? `今天只剩 ${formatAdventureMinutes(data.remaining)}，請把顯示時間調短一點`
           : "今天的使用額度已用完，明天早上 05:00 重新計算",
       };
     }
@@ -4164,6 +4176,27 @@ async function resolveDynamicIslandLocationName() {
     return fallback;
   } catch (e) {
     return fallback; // 反查失敗（例如剛好定位權限被收回）就退回縣市名，不擋住整個流程
+  }
+}
+
+// 鎖定畫面小工具（iOS，MapSkyWidget）：小工具是獨立的程式，自己打不了網站 API
+// （要登入），只能讀「App 最後一次推過去的內容」——App 每次天氣更新就呼叫原生端的
+// syncWeatherWidget，寫進 App Group 共用空間並通知小工具重新讀取（見 iOS 專案的
+// WeatherWidgetPlugin.swift）。原生端沒有這支函式（網頁版／桌面版／舊版 App）就直接
+// 跳過；App Group 沒設好時原生端會丟錯，也只是吞掉，不能影響主畫面。
+async function syncWeatherWidget() {
+  if (!window.MapSkyNative?.syncWeatherWidget || !currentCity || !lastWeatherSnapshot) return;
+  try {
+    const district = await resolveDynamicIslandLocationName();
+    await window.MapSkyNative.syncWeatherWidget({
+      district, // 盡量是行政區（例如「左營區」），查不到就退回縣市名，跟動態島同一套
+      cityName: currentCity.label,
+      temperature: String(lastWeatherSnapshot.temp).replace("~", "–").replace("°C", "°"),
+      condition: lastWeatherSnapshot.wx,
+      conditionIcon: wxIconKeyForWx(lastWeatherSnapshot.wx, isNightNowBySun()), // 日落後改用月亮版本，跟動態島一樣
+    });
+  } catch (e) {
+    // 忽略
   }
 }
 
@@ -4291,7 +4324,7 @@ document.querySelectorAll(".adventure-mode-opt").forEach((optBtn) => {
   });
 });
 
-// 顯示時間 ➖／➕，1 格 5 分鐘，範圍 5～120 分鐘。
+// 顯示時間 ➖／➕，1 格 5 分鐘，範圍 5～480 分鐘（8 小時，另受每日額度限制）。
 const adventureDurationMinusBtn = el("adventureDurationMinus");
 if (adventureDurationMinusBtn) {
   adventureDurationMinusBtn.addEventListener("click", () => {

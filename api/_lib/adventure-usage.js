@@ -12,6 +12,7 @@ const { getRedisClient } = require("./redis-client");
 const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000; // 台灣沒有日光節約時間
 const DAY_START_HOUR = 5;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_SESSION_MINUTES = 480; // 單次最長 8 小時（跟網頁端 ADV_DURATION_MAX 一致，也是 Live Activity 的上限）
 const HOUR_MS = 60 * 60 * 1000;
 
 // 把時間往回撥 5 小時再取「台灣日期」，05:00 之前就會落在前一天。
@@ -90,7 +91,7 @@ async function startSession(payload, minutes, limit) {
   const now = Date.now();
   const key = sessionKey(payload);
   const want = Math.round(Number(minutes));
-  if (!Number.isFinite(want) || want <= 0) {
+  if (!Number.isFinite(want) || want <= 0 || want > MAX_SESSION_MINUTES) {
     return { ok: false, reason: "bad-minutes", ...summarize(limit, 0, now) };
   }
   try {
