@@ -51,6 +51,10 @@ function saveFavorites(favs) { localStorage.setItem(FAV_KEY, JSON.stringify(favs
 
 let favorites = loadFavorites();
 let currentCity = null;
+// 最近一次 GPS 定位成功時的原始座標——只有 autoLocate() 定位成功時會更新，
+// 純手動用下拉選單選縣市不會有這組資料。動態島「行政區」那個原生反查
+// （見 sendToDynamicIsland）需要真正的座標，不是縣市名，所以要留著這份。
+let lastGpsCoords = null;
 let lastWeatherSnapshot = null; // { temp, wx, startTime }：動態島／sendToDynamicIsland 用 // { label } - label 就是 CWA 縣市名稱
 let selectedCompare = new Set(); // 目前勾選要比較的城市 label
 
@@ -438,6 +442,7 @@ async function autoLocate() {
   setStatus("定位成功，正在比對縣市…");
   try {
     const { latitude, longitude } = pos.coords;
+    lastGpsCoords = { latitude, longitude };
     const url = `${GEOCODE_URL}?format=jsonv2&lat=${latitude}&lon=${longitude}` +
       `&accept-language=zh-TW&zoom=10`;
     const resp = await fetch(url, { headers: { Accept: "application/json" } });
@@ -4113,12 +4118,31 @@ function updateDynamicIslandBtnUI(state) {
   }
 }
 
+// 動態島左側「目前位置」要顯示的名稱：有原生橋接、也有 GPS 座標的話，
+// 呼叫 DistrictGeocoderPlugin 用 iOS 系統自己的 CLGeocoder 反查行政區
+// （例如「左營區」），失敗或條件不足就退回原本縣市層級的 currentCity.label
+// （例如「高雄市」），不會讓動態島整個顯示不出東西。
+async function resolveDynamicIslandLocationName() {
+  const fallback = currentCity ? currentCity.label : "";
+  if (!window.MapSkyNative?.reverseGeocodeDistrict || !lastGpsCoords) return fallback;
+  try {
+    const result = await window.MapSkyNative.reverseGeocodeDistrict(lastGpsCoords.latitude, lastGpsCoords.longitude);
+    return (result && (result.district || result.city)) || fallback;
+  } catch (e) {
+    return fallback; // 反查失敗（例如剛好定位權限被收回）就退回縣市名，不擋住整個流程
+  }
+}
+
 async function sendToDynamicIsland() {
   if (!dynamicIslandOn || !window.MapSkyNative?.isNative || !currentCity) return;
-  const cityName = currentCity.label;
+  // 顯示用的名稱（動態島左側「目前位置」，盡量是行政區）跟查表用的縣市名
+  // 是兩件事，不能混用：uvIndexCache／windObsCache 這些都是用 CWA 的 22
+  // 縣市名當 key，換成行政區名稱去查就整個查不到了。
+  const lookupCity = currentCity.label;
+  const cityName = await resolveDynamicIslandLocationName();
 
   if (adventureSelectedMode === "uv") {
-    const uv = uvIndexCache && uvIndexCache[cityName];
+    const uv = uvIndexCache && uvIndexCache[lookupCity];
     if (!uv || uv.uvIndex === undefined || uv.uvIndex === null) return; // 資料還沒載完，等下一次刷新再送
     await window.MapSkyNative.updateDynamicIsland({
       mode: "uv",
@@ -4130,7 +4154,7 @@ async function sendToDynamicIsland() {
   }
 
   if (adventureSelectedMode === "wind") {
-    const wind = windObsCache && windObsCache[cityName];
+    const wind = windObsCache && windObsCache[lookupCity];
     if (!wind || wind.windSpeed === undefined || wind.windSpeed === null) return;
     await window.MapSkyNative.updateDynamicIsland({
       mode: "wind",
