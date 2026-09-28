@@ -571,6 +571,98 @@
 
   // 把選好的圖片縮小成正方形小圖再轉成 base64，不然直接把原圖傳上去
   // 存進 Redis 很容易一張圖就好幾 MB，這裡統一縮到最長邊 160px、JPEG 壓縮。
+  // ---------------- 大頭貼來源選單：照片／相機／檔案 ----------------
+  // 原生 App（Capacitor）裡：跳出一個從下面滑出的選單，讓使用者明確選
+  //   照片 → 相簿挑一張（@capacitor/camera，source: PHOTOS）
+  //   相機 → 直接拍一張（@capacitor/camera，source: CAMERA）
+  //   檔案 → 從「檔案」App 選（沿用原本的 <input type=file>，iOS 會開檔案選擇器）
+  // 純網頁瀏覽器沒有 Camera 外掛，維持原本行為：直接點 <input type=file>，
+  // 由瀏覽器／系統自己決定要顯示哪些來源。
+  // onFile(file) 拿到的一律是 File，後面接原本的 resizeImageFile 流程，不用改。
+  function dataUrlToFile(dataUrl, name) {
+    const [head, b64] = dataUrl.split(",");
+    const mime = (head.match(/data:(.*?);/) || [])[1] || "image/jpeg";
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new File([bytes], name, { type: mime });
+  }
+
+  function ensureAvatarSourceStyles() {
+    if (document.getElementById("avatarSourceSheetStyle")) return;
+    const st = document.createElement("style");
+    st.id = "avatarSourceSheetStyle";
+    st.textContent = `
+      .avatar-source-overlay { position: fixed; inset: 0; z-index: 100000; display: flex; align-items: flex-end; justify-content: center; background: rgba(10,14,24,0.45); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+      .avatar-source-sheet { width: min(420px, 100%); padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 8px; }
+      .avatar-source-group { display: flex; flex-direction: column; border-radius: 16px; overflow: hidden; background: rgba(250,250,252,0.94); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
+      .avatar-source-btn { appearance: none; border: 0; background: transparent; font: inherit; font-size: 17px; padding: 16px 12px; color: #0a63d6; cursor: pointer; }
+      .avatar-source-btn + .avatar-source-btn { border-top: 0.5px solid rgba(60,60,67,0.2); }
+      .avatar-source-btn:active { background: rgba(60,60,67,0.12); }
+      .avatar-source-cancel { font-weight: 600; }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) .avatar-source-group { background: rgba(44,44,46,0.94); }
+        :root:not([data-theme="light"]) .avatar-source-btn { color: #4da3ff; }
+        :root:not([data-theme="light"]) .avatar-source-btn + .avatar-source-btn { border-top-color: rgba(255,255,255,0.15); }
+      }
+    `;
+    document.head.appendChild(st);
+  }
+
+  function openAvatarSourceSheet(fileInput, onFile) {
+    const Camera = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Camera;
+    if (!isNativeShell || !Camera) {
+      fileInput.click();
+      return;
+    }
+    ensureAvatarSourceStyles();
+    const overlay = document.createElement("div");
+    overlay.className = "avatar-source-overlay";
+    overlay.innerHTML = `
+      <div class="avatar-source-sheet" role="dialog" aria-modal="true" aria-label="選擇大頭貼來源">
+        <div class="avatar-source-group">
+          <button type="button" class="avatar-source-btn" data-src="photos">照片</button>
+          <button type="button" class="avatar-source-btn" data-src="camera">相機</button>
+          <button type="button" class="avatar-source-btn" data-src="files">檔案</button>
+        </div>
+        <div class="avatar-source-group">
+          <button type="button" class="avatar-source-btn avatar-source-cancel" data-src="cancel">取消</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+
+    overlay.addEventListener("click", async (e) => {
+      if (e.target === overlay) return close();
+      const btn = e.target.closest("[data-src]");
+      if (!btn) return;
+      const src = btn.dataset.src;
+      close();
+      if (src === "cancel") return;
+      if (src === "files") {
+        fileInput.click(); // 走原本的 <input type=file>，change 事件會接手
+        return;
+      }
+      try {
+        const photo = await Camera.getPhoto({
+          quality: 90,
+          resultType: "dataUrl",
+          source: src === "camera" ? "CAMERA" : "PHOTOS",
+          allowEditing: false,
+        });
+        if (photo && photo.dataUrl) {
+          onFile(dataUrlToFile(photo.dataUrl, `avatar.${photo.format || "jpg"}`));
+        }
+      } catch (err) {
+        // 使用者自己按取消不算錯誤，也不用跳提示；權限被拒之類的才提醒。
+        const msg = String((err && err.message) || err || "");
+        if (!/cancel/i.test(msg)) {
+          alert("無法取得照片，請確認已在 iOS「設定」允許 MapSky 使用相機／照片。");
+        }
+      }
+    });
+  }
+
   function resizeImageFile(file, maxSize = 160, quality = 0.8) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -628,9 +720,7 @@
 
     let pendingAvatarDataUrl = null;
 
-    avatarBtn.addEventListener("click", () => avatarInput.click());
-    avatarInput.addEventListener("change", async () => {
-      const file = avatarInput.files && avatarInput.files[0];
+    const handleOnboardingFile = async (file) => {
       if (!file) return;
       try {
         const dataUrl = await resizeImageFile(file);
@@ -643,7 +733,9 @@
       } finally {
         avatarInput.value = "";
       }
-    });
+    };
+    avatarBtn.addEventListener("click", () => openAvatarSourceSheet(avatarInput, handleOnboardingFile));
+    avatarInput.addEventListener("change", () => handleOnboardingFile(avatarInput.files && avatarInput.files[0]));
 
     async function saveAndFinish(patch) {
       try {
@@ -816,9 +908,7 @@
     const avatarChangeBtn = card.querySelector("#profileAvatarChangeBtn");
     const avatarFileInput = card.querySelector("#profileAvatarFileInput");
     if (avatarChangeBtn && avatarFileInput) {
-      avatarChangeBtn.addEventListener("click", () => avatarFileInput.click());
-      avatarFileInput.addEventListener("change", async () => {
-        const file = avatarFileInput.files && avatarFileInput.files[0];
+      const handleAvatarFile = async (file) => {
         if (!file) return;
         avatarChangeBtn.disabled = true;
         avatarChangeBtn.textContent = "讀取中…";
@@ -858,7 +948,9 @@
           avatarChangeBtn.textContent = "更換大頭貼";
           avatarFileInput.value = "";
         }
-      });
+      };
+      avatarChangeBtn.addEventListener("click", () => openAvatarSourceSheet(avatarFileInput, handleAvatarFile));
+      avatarFileInput.addEventListener("change", () => handleAvatarFile(avatarFileInput.files && avatarFileInput.files[0]));
     }
 
     // ---- 暱稱編輯 ----
