@@ -740,6 +740,41 @@
     return bar;
   }
 
+  // ---------------- 大頭貼預覽 ----------------
+  // 選好照片、縮圖完之後先跳出這個預覽，使用者看過（圓形裁切後的樣子，
+  // 跟實際顯示的大頭貼一樣）按「使用這張」才會真的上傳；按「取消」或點
+  // 背景就放棄，不會動到原本的大頭貼。回傳 Promise<boolean>。
+  // iOS 26+ 的原生列浮在 WebView 最上層，網頁 z-index 再高也蓋不住，所以
+  // 開預覽時請原生端把列收起來（setTabBarHidden，舊版 App 沒有就跳過）。
+  function showAvatarPreview(dataUrl) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "avatar-preview-overlay";
+      overlay.innerHTML = `
+        <div class="avatar-preview-dialog" role="dialog" aria-modal="true" aria-label="預覽大頭貼">
+          <h3 class="avatar-preview-title">預覽大頭貼</h3>
+          <div class="avatar-preview-circle"><img alt="大頭貼預覽" /></div>
+          <p class="avatar-preview-hint">確認這張看起來 OK 再儲存</p>
+          <div class="avatar-preview-actions">
+            <button type="button" class="avatar-preview-cancel">取消</button>
+            <button type="button" class="avatar-preview-confirm">使用這張</button>
+          </div>
+        </div>`;
+      overlay.querySelector("img").src = dataUrl;
+      document.body.appendChild(overlay);
+      window.MapSkyNative?.setTabBarHidden?.(true);
+
+      const finish = (ok) => {
+        overlay.remove();
+        window.MapSkyNative?.setTabBarHidden?.(false);
+        resolve(ok);
+      };
+      overlay.querySelector(".avatar-preview-cancel").addEventListener("click", () => finish(false));
+      overlay.querySelector(".avatar-preview-confirm").addEventListener("click", () => finish(true));
+      overlay.addEventListener("click", (e) => { if (e.target === overlay) finish(false); });
+    });
+  }
+
   // ---------------- 暱稱與大頭貼（獨立的編輯專區，跟上面的帳號摘要卡分開）----------------
   function buildProfileEditCard(session) {
     const card = document.createElement("div");
@@ -785,9 +820,12 @@
         const file = avatarFileInput.files && avatarFileInput.files[0];
         if (!file) return;
         avatarChangeBtn.disabled = true;
-        avatarChangeBtn.textContent = "上傳中…";
+        avatarChangeBtn.textContent = "讀取中…";
         try {
           const dataUrl = await resizeImageFile(file);
+          const confirmed = await showAvatarPreview(dataUrl);
+          if (!confirmed) return; // 取消：不上傳，finally 會把按鈕還原
+          avatarChangeBtn.textContent = "上傳中…";
           const resp = await fetch("/api/auth/session", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
