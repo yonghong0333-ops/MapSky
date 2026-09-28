@@ -841,6 +841,11 @@ async function loadAdminStatus() {
       cooldownInput.value = data.nicknameCooldownDays;
     }
 
+    const advLimitInput = el("adminAdventureLimitInput");
+    if (advLimitInput && typeof data.adventureDailyLimitMinutes === "number") {
+      advLimitInput.value = data.adventureDailyLimitMinutes;
+    }
+
     const maintenanceToggle = el("adminMaintenanceToggle");
     const maintenanceLabel = el("adminMaintenanceToggleLabel");
     if (maintenanceToggle) {
@@ -1145,6 +1150,36 @@ if (adminCooldownForm) {
         return;
       }
       if (msgEl) msgEl.textContent = `已更新為 ${data.nicknameCooldownDays} 天`;
+    } catch (e) {
+      if (msgEl) msgEl.textContent = "失敗：網路錯誤";
+    }
+  });
+}
+
+// 動態島冒險每日使用時間上限（分鐘）：任何管理員都能改，改完立刻生效
+const adminAdventureLimitForm = el("adminAdventureLimitForm");
+if (adminAdventureLimitForm) {
+  adminAdventureLimitForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const input = el("adminAdventureLimitInput");
+    const msgEl = el("adminAdventureLimitMsg");
+    const minutes = Number(input.value);
+    if (!Number.isFinite(minutes) || minutes < 0 || minutes > 1440) {
+      if (msgEl) msgEl.textContent = "請輸入 0～1440 的整數";
+      return;
+    }
+    try {
+      const resp = await fetch("/api/weather/status?admin=1&action=set-adventure-daily-limit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ minutes }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        if (msgEl) msgEl.textContent = `失敗：${data.reason || "未知錯誤"}`;
+        return;
+      }
+      if (msgEl) msgEl.textContent = `已更新為每天 ${data.adventureDailyLimitMinutes} 分鐘`;
     } catch (e) {
       if (msgEl) msgEl.textContent = "失敗：網路錯誤";
     }
@@ -3928,13 +3963,99 @@ const ADV_DURATION_MIN = 5;
 const ADV_DURATION_MAX = 120;
 let adventureDurationMinutes = 30;
 
+// 每天使用時間上限（後台可調，預設 180 分鐘，每天 05:00 重新計算）。數字以後端
+// 為準，這裡只是開選單時抓來顯示、限制 ➕ 能加到多少；真正擋人的是按「開始使用」
+// 時後端的預扣（見 api/_lib/adventure-usage.js）。抓不到（例如網路不通、Redis
+// 沒設定）就當作沒有上限，不要因此讓整個功能不能用。
+let adventureUsage = null; // { limit, used, remaining, resetAt }
+
+function adventureDurationCap() {
+  if (!adventureUsage) return ADV_DURATION_MAX;
+  const fit = Math.floor(adventureUsage.remaining / ADV_DURATION_STEP_MIN) * ADV_DURATION_STEP_MIN;
+  return Math.min(ADV_DURATION_MAX, fit);
+}
+
 function updateAdventureDurationUI() {
+  const cap = adventureDurationCap();
+  const exhausted = cap < ADV_DURATION_MIN;
+  if (!exhausted && adventureDurationMinutes > cap) adventureDurationMinutes = cap;
   const valueEl = el("adventureDurationValue");
-  if (valueEl) valueEl.textContent = `${adventureDurationMinutes} 分鐘`;
+  if (valueEl) valueEl.textContent = exhausted ? "—" : `${adventureDurationMinutes} 分鐘`;
   const minusBtn = el("adventureDurationMinus");
   const plusBtn = el("adventureDurationPlus");
-  if (minusBtn) minusBtn.disabled = adventureDurationMinutes <= ADV_DURATION_MIN;
-  if (plusBtn) plusBtn.disabled = adventureDurationMinutes >= ADV_DURATION_MAX;
+  if (minusBtn) minusBtn.disabled = exhausted || adventureDurationMinutes <= ADV_DURATION_MIN;
+  if (plusBtn) plusBtn.disabled = exhausted || adventureDurationMinutes >= cap;
+  const startBtn = el("adventureStartBtn");
+  if (startBtn) startBtn.disabled = exhausted;
+  const infoEl = el("adventureUsageInfo");
+  if (infoEl) {
+    infoEl.classList.toggle("exhausted", exhausted);
+    if (!adventureUsage) {
+      infoEl.textContent = "";
+    } else if (adventureUsage.limit <= 0) {
+      infoEl.textContent = "管理員目前暫時不開放使用";
+    } else if (exhausted) {
+      infoEl.textContent = `今天的額度已用完（每天 ${adventureUsage.limit} 分鐘），明天早上 05:00 重新計算`;
+    } else {
+      infoEl.textContent = `今日剩餘 ${adventureUsage.remaining} 分鐘（每天上限 ${adventureUsage.limit} 分鐘，05:00 重新計算）`;
+    }
+  }
+}
+
+async function refreshAdventureUsage() {
+  try {
+    const resp = await fetch("/api/auth/session?action=adventure-usage", { cache: "no-store" });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data && data.ok) adventureUsage = data.tracked === false ? null : data;
+    }
+  } catch (e) {
+    // 抓不到就維持原本的（沒有上限），不擋使用者
+  }
+  updateAdventureDurationUI();
+}
+
+// 按「開始使用」時先向後端預扣這次選的分鐘數。超過今天剩餘額度會被拒絕；後端連不上
+// 一律放行（reserved:false 代表這次沒有被記錄，失敗時也就不用退）。
+async function reserveAdventureMinutes(minutes) {
+  try {
+    const resp = await fetch("/api/auth/session?action=adventure-start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ minutes }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (resp.status === 403 && data.reason === "daily-limit") {
+      adventureUsage = data;
+      updateAdventureDurationUI();
+      return {
+        allowed: false,
+        message: data.remaining > 0
+          ? `今天只剩 ${data.remaining} 分鐘，請把顯示時間調短一點`
+          : "今天的使用額度已用完，明天早上 05:00 重新計算",
+      };
+    }
+    if (resp.ok && data.ok) {
+      adventureUsage = data.tracked === false ? null : data;
+      return { allowed: true, reserved: data.tracked !== false };
+    }
+  } catch (e) {
+    // 後端連不上就放行
+  }
+  return { allowed: true, reserved: false };
+}
+
+// 結束使用（或開啟失敗要退回）：把沒用完的分鐘退回今天的額度，結果失敗就算了。
+function releaseAdventureMinutes() {
+  fetch("/api/auth/session?action=adventure-end", { method: "POST" })
+    .then((r) => r.json())
+    .then((data) => {
+      if (data && data.ok) {
+        adventureUsage = data.tracked === false ? null : data;
+        updateAdventureDurationUI();
+      }
+    })
+    .catch(() => {});
 }
 
 function updateDynamicIslandBtnUI(state) {
@@ -4072,6 +4193,7 @@ if (dynamicIslandBtn) {
         await window.MapSkyNative.endDynamicIsland();
         dynamicIslandOn = false;
         try { localStorage.setItem(DYNAMIC_ISLAND_ON_KEY, "0"); } catch (e) {}
+        releaseAdventureMinutes();
         updateDynamicIslandBtnUI();
       } finally {
         dynamicIslandBtn.disabled = false;
@@ -4082,6 +4204,7 @@ if (dynamicIslandBtn) {
     // 選好之後要按選單裡的「開始使用」才真的動作。
     adventurePickerOpen = !adventurePickerOpen;
     updateDynamicIslandBtnUI();
+    if (adventurePickerOpen) refreshAdventureUsage();
   });
 }
 
@@ -4121,7 +4244,7 @@ if (adventureDurationMinusBtn) {
 const adventureDurationPlusBtn = el("adventureDurationPlus");
 if (adventureDurationPlusBtn) {
   adventureDurationPlusBtn.addEventListener("click", () => {
-    adventureDurationMinutes = Math.min(ADV_DURATION_MAX, adventureDurationMinutes + ADV_DURATION_STEP_MIN);
+    adventureDurationMinutes = Math.min(adventureDurationCap(), adventureDurationMinutes + ADV_DURATION_STEP_MIN);
     updateAdventureDurationUI();
   });
 }
@@ -4140,14 +4263,26 @@ if (adventureStartBtn) {
       return;
     }
     adventureStartBtn.disabled = true;
+    let reserved = false;
     try {
+      const reservation = await reserveAdventureMinutes(adventureDurationMinutes);
+      if (!reservation.allowed) {
+        setStatus(reservation.message);
+        return;
+      }
+      reserved = reservation.reserved;
       dynamicIslandOn = true;
       await sendToDynamicIsland();
       try { localStorage.setItem(DYNAMIC_ISLAND_ON_KEY, "1"); } catch (e) {}
       adventurePickerOpen = false;
       updateDynamicIslandBtnUI();
+    } catch (e) {
+      // 原生端開啟失敗：不算用掉，把預扣的分鐘退回去。
+      dynamicIslandOn = false;
+      if (reserved) releaseAdventureMinutes();
+      setStatus("開啟動態島失敗，請再試一次");
     } finally {
-      adventureStartBtn.disabled = false;
+      updateAdventureDurationUI(); // 順便依剩餘額度決定按鈕要不要停用
     }
   });
 }

@@ -25,6 +25,32 @@ async function setNicknameCooldownDays(days) {
   return n;
 }
 
+// 「動態島冒險」每人每天可以使用的總分鐘數上限（每天 05:00 重新計算，見
+// adventure-usage.js）。後台可以改，改完立刻生效，不用重新部署。
+const DEFAULT_ADVENTURE_DAILY_LIMIT_MINUTES = 180;
+const ADVENTURE_DAILY_LIMIT_KEY = "settings:adventure_daily_limit_minutes";
+
+async function getAdventureDailyLimitMinutes() {
+  try {
+    const client = await getRedisClient();
+    if (!client) return DEFAULT_ADVENTURE_DAILY_LIMIT_MINUTES;
+    const raw = await client.get(ADVENTURE_DAILY_LIMIT_KEY);
+    const n = raw === null || raw === undefined ? NaN : Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : DEFAULT_ADVENTURE_DAILY_LIMIT_MINUTES;
+  } catch {
+    return DEFAULT_ADVENTURE_DAILY_LIMIT_MINUTES;
+  }
+}
+
+async function setAdventureDailyLimitMinutes(minutes) {
+  const client = await getRedisClient();
+  if (!client) throw new Error("尚未設定 Redis，無法儲存設定");
+  const n = Math.round(Number(minutes));
+  if (!Number.isFinite(n) || n < 0 || n > 1440) throw new Error("分鐘數需為 0～1440 的整數");
+  await client.set(ADVENTURE_DAILY_LIMIT_KEY, String(n));
+  return n;
+}
+
 const MAINTENANCE_MODE_KEY = "settings:maintenance_mode";
 
 async function isMaintenanceMode() {
@@ -49,6 +75,9 @@ module.exports = {
   DEFAULT_NICKNAME_COOLDOWN_DAYS,
   getNicknameCooldownDays,
   setNicknameCooldownDays,
+  DEFAULT_ADVENTURE_DAILY_LIMIT_MINUTES,
+  getAdventureDailyLimitMinutes,
+  setAdventureDailyLimitMinutes,
   isMaintenanceMode,
   setMaintenanceMode,
 };

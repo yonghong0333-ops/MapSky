@@ -3296,6 +3296,9 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
 .adventure-stepper-btn:active { background: rgba(255, 255, 255, 0.25); }
 .adventure-stepper-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .adventure-duration-value { min-width: 64px; text-align: center; font-size: 14px; font-weight: 700; color: #fff; }
+.adventure-usage-info { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: rgba(255, 255, 255, 0.7); text-align: center; }
+.adventure-usage-info.exhausted { color: #ff9db5; font-weight: 600; }
+.adventure-start-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .adventure-start-btn { margin-top: 12px; }
 
 /* 啟用之後取代宣傳卡的精簡狀態卡：一行的膠囊卡片，螢光色描邊，不再佔一大塊版面 */

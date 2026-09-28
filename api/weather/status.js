@@ -10,7 +10,7 @@ const {
 } = require("../_lib/admin");
 const { resolveMemberId } = require("../_lib/member-id");
 const { PROVIDERS, isConfigured } = require("../_lib/providers");
-const { getNicknameCooldownDays, setNicknameCooldownDays, isMaintenanceMode, setMaintenanceMode } = require("../_lib/app-settings");
+const { getNicknameCooldownDays, setNicknameCooldownDays, isMaintenanceMode, setMaintenanceMode, getAdventureDailyLimitMinutes, setAdventureDailyLimitMinutes } = require("../_lib/app-settings");
 const { getAllSubscriptions, removeSubscription } = require("../_lib/push-store");
 const { addAnnouncement, getAnnouncementsSince } = require("../_lib/announcements");
 const { sendPush, ensureConfigured } = require("../_lib/web-push");
@@ -44,6 +44,20 @@ module.exports = async function handler(req, res) {
       try {
         const saved = await setNicknameCooldownDays(body.days);
         return res.status(200).json({ ok: true, nicknameCooldownDays: saved });
+      } catch (e) {
+        return res.status(400).json({ ok: false, reason: e.message });
+      }
+    }
+
+    // 動態島冒險每人每天可用的總分鐘數上限：一般管理員就能改，改完立刻生效
+    // （每天 05:00 換日重新計算，見 api/_lib/adventure-usage.js）。
+    if (action === "set-adventure-daily-limit") {
+      if (!(await isAdminSession(payload))) {
+        return res.status(403).json({ ok: false, reason: "not-admin" });
+      }
+      try {
+        const saved = await setAdventureDailyLimitMinutes(body.minutes);
+        return res.status(200).json({ ok: true, adventureDailyLimitMinutes: saved });
       } catch (e) {
         return res.status(400).json({ ok: false, reason: e.message });
       }
@@ -332,10 +346,11 @@ module.exports = async function handler(req, res) {
     configured: isConfigured(id),
   }));
 
-  const [amSuperAdmin, dynamicAdmins, nicknameCooldownDays, maintenanceMode, betaTesters, adventureSkipList] = await Promise.all([
+  const [amSuperAdmin, dynamicAdmins, nicknameCooldownDays, adventureDailyLimitMinutes, maintenanceMode, betaTesters, adventureSkipList] = await Promise.all([
     isSuperAdminSession(payload),
     getDynamicAdmins(),
     getNicknameCooldownDays(),
+    getAdventureDailyLimitMinutes(),
     isMaintenanceMode(),
     getBetaTesters(),
     getAdventureSkipList(),
@@ -351,6 +366,7 @@ module.exports = async function handler(req, res) {
     providers,
     cache: getCacheStatus(),
     nicknameCooldownDays,
+    adventureDailyLimitMinutes,
     maintenanceMode,
     // 管理員名單：只有超級管理員看得到，也只有超級管理員能在前端指派/踢除。
     // 超級管理員名單只列出「provider:id」（沒有真名，因為那份資料只在環境

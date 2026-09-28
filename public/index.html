@@ -914,6 +914,16 @@
               <p id="adminCooldownMsg" class="admin-assign-msg"></p>
             </div>
             <div class="admin-card">
+              <h3 class="admin-card-title">動態島冒險每日上限</h3>
+              <p class="admin-card-hint">每位使用者每天使用「動態島冒險」的總分鐘數上限（所有次數加起來算），每天早上 05:00 重新計算。設 0 代表當天完全不能用。</p>
+              <form id="adminAdventureLimitForm" class="admin-cooldown-form">
+                <input id="adminAdventureLimitInput" type="number" min="0" max="1440" step="5" required />
+                <span class="admin-cooldown-unit">分鐘</span>
+                <button type="submit">儲存</button>
+              </form>
+              <p id="adminAdventureLimitMsg" class="admin-assign-msg"></p>
+            </div>
+            <div class="admin-card">
               <h3 class="admin-card-title">🚧 維護模式</h3>
               <p class="admin-card-hint">打開後，非管理員的使用者一律看到「伺服器維護中」畫面，看不到、也用不到任何功能；管理員不受影響。</p>
               <label class="admin-toggle-row">
@@ -1146,6 +1156,7 @@
         <button type="button" id="adventureDurationPlus" class="adventure-stepper-btn" aria-label="增加 5 分鐘">＋</button>
       </div>
     </div>
+    <p id="adventureUsageInfo" class="adventure-usage-info"></p>
     <button type="button" id="adventureStartBtn" class="adventure-btn adventure-start-btn">開始使用</button>
   </div>
 

@@ -5,7 +5,8 @@ const { isBetaTester } = require("../_lib/beta-testers");
 const { isAdventureSkip } = require("../_lib/adventure-skip");
 const { getOrCreateMemberId } = require("../_lib/member-id");
 const { getUserProfile, setUserProfile } = require("../_lib/user-profile");
-const { getNicknameCooldownDays, isMaintenanceMode } = require("../_lib/app-settings");
+const { getNicknameCooldownDays, isMaintenanceMode, getAdventureDailyLimitMinutes } = require("../_lib/app-settings");
+const { getUsage, startSession, endSession } = require("../_lib/adventure-usage");
 const { addSubscription, removeSubscription } = require("../_lib/push-store");
 const { getPublicKey } = require("../_lib/web-push");
 const { addIosToken, removeIosToken } = require("../_lib/apns-store");
@@ -17,6 +18,31 @@ module.exports = async function handler(req, res) {
     // 沒登入也要讓前端知道現在是不是維護模式，不然一般使用者的登入畫面
     // 沒辦法在還沒登入的狀態下就先鎖住。
     return res.status(200).json({ loggedIn: false, maintenanceMode: await isMaintenanceMode() });
+  }
+
+  // 動態島冒險的每日使用時間：查剩餘／開始（預扣）／結束（退回沒用完的）。
+  // 每天上限由後台設定，05:00 換日，細節見 api/_lib/adventure-usage.js。
+  // 一樣掛在這支（要驗登入、Vercel Hobby function 數量有上限），不另外開檔案。
+  if (req.query.action === "adventure-usage" && req.method === "GET") {
+    res.setHeader("Cache-Control", "no-store");
+    const limit = await getAdventureDailyLimitMinutes();
+    return res.status(200).json({ ok: true, ...(await getUsage(payload, limit)) });
+  }
+
+  if (req.method === "POST" && req.query.action === "adventure-start") {
+    let body = req.body;
+    if (typeof body === "string") {
+      try { body = JSON.parse(body); } catch { body = {}; }
+    }
+    const limit = await getAdventureDailyLimitMinutes();
+    const result = await startSession(payload, body && body.minutes, limit);
+    const status = result.ok ? 200 : result.reason === "daily-limit" ? 403 : 400;
+    return res.status(status).json(result);
+  }
+
+  if (req.method === "POST" && req.query.action === "adventure-end") {
+    const limit = await getAdventureDailyLimitMinutes();
+    return res.status(200).json(await endSession(payload, limit));
   }
 
   // 推播訂閱／取消訂閱：跟改暱稱一樣「登入就能操作自己的」，不用另外開檔案
