@@ -610,7 +610,9 @@
   }
 
   function openAvatarSourceSheet(fileInput, onFile) {
-    const Camera = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Camera;
+    const plugins = (window.Capacitor && window.Capacitor.Plugins) || {};
+    const Camera = plugins.Camera;
+    const AvatarPicker = plugins.AvatarPicker; // App 內建的單選相簿（去掉 EXIF 位置、縮小）
     if (!isNativeShell || !Camera) {
       fileInput.click();
       return;
@@ -640,10 +642,21 @@
       close();
       if (src === "cancel") return;
       if (src === "files") {
-        fileInput.click(); // 走原本的 <input type=file>，change 事件會接手
+        // 走原本的 <input type=file>，change 事件會接手。App 端有一段腳本會攔下
+        // 「單選圖片 input」的點擊改跳原生相簿（見 MapSkyViewController 的
+        // injectAvatarPickerHook），這裡要「檔案」而不是相簿，所以設 __mapskyBypass
+        // 讓它放行，改由系統的選擇畫面（含「選擇檔案」）處理。
+        fileInput.__mapskyBypass = true;
+        fileInput.click();
         return;
       }
       try {
+        if (src === "photos" && AvatarPicker) {
+          // 優先用 App 自己的單選相簿：選一張就完成、不帶拍攝地點。
+          const res = await AvatarPicker.pick();
+          if (res && res.dataUrl) onFile(dataUrlToFile(res.dataUrl, "avatar.jpg"));
+          return;
+        }
         const photo = await Camera.getPhoto({
           quality: 90,
           resultType: "dataUrl",
