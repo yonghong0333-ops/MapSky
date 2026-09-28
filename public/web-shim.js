@@ -245,6 +245,7 @@
   const POLL_MS = 5 * 60 * 1000;
   function startPolling() {
     setInterval(async () => {
+      if (document.hidden) return; // App 在背景就不打 API，回到前景下一輪再更新
       try {
         const data = await window.weatherAPI.getAlerts();
         if (data.ok) {

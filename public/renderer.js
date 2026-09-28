@@ -699,6 +699,7 @@ async function loadMoonTimes(label) {
 
 // 每分鐘重新算一次月出/月落倒數，跟日出/日落一樣不用手動重新整理。
 setInterval(() => {
+  if (document.hidden) return; // 畫面不可見（App 在背景）就不用算，省電
   if (currentCity && currentCity.label) {
     loadMoonTimes(currentCity.label);
   }
@@ -1226,6 +1227,7 @@ if (adminMaintenanceToggle) {
 // 每分鐘重新算一次倒數剩餘時間，不用手動重新整理頁面。
 // sunTimesCache 已經在記憶體裡了，這裡只是重新跑一次算式更新畫面文字，不會再打 API。
 setInterval(() => {
+  if (document.hidden) return; // 畫面不可見（App 在背景）就不用算，省電
   if (currentCity && currentCity.label) {
     loadSunTimes(currentCity.label);
   }
@@ -4143,12 +4145,23 @@ function updateDynamicIslandBtnUI(state) {
 // 呼叫 DistrictGeocoderPlugin 用 iOS 系統自己的 CLGeocoder 反查行政區
 // （例如「左營區」），失敗或條件不足就退回原本縣市層級的 currentCity.label
 // （例如「高雄市」），不會讓動態島整個顯示不出東西。
+// 省電：動態島每次更新都會走到這裡，但人沒移動的話行政區不會變，不需要每次
+// 都叫 CLGeocoder 上網反查。座標四捨五入到小數 3 位（約 110 公尺）當快取
+// key，同一區域只查第一次，反查失敗不快取（下次還會再試）。
+const districtNameCache = new Map();
 async function resolveDynamicIslandLocationName() {
   const fallback = currentCity ? currentCity.label : "";
   if (!window.MapSkyNative?.reverseGeocodeDistrict || !lastGpsCoords) return fallback;
+  const key = `${lastGpsCoords.latitude.toFixed(3)},${lastGpsCoords.longitude.toFixed(3)}`;
+  if (districtNameCache.has(key)) return districtNameCache.get(key);
   try {
     const result = await window.MapSkyNative.reverseGeocodeDistrict(lastGpsCoords.latitude, lastGpsCoords.longitude);
-    return (result && (result.district || result.city)) || fallback;
+    const name = result && (result.district || result.city);
+    if (name) {
+      districtNameCache.set(key, name);
+      return name;
+    }
+    return fallback;
   } catch (e) {
     return fallback; // 反查失敗（例如剛好定位權限被收回）就退回縣市名，不擋住整個流程
   }
@@ -4341,3 +4354,22 @@ if (dynamicIslandOffBtn) {
   });
 }
 
+
+
+// ---------------- 省電：暫停看不到的動畫 ----------------
+// 背景（visibilitychange）整頁暫停；動態島冒險那塊漸層＋飄浮粒子是常駐無限
+// 動畫，捲出畫面就暫停，捲回來才繼續。純 CSS 類別切換，不加任何計時器。
+(function setupAnimationPause() {
+  const root = document.documentElement;
+  const sync = () => root.classList.toggle("app-paused", document.hidden);
+  document.addEventListener("visibilitychange", sync);
+  sync();
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) e.target.classList.toggle("anim-offscreen", !e.isIntersecting);
+    });
+    const attach = () => document.querySelectorAll(".adventure-panel, .alert-banner").forEach((n) => io.observe(n));
+    attach();
+    setTimeout(attach, 3000); // 這些區塊有些是登入後才建立，晚一點再補掛一次
+  }
+})();

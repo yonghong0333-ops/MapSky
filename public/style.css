@@ -3079,7 +3079,7 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
   font-size: 24px;
   opacity: 0.85;
   animation: adventureFloat 8s ease-in-out infinite;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
+  will-change: transform; /* 交給 GPU 合成，不用每格重新繪製；不再用 drop-shadow 濾鏡（動畫中的濾鏡每格都要重算，很耗電） */
 }
 .adventure-particle.p1 { left: 8%;  top: 14%; animation-duration: 9s;  animation-delay: 0s; }
 .adventure-particle.p2 { left: 24%; top: 68%; animation-duration: 11s; animation-delay: 1s; }
@@ -3382,3 +3382,17 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
 }
 .avatar-preview-cancel { background: rgba(120, 130, 150, 0.18); color: inherit; }
 .avatar-preview-confirm { background: #2f7cf6; color: #fff; }
+
+/* ---- 省電：不可見／不需要的動畫一律暫停，避免手機持續發熱 ----
+   html.app-paused：App 在背景或分頁被藏起來（visibilitychange，見 renderer.js）
+   .anim-offscreen：該區塊捲出畫面外（IntersectionObserver）
+   使用者在系統開了「減少動態效果」也直接關掉這些裝飾動畫。 */
+html.app-paused *, html.app-paused *::before, html.app-paused *::after,
+.anim-offscreen, .anim-offscreen *, .anim-offscreen *::before, .anim-offscreen *::after {
+  animation-play-state: paused !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .adventure-panel, .adventure-particle, .adventure-sparkle, .alert-banner-dot {
+    animation: none !important;
+  }
+}
