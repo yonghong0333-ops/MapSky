@@ -3822,18 +3822,39 @@ document.querySelectorAll(".tools-menu-item").forEach((item) => {
 // conditionSymbol——原生那邊沿用網站這組 PNG，不是系統圖示，見
 // MapSkyWidgetLiveActivity.swift 的 weatherAssetName()。晚上「晴」「多雲時晴」
 // 網站是換成手畫的月亮 SVG，原生端沒有對應圖，這裡退回對應的日間 key。
-function wxIconKeyForWx(text) {
-  if (!text) return "sunny";
+// 晚上＝「日落之後（到隔天日出前）」，用目前縣市當天的日出／日落時間判斷
+// （跟主畫面「日出／日落」那格同一份 sunTimesCache）。還沒載到日出日落資料
+// 的時候才退回固定 18:00～06:00 當備案。「晴」「多雲時晴」改回傳
+// sunnyNight／partlyCloudyNight，原生端（MapSkyWidgetLiveActivity.swift 的
+// weatherSFSymbol）對應成月亮的 SF Symbol；沒帶 night 或舊版 App 不認得這兩個
+// key 時，原生端會退回太陽，不會壞掉。
+function isNightNowBySun() {
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const days = sunTimesCache && currentCity && sunTimesCache[currentCity.label];
+  const today = days && days[0];
+  if (today && today.SunRiseTime && today.SunSetTime) {
+    const toMin = (hhmm) => {
+      const [h, m] = hhmm.split(":").map(Number);
+      return h * 60 + m;
+    };
+    return nowMinutes < toMin(today.SunRiseTime) || nowMinutes >= toMin(today.SunSetTime);
+  }
+  return now.getHours() < 6 || now.getHours() >= 18; // 日出日落資料還沒載到的備案
+}
+
+function wxIconKeyForWx(text, night = false) {
+  if (!text) return night ? "sunnyNight" : "sunny";
   if (text.includes("超大豪雨")) return "extremeRain";
   if (text.includes("豪雨")) return "heavyRain";
   if (text.includes("毛毛雨")) return "drizzle";
   if (text.includes("雷") && text.includes("雨")) return "thunderstorm";
   if (text.includes("雷")) return "dryThunder";
   if (text.includes("雨")) return "rain";
-  if (text.includes("多雲") && text.includes("晴")) return "partlyCloudy";
+  if (text.includes("多雲") && text.includes("晴")) return night ? "partlyCloudyNight" : "partlyCloudy";
   if (text.includes("陰") || text.includes("多雲")) return "overcast";
-  if (text.includes("晴")) return "sunny";
-  return "sunny";
+  if (text.includes("晴")) return night ? "sunnyNight" : "sunny";
+  return night ? "sunnyNight" : "sunny";
 }
 
 // ---------------- 動態島冒險（設定頁裡的解鎖小遊戲）----------------
@@ -4184,7 +4205,7 @@ async function sendToDynamicIsland() {
     cityName,
     temperature: lastWeatherSnapshot.temp,
     condition: lastWeatherSnapshot.wx,
-    conditionIcon: wxIconKeyForWx(lastWeatherSnapshot.wx),
+    conditionIcon: wxIconKeyForWx(lastWeatherSnapshot.wx, isNightNowBySun()),
     durationMinutes: adventureDurationMinutes, // 原生端如果支援到期自動關閉，就讀這個；還不支援的話先忽略也不影響現有行為
   });
 }
