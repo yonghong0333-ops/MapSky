@@ -609,7 +609,13 @@
     document.head.appendChild(st);
   }
 
-  function openAvatarSourceSheet(fileInput, onFile) {
+  function boundingRectPayload(el) {
+    if (!el || !el.getBoundingClientRect) return {};
+    const r = el.getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  }
+
+  function openAvatarSourceSheet(fileInput, onFile, anchorEl) {
     const plugins = (window.Capacitor && window.Capacitor.Plugins) || {};
     const Camera = plugins.Camera;
     const AvatarPicker = plugins.AvatarPicker; // App 內建的原生選單：拍照／照片圖庫／瀏覽檔案，一次處理
@@ -623,7 +629,7 @@
       // ＋原生又想攔截同一個點擊」兩邊打架的問題，源頭就是這裡同時存在兩種
       // 入口。現在只認一種：有 AvatarPicker 就整個選單交給它，網頁端完全不
       // 插手，「拍照」也是走這支外掛裡真正的 UIImagePickerController。
-      AvatarPicker.pick()
+      AvatarPicker.pick(boundingRectPayload(anchorEl))
         .then((res) => {
           if (res && res.dataUrl) onFile(dataUrlToFile(res.dataUrl, "avatar.jpg"));
         })
@@ -761,7 +767,7 @@
         avatarInput.value = "";
       }
     };
-    avatarBtn.addEventListener("click", () => openAvatarSourceSheet(avatarInput, handleOnboardingFile));
+    avatarBtn.addEventListener("click", () => openAvatarSourceSheet(avatarInput, handleOnboardingFile, avatarBtn));
     avatarInput.addEventListener("change", () => handleOnboardingFile(avatarInput.files && avatarInput.files[0]));
 
     async function saveAndFinish(patch) {
@@ -976,7 +982,7 @@
           avatarFileInput.value = "";
         }
       };
-      avatarChangeBtn.addEventListener("click", () => openAvatarSourceSheet(avatarFileInput, handleAvatarFile));
+      avatarChangeBtn.addEventListener("click", () => openAvatarSourceSheet(avatarFileInput, handleAvatarFile, avatarChangeBtn));
       avatarFileInput.addEventListener("change", () => handleAvatarFile(avatarFileInput.files && avatarFileInput.files[0]));
     }
 
