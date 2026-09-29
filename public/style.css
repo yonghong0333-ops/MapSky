@@ -620,8 +620,14 @@ button:hover { background: var(--accent-hover); }
 }
 
 .current-card {
-  background: linear-gradient(160deg, #4f8dfb 0%, #2f6fed 55%, #1f4fc4 100%);
-  border: none;
+  /* 藍色天氣卡改成「帶藍色調的毛玻璃」，不是整張卡片直接透明——純白玻璃
+     底下配白色文字會看不清楚，所以底色留著藍，只是從實心漸層換成半透明
+     漸層 + 跟其他玻璃卡片同一份 --glass-blur 模糊，讓底下桌布透出來，
+     質感統一，文字對比度不受影響。 */
+  background: linear-gradient(160deg, rgba(79, 141, 251, 0.55) 0%, rgba(47, 111, 237, 0.55) 55%, rgba(31, 79, 196, 0.6) 100%);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(255, 255, 255, 0.32);
   border-radius: 20px;
   padding: 26px 28px 22px;
   display: flex;
@@ -631,6 +637,14 @@ button:hover { background: var(--accent-hover); }
   margin-bottom: 20px;
   color: #fff;
   box-shadow: 0 10px 28px rgba(47, 111, 237, 0.28);
+}
+/* 少數舊版 in-app webview 不支援 backdrop-filter：退回原本的實心藍漸層，
+   不然半透明底色在沒有模糊的情況下，會直接看到桌布穿幫、糊成一片。 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .current-card {
+    background: linear-gradient(160deg, #4f8dfb 0%, #2f6fed 55%, #1f4fc4 100%);
+    border: none;
+  }
 }
 
 .current-card-top {
