@@ -620,10 +620,16 @@ button:hover { background: var(--accent-hover); }
 }
 
 .current-card {
-  /* 藍色天氣卡改成「帶藍色調的毛玻璃」，不是整張卡片直接透明——純白玻璃
-     底下配白色文字會看不清楚，所以底色留著藍，只是從實心漸層換成半透明
-     漸層 + 跟其他玻璃卡片同一份 --glass-blur 模糊，讓底下桌布透出來，
-     質感統一，文字對比度不受影響。 */
+  /* 藍色天氣卡的玻璃質感分三層退場機制，跟底部導覽列用同一套邏輯：
+     1. 完全不支援 backdrop-filter 的舊版 webview → 下面 @supports not 區塊，
+        退回實心藍漸層。
+     2. 支援 backdrop-filter、但不支援把 SVG filter 用在 backdrop-filter 上
+        （Safari）→ 這裡的純模糊＋飽和度，帶藍色調的霧面玻璃。
+     3. 支援 SVG filter backdrop-filter（Chromium 系）→ renderer.js 的
+        detectLiquidGlassRefractionSupport() 會加上 .liquid-glass-refraction
+        class（見下面），套用跟導覽列同一顆 #liquidGlassNav 折射濾鏡，才是
+        真正的「液態玻璃」——背後桌布會被扭曲，不只是模糊。
+     純白玻璃配白字會看不清楚，所以三層都留著藍色調，不是完全透明發白。 */
   background: linear-gradient(160deg, rgba(79, 141, 251, 0.55) 0%, rgba(47, 111, 237, 0.55) 55%, rgba(31, 79, 196, 0.6) 100%);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
@@ -645,6 +651,16 @@ button:hover { background: var(--accent-hover); }
     background: linear-gradient(160deg, #4f8dfb 0%, #2f6fed 55%, #1f4fc4 100%);
     border: none;
   }
+}
+/* 真正的液態玻璃折射，只有偵測到瀏覽器支援才會加上這個 class（見
+   renderer.js 的 detectLiquidGlassRefractionSupport），跟底部導覽列共用
+   同一顆 SVG feDisplacementMap 濾鏡。scale 比導覽列的 28 小一點（20），
+   因為這張卡片比較大張，扭曲太誇張反而會讓卡片裡自己的文字/數字也一起
+   歪掉、變得不好讀。 */
+.current-card.liquid-glass-refraction {
+  background: linear-gradient(160deg, rgba(79, 141, 251, 0.45) 0%, rgba(47, 111, 237, 0.4) 55%, rgba(31, 79, 196, 0.5) 100%);
+  backdrop-filter: blur(14px) saturate(190%) url(#liquidGlassCard);
+  -webkit-backdrop-filter: blur(14px) saturate(190%);
 }
 
 .current-card-top {

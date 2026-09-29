@@ -3675,6 +3675,10 @@ function activateBottomNavKey(key) {
     if (applied.indexOf("url") !== -1) {
       const nav = el("bottomNav");
       if (nav) nav.classList.add("liquid-glass-refraction");
+      // 首頁那張藍色天氣卡也套用同一種折射玻璃，跟導覽列共用同一顆
+      // SVG filter（#liquidGlassNav），偵測邏輯不用寫兩次。
+      const card = document.querySelector(".current-card");
+      if (card) card.classList.add("liquid-glass-refraction");
     }
   } catch (e) {
     /* 偵測失敗就當作不支援，安全退回霧面玻璃 */
