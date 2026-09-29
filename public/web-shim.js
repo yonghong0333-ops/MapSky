@@ -635,8 +635,12 @@
         })
         .catch((err) => {
           const msg = String((err && err.message) || err || "");
+          // 原本這裡不管實際錯誤是什麼，一律顯示「請去設定允許相機/照片」，
+          // 但 AvatarPicker.pick() 唯一真的會 reject 的情況（原生選單卡住沒清掉）
+          // 跟權限完全無關，那句話反而誤導使用者去查根本不存在的問題。改成
+          // 直接show 出實際的錯誤文字，好排查、也不會讓人誤會成權限沒開。
           if (!/cancel/i.test(msg)) {
-            alert("無法取得照片，請確認已在 iOS「設定」允許 MapSky 使用相機／照片。");
+            alert("無法取得照片：" + (msg || "未知錯誤，請再試一次。"));
           }
         });
       return;
