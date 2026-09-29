@@ -612,11 +612,35 @@
   function openAvatarSourceSheet(fileInput, onFile) {
     const plugins = (window.Capacitor && window.Capacitor.Plugins) || {};
     const Camera = plugins.Camera;
-    const AvatarPicker = plugins.AvatarPicker; // App 內建的單選相簿（去掉 EXIF 位置、縮小）
-    if (!isNativeShell || !Camera) {
+    const AvatarPicker = plugins.AvatarPicker; // App 內建的原生選單：拍照／照片圖庫／瀏覽檔案，一次處理
+    if (!isNativeShell) {
       fileInput.click();
       return;
     }
+    if (AvatarPicker) {
+      // 直接叫原生選單（UIAlertController 的 actionSheet，長相跟系統其他地方
+      // 完全一致），不再由網頁自己疊一層仿造的樣式選單——原本「網頁自己畫一層
+      // ＋原生又想攔截同一個點擊」兩邊打架的問題，源頭就是這裡同時存在兩種
+      // 入口。現在只認一種：有 AvatarPicker 就整個選單交給它，網頁端完全不
+      // 插手，「拍照」也是走這支外掛裡真正的 UIImagePickerController。
+      AvatarPicker.pick()
+        .then((res) => {
+          if (res && res.dataUrl) onFile(dataUrlToFile(res.dataUrl, "avatar.jpg"));
+        })
+        .catch((err) => {
+          const msg = String((err && err.message) || err || "");
+          if (!/cancel/i.test(msg)) {
+            alert("無法取得照片，請確認已在 iOS「設定」允許 MapSky 使用相機／照片。");
+          }
+        });
+      return;
+    }
+    if (!Camera) {
+      fileInput.click();
+      return;
+    }
+    // 備援路徑：只有在 AvatarPicker 這支外掛萬一沒被註冊到的情況才會走到這裡，
+    // 退回網頁自己畫的選單 + @capacitor/camera，維持功能不中斷。
     ensureAvatarSourceStyles();
     const overlay = document.createElement("div");
     overlay.className = "avatar-source-overlay";
@@ -642,21 +666,11 @@
       close();
       if (src === "cancel") return;
       if (src === "files") {
-        // 走原本的 <input type=file>，change 事件會接手。App 端有一段腳本會攔下
-        // 「單選圖片 input」的點擊改跳原生相簿（見 MapSkyViewController 的
-        // injectAvatarPickerHook），這裡要「檔案」而不是相簿，所以設 __mapskyBypass
-        // 讓它放行，改由系統的選擇畫面（含「選擇檔案」）處理。
         fileInput.__mapskyBypass = true;
         fileInput.click();
         return;
       }
       try {
-        if (src === "photos" && AvatarPicker) {
-          // 優先用 App 自己的單選相簿：選一張就完成、不帶拍攝地點。
-          const res = await AvatarPicker.pick();
-          if (res && res.dataUrl) onFile(dataUrlToFile(res.dataUrl, "avatar.jpg"));
-          return;
-        }
         const photo = await Camera.getPhoto({
           quality: 90,
           resultType: "dataUrl",
