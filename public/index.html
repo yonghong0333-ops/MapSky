@@ -41,10 +41,26 @@
        複製網址（iOS 不開放網頁用程式碼觸發加入主畫面或跳轉到別的瀏覽器 App，
        只能這樣引導使用者自己操作）。由 web-shim.js 判斷要不要顯示、顯示哪一種。 -->
   <div id="browserGate" class="browser-gate hidden">
-    <!-- 仿照 Pokemon GO 官網首頁那種「遊戲感」引導頁：滿版深色背景 + 一張
-         大張、帶虛線邊框的品牌 Banner，不是原本置中的一張小卡片。素材用
-         MapSky 自己的圖示跟漸層色，不是抄 Pokemon 的圖，只是借用那種版面
-         比例跟氛圍。 -->
+    <!-- 仿照 Pokemon GO 官網首頁那種「遊戲感」門面頁：滿版深色背景、右上角
+         選單、Hero Banner、「最新消息」跟「下載」兩個區塊。只有手機瀏覽器
+         上、還沒加入主畫面的訪客才會看到這頁（見下面 guardBrowserGate 的
+         判斷），已安裝或原生 App 使用者不會看到。 -->
+    <header class="browser-gate-topbar">
+      <div class="browser-gate-topbar-brand">
+        <img src="icons/logo-dark.png" alt="" class="browser-gate-topbar-logo" />
+        <span>MapSky</span>
+      </div>
+      <div class="browser-gate-menu-wrap">
+        <button id="browserGateMenuBtn" class="browser-gate-menu-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="browserGateMenu" aria-label="選單">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+        </button>
+        <nav id="browserGateMenu" class="browser-gate-menu hidden" role="menu">
+          <a href="#browserGateNews" class="browser-gate-menu-item" role="menuitem">最新消息</a>
+          <a href="#browserGateDownload" class="browser-gate-menu-item" role="menuitem">下載 MapSky</a>
+        </nav>
+      </div>
+    </header>
+
     <div class="browser-gate-hero">
       <div class="browser-gate-hero-banner">
         <img class="browser-gate-hero-icon" src="icons/logo-dark.png" alt="" />
@@ -55,10 +71,23 @@
       </div>
     </div>
 
-    <div class="browser-gate-card">
-      <div id="browserGateSafari" class="browser-gate-variant hidden">
-        <h2 class="browser-gate-title">請把 MapSky 加入主畫面</h2>
-        <p class="browser-gate-sub">這樣才能像 App 一樣獨立開啟，體驗比較完整。</p>
+    <section id="browserGateNews" class="browser-gate-section">
+      <h2 class="browser-gate-section-title">最新消息</h2>
+      <!-- 先留空位，之後有公告／更新紀錄要放的話，往這裡加卡片就好，
+           版面（section 標題 + 卡片列）已經搭好了。 -->
+      <div class="browser-gate-news-empty">目前還沒有最新消息，之後會在這裡公告。</div>
+    </section>
+
+    <section id="browserGateDownload" class="browser-gate-section">
+      <h2 class="browser-gate-section-title">下載 MapSky</h2>
+      <div class="browser-gate-tabs" role="tablist">
+        <button type="button" class="browser-gate-tab" data-platform="ios" role="tab" aria-selected="false">iOS</button>
+        <button type="button" class="browser-gate-tab" data-platform="android" role="tab" aria-selected="false">Android</button>
+      </div>
+
+      <div id="browserGateTabIos" class="browser-gate-tabpanel browser-gate-card hidden" role="tabpanel">
+        <h3 class="browser-gate-title">請把 MapSky 加入主畫面</h3>
+        <p class="browser-gate-sub">用 Safari 打開本頁，這樣才能像 App 一樣獨立開啟。</p>
         <ol class="browser-gate-steps">
           <li>點下方工具列的「分享」<button id="browserGateShareBtn" class="share-weather-btn browser-gate-share-btn" type="button" aria-label="分享"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></button> 圖示</li>
           <li>選單裡找「加入主畫面」</li>
@@ -69,14 +98,22 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>
           <span>分享 MapSky</span>
         </button>
+        <!-- 不是用 Safari 打開這頁時（例如從 Chrome／Line 內建瀏覽器點進來）的
+             備案：複製網址，自己貼到 Safari 開啟。原本是獨立的「其他瀏覽器」
+             變體，現在併進 iOS 分頁裡，一直都看得到，不用另外判斷。 -->
+        <div class="browser-gate-url-row">
+          <span id="browserGateUrlValue" class="browser-gate-url-value"></span>
+          <button id="browserGateCopyBtn" class="browser-gate-copy-btn" type="button">複製網址</button>
+        </div>
+        <p id="browserGateCopyMsg" class="browser-gate-copy-msg"></p>
+        <p class="browser-gate-hint">不是用 Safari 打開這頁的話，先複製上面的網址，貼到 Safari 再開啟一次。</p>
       </div>
 
       <!-- Android 上根本沒有 Safari 這個瀏覽器，「請用 Safari 開啟」對 Android
            使用者是個死路。Chrome／大部分 Android 瀏覽器自己就能「加到主畫面」，
-           不需要像 iOS 那樣一定要透過 Safari，所以另外做一個 Android 專用的
-           說明，跟 Safari 變體用一樣的步驟式版面，只是操作路徑不同。 -->
-      <div id="browserGateAndroid" class="browser-gate-variant hidden">
-        <h2 class="browser-gate-title">請把 MapSky 加入主畫面</h2>
+           不需要像 iOS 那樣一定要透過 Safari。 -->
+      <div id="browserGateTabAndroid" class="browser-gate-tabpanel browser-gate-card hidden" role="tabpanel">
+        <h3 class="browser-gate-title">請把 MapSky 加入主畫面</h3>
         <p class="browser-gate-sub">這樣才能像 App 一樣獨立開啟，體驗比較完整。</p>
         <ol class="browser-gate-steps">
           <li>點右上角「⋮」選單</li>
@@ -85,17 +122,7 @@
         </ol>
         <p class="browser-gate-hint">加入後，改用主畫面上的 MapSky 圖示打開就可以了。</p>
       </div>
-
-      <div id="browserGateOtherBrowser" class="browser-gate-variant hidden">
-        <h2 class="browser-gate-title">請用 Safari 開啟</h2>
-        <p class="browser-gate-sub">「加入主畫面」這個功能只有 Safari 支援，麻煩複製下面的網址，貼到 Safari 開啟。</p>
-        <div class="browser-gate-url-row">
-          <span id="browserGateUrlValue" class="browser-gate-url-value"></span>
-          <button id="browserGateCopyBtn" class="browser-gate-copy-btn" type="button">複製網址</button>
-        </div>
-        <p id="browserGateCopyMsg" class="browser-gate-copy-msg"></p>
-      </div>
-    </div>
+    </section>
   </div>
 
   <!-- 底部導覽列的「液態玻璃」折射濾鏡（SVG feDisplacementMap）。
