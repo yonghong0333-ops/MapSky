@@ -154,7 +154,7 @@ body:not(.auth-ok) .app {
 .browser-gate-card {
   width: 100%;
   max-width: 360px;
-  margin: 24px 16px 0;
+  margin: 0 auto;
   box-sizing: border-box;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
@@ -163,7 +163,109 @@ body:not(.auth-ok) .app {
   text-align: center;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
 }
-.browser-gate-variant.hidden { display: none; }
+
+/* 右上角選單 */
+.browser-gate-topbar {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: max(14px, env(safe-area-inset-top, 0px)) 16px 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.browser-gate-topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-weight: 800;
+  font-size: 17px;
+}
+.browser-gate-topbar-logo { width: 28px; height: 28px; border-radius: 8px; }
+.browser-gate-menu-wrap { position: relative; }
+.browser-gate-menu-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.browser-gate-menu-btn svg { width: 20px; height: 20px; }
+.browser-gate-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 160px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  z-index: 10;
+}
+.browser-gate-menu.hidden { display: none; }
+.browser-gate-menu-item {
+  display: block;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main, #1f2937);
+  text-decoration: none;
+}
+.browser-gate-menu-item + .browser-gate-menu-item { border-top: 1px solid var(--card-border); }
+.browser-gate-menu-item:active { background: rgba(60, 60, 67, 0.08); }
+
+/* 「最新消息」「下載」共用的區塊樣式 */
+.browser-gate-section {
+  width: 100%;
+  max-width: 420px;
+  margin: 32px auto 0;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+.browser-gate-section-title {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0 0 12px;
+}
+.browser-gate-news-empty {
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  border-radius: 14px;
+  padding: 28px 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 14px;
+}
+
+/* 下載區的 iOS／Android 分頁切換 */
+.browser-gate-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.browser-gate-tab {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 700;
+  font-size: 14px;
+}
+.browser-gate-tab.is-active {
+  background: #fff;
+  color: #122a5c;
+  border-color: #fff;
+}
+.browser-gate-tabpanel.hidden { display: none; }
 .browser-gate-title {
   font-size: 18px;
   font-weight: 700;
