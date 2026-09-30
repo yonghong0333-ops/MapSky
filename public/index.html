@@ -41,9 +41,21 @@
        複製網址（iOS 不開放網頁用程式碼觸發加入主畫面或跳轉到別的瀏覽器 App，
        只能這樣引導使用者自己操作）。由 web-shim.js 判斷要不要顯示、顯示哪一種。 -->
   <div id="browserGate" class="browser-gate hidden">
-    <div class="browser-gate-card">
-      <img class="browser-gate-logo" src="icons/logo-dark.png" alt="MapSky" />
+    <!-- 仿照 Pokemon GO 官網首頁那種「遊戲感」引導頁：滿版深色背景 + 一張
+         大張、帶虛線邊框的品牌 Banner，不是原本置中的一張小卡片。素材用
+         MapSky 自己的圖示跟漸層色，不是抄 Pokemon 的圖，只是借用那種版面
+         比例跟氛圍。 -->
+    <div class="browser-gate-hero">
+      <div class="browser-gate-hero-banner">
+        <img class="browser-gate-hero-icon" src="icons/logo-dark.png" alt="" />
+        <div class="browser-gate-hero-text">
+          <span class="browser-gate-hero-eyebrow">MapSky</span>
+          <span class="browser-gate-hero-title">把天氣帶在身上</span>
+        </div>
+      </div>
+    </div>
 
+    <div class="browser-gate-card">
       <div id="browserGateSafari" class="browser-gate-variant hidden">
         <h2 class="browser-gate-title">請把 MapSky 加入主畫面</h2>
         <p class="browser-gate-sub">這樣才能像 App 一樣獨立開啟，體驗比較完整。</p>
@@ -57,6 +69,21 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>
           <span>分享 MapSky</span>
         </button>
+      </div>
+
+      <!-- Android 上根本沒有 Safari 這個瀏覽器，「請用 Safari 開啟」對 Android
+           使用者是個死路。Chrome／大部分 Android 瀏覽器自己就能「加到主畫面」，
+           不需要像 iOS 那樣一定要透過 Safari，所以另外做一個 Android 專用的
+           說明，跟 Safari 變體用一樣的步驟式版面，只是操作路徑不同。 -->
+      <div id="browserGateAndroid" class="browser-gate-variant hidden">
+        <h2 class="browser-gate-title">請把 MapSky 加入主畫面</h2>
+        <p class="browser-gate-sub">這樣才能像 App 一樣獨立開啟，體驗比較完整。</p>
+        <ol class="browser-gate-steps">
+          <li>點右上角「⋮」選單</li>
+          <li>選「新增至主畫面」或「安裝應用程式」</li>
+          <li>依畫面指示完成安裝</li>
+        </ol>
+        <p class="browser-gate-hint">加入後，改用主畫面上的 MapSky 圖示打開就可以了。</p>
       </div>
 
       <div id="browserGateOtherBrowser" class="browser-gate-variant hidden">
