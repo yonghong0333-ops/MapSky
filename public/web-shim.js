@@ -139,6 +139,10 @@
 
     const ua = navigator.userAgent || "";
     const isSafari = /^((?!chrome|android|crios|fxios|edgios|opios|opr\/).)*safari/i.test(ua);
+    // Android 根本沒有 Safari，跟 Android 使用者說「請用 Safari 開啟」是個
+    // 死路（截圖回報過使用者真的卡在這頁出不去）。Android 瀏覽器自己的選單
+    // 就能加到主畫面，不需要另一個 App，所以獨立判斷出來，走專屬的說明文字。
+    const isAndroid = /android/i.test(ua);
 
     document.addEventListener("DOMContentLoaded", () => {
       const gate = document.getElementById("browserGate");
@@ -146,6 +150,7 @@
       gate.classList.remove("hidden");
 
       const safariVariant = document.getElementById("browserGateSafari");
+      const androidVariant = document.getElementById("browserGateAndroid");
       const otherVariant = document.getElementById("browserGateOtherBrowser");
 
       if (isSafari) {
@@ -177,6 +182,10 @@
         if (gateShareBtn) gateShareBtn.addEventListener("click", shareApp);
         const gateShareBigBtn = document.getElementById("browserGateShareBigBtn");
         if (gateShareBigBtn) gateShareBigBtn.addEventListener("click", shareApp);
+      } else if (isAndroid) {
+        // Android 沒有「加入主畫面」需要跳去另一個瀏覽器這種限制，選單裡就
+        // 能直接完成，所以不用複製網址那一套，直接顯示步驟就好。
+        if (androidVariant) androidVariant.classList.remove("hidden");
       } else {
         if (otherVariant) otherVariant.classList.remove("hidden");
         const urlEl = document.getElementById("browserGateUrlValue");
