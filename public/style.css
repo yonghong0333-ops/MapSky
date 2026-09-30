@@ -100,23 +100,69 @@ body:not(.auth-ok) .app {
   inset: 0;
   z-index: 1100;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: linear-gradient(160deg, #eef2f8 0%, #dbe6fb 55%, #cddcf7 100%);
-  padding: 24px;
+  overflow-y: auto;
+  /* 滿版深色背景，仿照 Pokemon GO 官網首頁那種「遊戲感」引導頁，跟原本
+     置中一張淺色小卡片的樣子不一樣，是刻意設計成固定深色（不跟著系統
+     淺色／深色模式切換），品牌色一致。 */
+  background: linear-gradient(180deg, #0a1c3f 0%, #0d234f 45%, #122a5c 100%);
+  padding: 0 0 32px;
 }
 .browser-gate.hidden { display: none; }
+
+.browser-gate-hero {
+  width: 100%;
+  padding: max(24px, env(safe-area-inset-top, 0px)) 16px 0;
+  box-sizing: border-box;
+}
+.browser-gate-hero-banner {
+  max-width: 420px;
+  margin: 0 auto;
+  border-radius: 20px;
+  border: 2px dashed rgba(255, 255, 255, 0.35);
+  background: linear-gradient(135deg, #7c6ef2 0%, #4d8ef7 55%, #33c9d8 100%);
+  padding: 36px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 18px 40px rgba(8, 16, 40, 0.4);
+}
+.browser-gate-hero-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+}
+.browser-gate-hero-text { text-align: center; color: #fff; }
+.browser-gate-hero-eyebrow {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  margin-bottom: 4px;
+}
+.browser-gate-hero-title {
+  display: block;
+  font-size: 22px;
+  font-weight: 800;
+}
+
 .browser-gate-card {
   width: 100%;
   max-width: 360px;
+  margin: 24px 16px 0;
+  box-sizing: border-box;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 16px;
   padding: 28px 24px;
   text-align: center;
-  box-shadow: 0 12px 32px rgba(30, 45, 80, 0.14);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
 }
-.browser-gate-logo { width: 56px; height: 56px; margin-bottom: 14px; }
 .browser-gate-variant.hidden { display: none; }
 .browser-gate-title {
   font-size: 18px;
