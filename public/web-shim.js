@@ -149,59 +149,95 @@
       if (!gate) return;
       gate.classList.remove("hidden");
 
-      const safariVariant = document.getElementById("browserGateSafari");
-      const androidVariant = document.getElementById("browserGateAndroid");
-      const otherVariant = document.getElementById("browserGateOtherBrowser");
-
-      if (isSafari) {
-        if (safariVariant) safariVariant.classList.remove("hidden");
-        // 這兩顆按鈕（小圖示 + 下面那顆大的圓角按鈕）都是同一個元件、同一段
-        // 分享邏輯，按了會分享 App 連結本身（這個畫面還沒進到主程式，還沒有
-        // 城市/天氣資料可以分享）。
-        // 提醒：navigator.share() 跳出的系統分享清單不會有「加入主畫面」這個
-        // 選項，那個只有 Safari 自己工具列上的分享圖示才有，這裡按了只是
-        // 單純示範「分享」這個動作長什麼樣子，真正加入主畫面還是要點螢幕
-        // 最下面 Safari 自己的工具列。
-        const shareApp = async () => {
-          const url = window.location.origin + window.location.pathname;
-          if (navigator.share) {
-            try {
-              await navigator.share({ title: "MapSky 天氣", text: "MapSky —— 好用的天氣 App", url });
-            } catch (e) {
-              /* 使用者自己取消分享，不用特別處理 */
-            }
-            return;
-          }
-          try {
-            await navigator.clipboard.writeText(url);
-          } catch (e) {
-            /* 複製也失敗就算了，不影響主要的加入主畫面流程 */
-          }
+      // ---------------- 右上角選單（開合、點項目自動收起、點外面收起）----------------
+      const menuBtn = document.getElementById("browserGateMenuBtn");
+      const menu = document.getElementById("browserGateMenu");
+      if (menuBtn && menu) {
+        const closeMenu = () => {
+          menu.classList.add("hidden");
+          menuBtn.setAttribute("aria-expanded", "false");
         };
-        const gateShareBtn = document.getElementById("browserGateShareBtn");
-        if (gateShareBtn) gateShareBtn.addEventListener("click", shareApp);
-        const gateShareBigBtn = document.getElementById("browserGateShareBigBtn");
-        if (gateShareBigBtn) gateShareBigBtn.addEventListener("click", shareApp);
-      } else if (isAndroid) {
-        // Android 沒有「加入主畫面」需要跳去另一個瀏覽器這種限制，選單裡就
-        // 能直接完成，所以不用複製網址那一套，直接顯示步驟就好。
-        if (androidVariant) androidVariant.classList.remove("hidden");
-      } else {
-        if (otherVariant) otherVariant.classList.remove("hidden");
-        const urlEl = document.getElementById("browserGateUrlValue");
-        if (urlEl) urlEl.textContent = window.location.href;
-        const copyBtn = document.getElementById("browserGateCopyBtn");
-        const msgEl = document.getElementById("browserGateCopyMsg");
-        if (copyBtn) {
-          copyBtn.addEventListener("click", async () => {
-            try {
-              await navigator.clipboard.writeText(window.location.href);
-              if (msgEl) msgEl.textContent = "已複製，去 Safari 貼上打開吧";
-            } catch (e) {
-              if (msgEl) msgEl.textContent = "複製失敗，請手動選取上面的網址複製";
-            }
-          });
+        menuBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const willOpen = menu.classList.contains("hidden");
+          menu.classList.toggle("hidden", !willOpen);
+          menuBtn.setAttribute("aria-expanded", String(willOpen));
+        });
+        menu.querySelectorAll(".browser-gate-menu-item").forEach((item) => {
+          item.addEventListener("click", closeMenu);
+        });
+        document.addEventListener("click", (e) => {
+          if (!menu.classList.contains("hidden") && !menu.contains(e.target) && e.target !== menuBtn) {
+            closeMenu();
+          }
+        });
+      }
+
+      // ---------------- 下載區：iOS／Android 分頁 ----------------
+      // 預設依偵測到的平台自動選分頁，但使用者還是可以手動點另一個分頁看
+      // （例如想幫朋友的 Android 手機查步驟，自己卻是用 iPhone 在看這頁）。
+      const tabs = Array.from(document.querySelectorAll(".browser-gate-tab"));
+      const panels = {
+        ios: document.getElementById("browserGateTabIos"),
+        android: document.getElementById("browserGateTabAndroid"),
+      };
+      function activateTab(platform) {
+        tabs.forEach((t) => {
+          const active = t.dataset.platform === platform;
+          t.classList.toggle("is-active", active);
+          t.setAttribute("aria-selected", String(active));
+        });
+        Object.keys(panels).forEach((key) => {
+          if (panels[key]) panels[key].classList.toggle("hidden", key !== platform);
+        });
+      }
+      tabs.forEach((t) => t.addEventListener("click", () => activateTab(t.dataset.platform)));
+      activateTab(isAndroid ? "android" : "ios");
+
+      // ---------------- iOS 分頁：分享／複製網址 ----------------
+      // 這兩顆按鈕（小圖示 + 下面那顆大的圓角按鈕）都是同一個元件、同一段
+      // 分享邏輯，按了會分享 App 連結本身（這個畫面還沒進到主程式，還沒有
+      // 城市/天氣資料可以分享）。
+      // 提醒：navigator.share() 跳出的系統分享清單不會有「加入主畫面」這個
+      // 選項，那個只有 Safari 自己工具列上的分享圖示才有，這裡按了只是
+      // 單純示範「分享」這個動作長什麼樣子，真正加入主畫面還是要點螢幕
+      // 最下面 Safari 自己的工具列。
+      const shareApp = async () => {
+        const url = window.location.origin + window.location.pathname;
+        if (navigator.share) {
+          try {
+            await navigator.share({ title: "MapSky 天氣", text: "MapSky —— 好用的天氣 App", url });
+          } catch (e) {
+            /* 使用者自己取消分享，不用特別處理 */
+          }
+          return;
         }
+        try {
+          await navigator.clipboard.writeText(url);
+        } catch (e) {
+          /* 複製也失敗就算了，不影響主要的加入主畫面流程 */
+        }
+      };
+      const gateShareBtn = document.getElementById("browserGateShareBtn");
+      if (gateShareBtn) gateShareBtn.addEventListener("click", shareApp);
+      const gateShareBigBtn = document.getElementById("browserGateShareBigBtn");
+      if (gateShareBigBtn) gateShareBigBtn.addEventListener("click", shareApp);
+
+      // 不是用 Safari 打開這頁時的備案：複製網址，自己貼到 Safari 開啟。
+      // 併進 iOS 分頁後一直都看得到，不用再另外判斷「是不是 Safari」。
+      const urlEl = document.getElementById("browserGateUrlValue");
+      if (urlEl) urlEl.textContent = window.location.href;
+      const copyBtn = document.getElementById("browserGateCopyBtn");
+      const msgEl = document.getElementById("browserGateCopyMsg");
+      if (copyBtn) {
+        copyBtn.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(window.location.href);
+            if (msgEl) msgEl.textContent = "已複製，去 Safari 貼上打開吧";
+          } catch (e) {
+            if (msgEl) msgEl.textContent = "複製失敗，請手動選取上面的網址複製";
+          }
+        });
       }
     });
   })();
