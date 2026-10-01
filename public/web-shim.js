@@ -329,7 +329,7 @@
   }
 
   async function loadProviders() {
-    const { providers } = await getJson("/api/auth/providers");
+    const { providers } = await getJson("/api/auth/session?action=providers");
     return providers;
   }
 
@@ -1711,7 +1711,7 @@
         const logoutBtn = el("authLogoutBtn");
         if (logoutBtn) {
           logoutBtn.addEventListener("click", async () => {
-            await fetch("/api/auth/logout", { method: "POST" });
+            await fetch("/api/auth/session?action=logout", { method: "POST" });
             window.location.href = "/";
           });
         }
