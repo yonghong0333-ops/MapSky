@@ -150,13 +150,21 @@
       gate.classList.remove("hidden");
 
       // 「下載 MapSky」不算首頁本體內容，預設是隱藏的（見 index.html 的
-      // class="hidden"），只有從選單那個開新分頁的連結、網址帶著
-      // #browserGateDownload 進來時才顯示，並且捲過去給它看。
+      // class="hidden"），只有網址帶著 #browserGateDownload 時才顯示。
+      // 這裡用 hashchange 持續監聽，不是只在剛載入那一刻判斷一次——同一個
+      // 分頁內點錨點連結（例如跳去「最新消息」）瀏覽器不會整頁重新載入，
+      // 只會換網址的 # 標籤，一次性的判斷不會再執行，區塊顯示出來後就會
+      // 卡住收不回去。改成每次 hash 一變就重新判斷要不要顯示，離開
+      // #browserGateDownload 時會自動收回去。
       const downloadSection = document.getElementById("browserGateDownload");
-      if (downloadSection && window.location.hash === "#browserGateDownload") {
-        downloadSection.classList.remove("hidden");
-        downloadSection.scrollIntoView({ block: "start" });
+      function syncDownloadSectionVisibility() {
+        if (!downloadSection) return;
+        const show = window.location.hash === "#browserGateDownload";
+        downloadSection.classList.toggle("hidden", !show);
+        if (show) downloadSection.scrollIntoView({ block: "start" });
       }
+      syncDownloadSectionVisibility();
+      window.addEventListener("hashchange", syncDownloadSectionVisibility);
 
       // ---------------- 右上角選單（開合、點項目自動收起、點外面收起）----------------
       const menuBtn = document.getElementById("browserGateMenuBtn");
