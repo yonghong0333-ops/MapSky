@@ -266,6 +266,11 @@ body:not(.auth-ok) .app {
   border-color: #fff;
 }
 .browser-gate-tabpanel.hidden { display: none; }
+/* 漏掉的那條：這個專案每個元件的 .hidden 都要自己配一條規則，共用的
+   generic .hidden 在這裡不存在。下載區塊（#browserGateDownload）靠 JS
+   加減這個 class 來決定顯示/隱藏，少了這條，class 加減了也完全沒效果，
+   畫面一直都是顯示的狀態。 */
+.browser-gate-section.hidden { display: none; }
 .browser-gate-title {
   font-size: 18px;
   font-weight: 700;
