@@ -157,11 +157,24 @@
       // 卡住收不回去。改成每次 hash 一變就重新判斷要不要顯示，離開
       // #browserGateDownload 時會自動收回去。
       const downloadSection = document.getElementById("browserGateDownload");
+      // 從選單或「iOS」平台卡點進來的「下載 MapSky」是開新分頁，使用者會把
+      // 這個分頁單獨當成一個「下載頁」用（甚至存起來分享給別人），不是首頁
+      // 本體的一部分——原本只是把下載卡片捲到看得見的位置，Hero 大圖／
+      // 最新消息／關於 MapSky 那些還留在上面，一打開畫面會先閃一下整個首頁、
+      // 捲動時上緣還會露出上一個區塊的字（使用者截圖回報過），看起來很怪。
+      // 改成帶著這個 hash 時，其他區塊直接整個隱藏，只留下載卡片，乾淨
+      // 單純；離開這個 hash（例如使用者自己把網址改掉）才全部還原。
+      const heroSection = document.querySelector(".browser-gate-hero");
+      const newsSection = document.getElementById("browserGateNews");
+      const aboutSection = document.getElementById("browserGateAbout");
       function syncDownloadSectionVisibility() {
         if (!downloadSection) return;
         const show = window.location.hash === "#browserGateDownload";
         downloadSection.classList.toggle("hidden", !show);
-        if (show) downloadSection.scrollIntoView({ block: "start" });
+        if (heroSection) heroSection.classList.toggle("hidden", show);
+        if (newsSection) newsSection.classList.toggle("hidden", show);
+        if (aboutSection) aboutSection.classList.toggle("hidden", show);
+        if (show) window.scrollTo({ top: 0 });
       }
       syncDownloadSectionVisibility();
       window.addEventListener("hashchange", syncDownloadSectionVisibility);

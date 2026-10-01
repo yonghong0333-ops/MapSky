@@ -116,6 +116,7 @@ body:not(.auth-ok) .app {
   padding: max(24px, env(safe-area-inset-top, 0px)) 16px 0;
   box-sizing: border-box;
 }
+.browser-gate-hero.hidden { display: none; }
 .browser-gate-hero-banner {
   max-width: 420px;
   margin: 0 auto;
