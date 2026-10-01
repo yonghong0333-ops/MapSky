@@ -244,6 +244,54 @@ body:not(.auth-ok) .app {
   font-size: 14px;
 }
 
+/* 「關於 MapSky」自我介紹區塊 */
+.browser-gate-about-intro {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 18px;
+}
+.browser-gate-feature-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.browser-gate-feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.browser-gate-feature-icon {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+}
+.browser-gate-feature-title {
+  margin: 0 0 3px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+}
+.browser-gate-feature-desc {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 /* 下載區的 iOS／Android 分頁切換 */
 .browser-gate-tabs {
   display: flex;

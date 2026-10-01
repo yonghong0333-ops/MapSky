@@ -78,6 +78,54 @@
       <div class="browser-gate-news-empty">目前還沒有最新消息，之後會在這裡公告。</div>
     </section>
 
+    <!-- 軟體自我介紹：填「最新消息」下面原本空白的區域，讓第一次看到這頁
+         （還沒加入主畫面、也還沒登入）的人知道這個 App 實際上能做什麼，
+         不是只有一句標語。內容照目前真的做出來的功能寫，不是賣點式空話。 -->
+    <section id="browserGateAbout" class="browser-gate-section">
+      <h2 class="browser-gate-section-title">關於 MapSky</h2>
+      <p class="browser-gate-about-intro">
+        MapSky 串接中央氣象署即時資料，把天氣、警特報、颱風動態整理成一眼就看懂的畫面，
+        還能放上 iPhone 的動態島跟鎖定畫面，不用特地打開 App 也看得到。
+      </p>
+      <ul class="browser-gate-feature-list">
+        <li class="browser-gate-feature-item">
+          <span class="browser-gate-feature-icon" aria-hidden="true">📍</span>
+          <div>
+            <h3 class="browser-gate-feature-title">自動定位</h3>
+            <p class="browser-gate-feature-desc">GPS 自動抓出你所在的行政區，也能自己選縣市查看任何地方的天氣。</p>
+          </div>
+        </li>
+        <li class="browser-gate-feature-item">
+          <span class="browser-gate-feature-icon" aria-hidden="true">🌦️</span>
+          <div>
+            <h3 class="browser-gate-feature-title">完整天氣資訊</h3>
+            <p class="browser-gate-feature-desc">溫度、體感溫度、降雨機率、紫外線指數、風速，一次看完不用切來切去。</p>
+          </div>
+        </li>
+        <li class="browser-gate-feature-item">
+          <span class="browser-gate-feature-icon" aria-hidden="true">⚠️</span>
+          <div>
+            <h3 class="browser-gate-feature-title">警特報即時提醒</h3>
+            <p class="browser-gate-feature-desc">颱風、豪雨等中央氣象署警特報，有生效中的警報會自動顯示在畫面上。</p>
+          </div>
+        </li>
+        <li class="browser-gate-feature-item">
+          <span class="browser-gate-feature-icon" aria-hidden="true">🏝️</span>
+          <div>
+            <h3 class="browser-gate-feature-title">動態島與鎖定畫面</h3>
+            <p class="browser-gate-feature-desc">iPhone 可以把天氣放上動態島、鎖定畫面小工具，一眼瞄到不用解鎖。</p>
+          </div>
+        </li>
+        <li class="browser-gate-feature-item">
+          <span class="browser-gate-feature-icon" aria-hidden="true">🔔</span>
+          <div>
+            <h3 class="browser-gate-feature-title">推播通知</h3>
+            <p class="browser-gate-feature-desc">重要公告跟天氣提醒會直接推播到手機，不用一直自己打開來看。</p>
+          </div>
+        </li>
+      </ul>
+    </section>
+
     <!-- 首頁本體預設不顯示這個區塊（class="hidden"），只有從選單那個開新分頁的
          連結、網址帶著 #browserGateDownload 進來時，web-shim.js 才會把它顯示出來
          （見 guardBrowserGate 裡對 location.hash 的判斷）。 -->
