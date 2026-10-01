@@ -1,4 +1,5 @@
-const { parseCookies } = require("../_lib/cookies");
+const { parseCookies, serializeCookie } = require("../_lib/cookies");
+const { PROVIDERS, isConfigured } = require("../_lib/providers");
 const { verify } = require("../_lib/jwt");
 const { isAdminSession, isSuperAdminSession } = require("../_lib/admin");
 const { isBetaTester } = require("../_lib/beta-testers");
@@ -12,6 +13,25 @@ const { getPublicKey } = require("../_lib/web-push");
 const { addIosToken, removeIosToken } = require("../_lib/apns-store");
 
 module.exports = async function handler(req, res) {
+  // 「登出」「可用的登入供應商清單」這兩個本來是獨立的 api/auth/logout.js、
+  // api/auth/providers.js，併進這支（Vercel Hobby 方案一個部署最多 12 支
+  // function，這支已經是現成要擴充的地方）。兩個都不需要先驗登入狀態，放在
+  // 驗證 session 之前處理，登出時就算本來就沒登入也不會報錯、登入畫面還沒
+  // 登入時也要能查供應商清單。
+  if (req.query.action === "providers") {
+    const list = Object.keys(PROVIDERS).map((id) => ({
+      id,
+      label: PROVIDERS[id].label,
+      configured: isConfigured(id),
+    }));
+    return res.status(200).json({ providers: list });
+  }
+
+  if (req.query.action === "logout") {
+    res.setHeader("Set-Cookie", serializeCookie("nexora_session", "", { maxAge: 0 }));
+    return res.status(200).json({ ok: true });
+  }
+
   const cookies = parseCookies(req);
   const payload = verify(cookies.nexora_session);
   if (!payload) {
