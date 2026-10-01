@@ -251,6 +251,37 @@ body:not(.auth-ok) .app {
   line-height: 1.6;
   margin: 0 0 18px;
 }
+/* 支援平台：iOS／Windows／Mac 三張一排，純告知「這三個平台都有」 */
+.browser-gate-platforms {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 0 0 22px;
+}
+.browser-gate-platform-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 8px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  text-decoration: none;
+  color: #fff;
+}
+a.browser-gate-platform-card:active { background: rgba(255, 255, 255, 0.12); }
+.browser-gate-platform-card-static { opacity: 0.75; cursor: default; }
+.browser-gate-platform-icon { width: 26px; height: 26px; }
+.browser-gate-platform-icon svg { width: 100%; height: 100%; }
+.browser-gate-platform-label { font-size: 13px; font-weight: 700; }
+.browser-gate-platform-note {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+  line-height: 1.3;
+}
+
 .browser-gate-feature-list {
   list-style: none;
   margin: 0;
