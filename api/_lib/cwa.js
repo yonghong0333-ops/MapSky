@@ -22,6 +22,7 @@ const MOON_TIMES_DATA_ID = "A-B0063-001"; // 全臺各縣市月出、月沒、�
 const WEEKLY_FORECAST_DATA_ID = "F-D0047-091"; // 全臺各縣市未來1週逐12小時天氣預報
 const OBSERVATION_DATA_ID = "O-A0003-001"; // 氣象觀測站 10 分鐘綜觀氣象資料（現在天氣觀測報告：即時風速、即時紫外線指數）
 const DIALAMOON_BASE = "https://svs.gsfc.nasa.gov/api/dialamoon"; // NASA SVS 月相圖 API
+const LIGHTNING_DATA_ID = "O-A0039-001"; // 即時雷擊資料（對地／雲間），約每 1 分鐘更新一次
 
 const CWA_CITIES = [
   "臺北市", "新北市", "桃園市", "臺中市", "臺南市", "高雄市",
@@ -615,6 +616,71 @@ async function getWindObservation({ forceRefresh = false } = {}) {
   return { ok: true, ...payload, cached: false };
 }
 
+// ---------- 即時雷擊資料 (O-A0039-001) ----------
+// 跟颱風機率圖（getTyphoonProbability）同樣是 KMZ 格式，一樣用 AdmZip 解壓
+// 拿裡面的 .kml 出來剖析，不是走一般的 JSON REST API。
+// 這份資料本身是「過去 1 小時內的雷擊」rolling window（檔名/標題會寫
+// 「2026-10-02 12:45 ~ 2026-10-02 13:45」這種時間範圍，不是單一時間點），
+// 更新頻率比其他氣象資料快很多（官方約 1 分鐘一筆/一批），所以快取時間
+// 特地縮短，不跟其他資料共用 5 分鐘的 CACHE_TTL_MS。
+const LIGHTNING_CACHE_TTL_MS = 60 * 1000; // 1 分鐘
+
+function parseLightningKml(kmlText) {
+  const strikes = [];
+  const placemarkRe = /<Placemark>([\s\S]*?)<\/Placemark>/g;
+  let m;
+  while ((m = placemarkRe.exec(kmlText))) {
+    const block = m[1];
+    const coordMatch = block.match(/<coordinates>\s*([\d.+-]+)\s*,\s*([\d.+-]+)/);
+    const whenMatch = block.match(/<when>\s*([^<\s]+)/);
+    if (!coordMatch || !whenMatch) continue;
+    const lng = parseFloat(coordMatch[1]);
+    const lat = parseFloat(coordMatch[2]);
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+    // 種類直接從 <description> 裡的「閃電種類: 對地」那行取，比從 <name> 猜
+    // 前綴文字可靠（<name> 格式萬一哪天官方調整，種類判斷不會跟著壞掉）。
+    const typeMatch = block.match(/閃電種類:\s*([^\r\n]+)/);
+    const type = typeMatch ? typeMatch[1].trim() : null; // "對地" 或 "雲間"
+    strikes.push({
+      lat,
+      lng,
+      type,
+      isCloudToGround: type === "對地",
+      time: whenMatch[1].trim(), // ISO 8601 UTC，例如 2026-10-02T04:45Z
+    });
+  }
+  // 由新到舊排序，前端畫地圖/列表比較方便直接取最新 N 筆。
+  strikes.sort((a, b) => (a.time < b.time ? 1 : a.time > b.time ? -1 : 0));
+  return strikes;
+}
+
+async function getLightning({ forceRefresh = false } = {}) {
+  const apiKey = getApiKey();
+  if (!apiKey) return { ok: false, reason: "no-api-key" };
+  const cacheKey = "lightning";
+  if (!forceRefresh) {
+    const cached = readCache(cacheKey);
+    // 用自己的短 TTL 重新判斷新鮮度，不是 readCache 內建的 5 分鐘：雷擊資料
+    // 分鐘等級的更新頻率，沿用 5 分鐘的話畫面會一直停在舊的閃電位置。
+    if (cached && cached.__fetchedAt && Date.now() - cached.__fetchedAt < LIGHTNING_CACHE_TTL_MS) {
+      const { __fetchedAt, ...rest } = cached;
+      return { ok: true, ...rest, cached: true };
+    }
+  }
+  const url = buildFileApiUrl(LIGHTNING_DATA_ID, apiKey, "KMZ");
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const buf = Buffer.from(await resp.arrayBuffer());
+  const zip = new AdmZip(buf);
+  const kmlEntry = zip.getEntries().find((e) => e.entryName.toLowerCase().endsWith(".kml"));
+  if (!kmlEntry) throw new Error("KMZ 內找不到 .kml 檔");
+  const kmlText = kmlEntry.getData().toString("utf-8");
+  const strikes = parseLightningKml(kmlText);
+  const payload = { updatedAt: new Date().toISOString(), count: strikes.length, strikes };
+  writeCache(cacheKey, { ...payload, __fetchedAt: Date.now() });
+  return { ok: true, ...payload, cached: false };
+}
+
 // ---------- 目前月相圖（NASA SVS Dial-A-Moon）----------
 // 直接把 NASA 提供的圖片原封不動轉發出去，不做去背處理。
 const MOON_PHASE_CACHE_TTL_MS = 30 * 60 * 1000; // NASA 圖每小時才換一張，30 分鐘夠用
@@ -825,5 +891,6 @@ module.exports = {
   windSpeedToBeaufort,
   getMoonPhaseImage,
   getUvIndexObservation,
+  getLightning,
   getCacheStatus,
 };
