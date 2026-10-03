@@ -235,9 +235,16 @@
       <img class="login-gate-logo" src="icons/logo-dark.png" alt="MapSky" />
       <h1 class="login-gate-title">MapSky</h1>
       <p class="login-gate-tagline">看見天氣，連結你的每一刻</p>
-      <p class="login-gate-sub">登入後才能使用天氣查詢功能</p>
       <p id="loginGateStatus" class="login-gate-status">正在確認登入狀態…</p>
       <div id="loginGateButtons" class="login-gate-buttons hidden"></div>
+      <!-- 只預設顯示 Google／Facebook，其他登入方式收在這裡，點「更多登入
+           方式」才展開——同一批 providers，只是依 id 分成兩組渲染，見
+           web-shim.js 的 buildGateButtons()。 -->
+      <button type="button" id="loginGateMoreToggle" class="login-gate-more-toggle hidden">
+        <span>更多登入方式</span>
+        <span class="login-gate-more-chevron" aria-hidden="true"></span>
+      </button>
+      <div id="loginGateButtonsExtra" class="login-gate-buttons login-gate-buttons-extra hidden"></div>
       <p id="loginGateError" class="login-gate-error hidden"></p>
       <p class="login-gate-legal">登入即代表您同意<a href="/terms" target="_blank" rel="noopener">服務條款</a></p>
     </div>

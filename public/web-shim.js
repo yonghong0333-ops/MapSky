@@ -1761,11 +1761,31 @@
       return;
     }
 
-    // 未登入：把主畫面繼續擋著，只在登入畫面上顯示可用的登入方式
-    if (statusEl) statusEl.textContent = "請先登入以下任一帳號：";
+    // 未登入：把主畫面繼續擋著，只在登入畫面上顯示可用的登入方式。
+    // 預設只露出 Google／Facebook 兩個，其他的收起來，點「更多登入方式」
+    // 才展開——同一批 providers，只是依 id 分成兩組渲染，按鈕本身
+    // （buildGateButtons）完全沒變。
+    if (statusEl) statusEl.textContent = "";
+    const primaryIds = ["google", "facebook"];
+    const primaryProviders = providers.filter((p) => primaryIds.includes(p.id));
+    const extraProviders = providers.filter((p) => !primaryIds.includes(p.id));
     if (buttonsEl) {
-      buttonsEl.innerHTML = buildGateButtons(providers);
+      buttonsEl.innerHTML = buildGateButtons(primaryProviders);
       buttonsEl.classList.remove("hidden");
+    }
+    const extraEl = el("loginGateButtonsExtra");
+    const moreToggle = el("loginGateMoreToggle");
+    if (extraEl && moreToggle && extraProviders.length > 0) {
+      extraEl.innerHTML = buildGateButtons(extraProviders);
+      moreToggle.classList.remove("hidden");
+      if (!moreToggle.dataset.bound) {
+        moreToggle.dataset.bound = "1";
+        moreToggle.addEventListener("click", () => {
+          const expanded = moreToggle.classList.toggle("expanded");
+          extraEl.classList.toggle("hidden", !expanded);
+          moreToggle.querySelector("span").textContent = expanded ? "收起" : "更多登入方式";
+        });
+      }
     }
   }
 

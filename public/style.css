@@ -718,6 +718,34 @@ body.auth-ok .login-gate {
   opacity: 0.4;
 }
 .login-gate-btn img, .login-gate-btn svg { width: 22px; height: 22px; flex-shrink: 0; }
+.login-gate-more-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.login-gate-more-chevron {
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--text-faint);
+  border-bottom: 2px solid var(--text-faint);
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+}
+.login-gate-more-toggle.expanded .login-gate-more-chevron { transform: rotate(-135deg); }
+.login-gate-buttons-extra {
+  margin-top: 10px;
+  overflow: hidden;
+}
 .login-gate-error {
   margin-top: 14px;
   padding: 8px 10px;
