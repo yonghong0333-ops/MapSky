@@ -61,14 +61,15 @@
       </div>
     </header>
 
+    <!-- Hero 不做成一張浮在深色底上的卡片，直接讓整頁的天空漸層（見
+         .browser-gate 的 background）當背景，圖示後面加一圈暖色光暈，
+         像陽光——這個頁面在介紹天氣 App，背景本身用天空表達，比放一張
+         獨立的漸層卡片更貼題。 -->
     <div class="browser-gate-hero">
-      <div class="browser-gate-hero-banner">
-        <img class="browser-gate-hero-icon" src="icons/logo-dark.png" alt="" />
-        <div class="browser-gate-hero-text">
-          <span class="browser-gate-hero-eyebrow">MapSky</span>
-          <span class="browser-gate-hero-title">把天氣帶在身上</span>
-        </div>
-      </div>
+      <div class="browser-gate-hero-glow" aria-hidden="true"></div>
+      <img class="browser-gate-hero-icon" src="icons/logo-dark.png" alt="" />
+      <span class="browser-gate-hero-title">把天氣，帶在身上</span>
+      <span class="browser-gate-hero-tagline">資料來自中央氣象署，即時更新，永久免費。</span>
     </div>
 
     <section id="browserGateNews" class="browser-gate-section">
@@ -96,60 +97,62 @@
            瀏覽器點過去也只會看到同一頁的手機版畫面，等於連去一個死路。所以
            這兩張做成純資訊用的卡片，不是連結，底下註明「請用電腦開啟本頁」。 -->
       <div class="browser-gate-platforms">
-        <a href="/#browserGateDownload" target="_blank" rel="noopener" class="browser-gate-platform-card" data-platform-link="ios">
+        <a href="/#browserGateDownload" target="_blank" rel="noopener" class="browser-gate-platform-pill is-active" data-platform-link="ios">
           <span class="browser-gate-platform-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-3.014 1.57-.12 0-.23-.02-.3-.03-.014-.1-.04-.4-.04-.7 0-1.14.572-2.27 1.207-2.98.81-.94 2.16-1.64 3.28-1.68.03.24.044.35.044.74zm4.396 16.39c-.24.57-.53 1.13-.87 1.66-.65 1-1.32 1.98-2.38 2-.98.02-1.35-.65-2.51-.65-1.17 0-1.57.63-2.48.67-1.02.05-1.8-1.05-2.46-2.04-1.34-2.02-2.36-5.7-.98-8.19.68-1.24 1.9-2.02 3.23-2.04 1-.02 1.94.68 2.55.68.6 0 1.75-.84 2.95-.72.5.02 1.9.2 2.8 1.53-.07.05-1.67.98-1.65 2.92.02 2.32 2.03 3.09 2.06 3.1z"/></svg>
           </span>
           <span class="browser-gate-platform-label">iOS</span>
         </a>
-        <div class="browser-gate-platform-card browser-gate-platform-card-static" data-platform-link="windows">
+        <span class="browser-gate-platform-pill" data-platform-link="windows">
           <span class="browser-gate-platform-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.1 10.1 4v7H3V5.1zm0 13.8L10.1 20v-7H3v5.9zM10.9 4.9 21 3.5v7.4H10.9V4.9zm0 14.2 10.1 1.4v-7.4H10.9v6z"/></svg>
           </span>
           <span class="browser-gate-platform-label">Windows</span>
-          <span class="browser-gate-platform-note">請用電腦開啟本頁</span>
-        </div>
-        <div class="browser-gate-platform-card browser-gate-platform-card-static" data-platform-link="mac">
+        </span>
+        <span class="browser-gate-platform-pill" data-platform-link="mac">
           <span class="browser-gate-platform-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-3.014 1.57-.12 0-.23-.02-.3-.03-.014-.1-.04-.4-.04-.7 0-1.14.572-2.27 1.207-2.98.81-.94 2.16-1.64 3.28-1.68.03.24.044.35.044.74zm4.396 16.39c-.24.57-.53 1.13-.87 1.66-.65 1-1.32 1.98-2.38 2-.98.02-1.35-.65-2.51-.65-1.17 0-1.57.63-2.48.67-1.02.05-1.8-1.05-2.46-2.04-1.34-2.02-2.36-5.7-.98-8.19.68-1.24 1.9-2.02 3.23-2.04 1-.02 1.94.68 2.55.68.6 0 1.75-.84 2.95-.72.5.02 1.9.2 2.8 1.53-.07.05-1.67.98-1.65 2.92.02 2.32 2.03 3.09 2.06 3.1z"/></svg>
           </span>
           <span class="browser-gate-platform-label">Mac</span>
-          <span class="browser-gate-platform-note">請用電腦開啟本頁</span>
-        </div>
+        </span>
       </div>
+      <!-- Windows／Mac 不能點的原因跟之前一樣（桌面版下載卡是同一份
+           index.html 用螢幕寬度判斷的，沒有獨立網址），這裡共用一行提示，
+           不用每張卡各寫一次「請用電腦開啟本頁」。 -->
+      <p class="browser-gate-platforms-note">Windows／Mac 版請用電腦打開本頁下載</p>
 
       <ul class="browser-gate-feature-list">
         <li class="browser-gate-feature-item">
           <span class="browser-gate-feature-icon" aria-hidden="true">📍</span>
-          <div>
+          <div class="browser-gate-feature-copy">
             <h3 class="browser-gate-feature-title">自動定位</h3>
             <p class="browser-gate-feature-desc">GPS 自動抓出你所在的行政區，也能自己選縣市查看任何地方的天氣。</p>
           </div>
         </li>
         <li class="browser-gate-feature-item">
           <span class="browser-gate-feature-icon" aria-hidden="true">🌦️</span>
-          <div>
+          <div class="browser-gate-feature-copy">
             <h3 class="browser-gate-feature-title">完整天氣資訊</h3>
             <p class="browser-gate-feature-desc">溫度、體感溫度、降雨機率、紫外線指數、風速，一次看完不用切來切去。</p>
           </div>
         </li>
         <li class="browser-gate-feature-item">
           <span class="browser-gate-feature-icon" aria-hidden="true">⚠️</span>
-          <div>
+          <div class="browser-gate-feature-copy">
             <h3 class="browser-gate-feature-title">警特報即時提醒</h3>
             <p class="browser-gate-feature-desc">颱風、豪雨等中央氣象署警特報，有生效中的警報會自動顯示在畫面上。</p>
           </div>
         </li>
         <li class="browser-gate-feature-item">
           <span class="browser-gate-feature-icon" aria-hidden="true">🏝️</span>
-          <div>
+          <div class="browser-gate-feature-copy">
             <h3 class="browser-gate-feature-title">動態島與鎖定畫面</h3>
             <p class="browser-gate-feature-desc">iPhone 可以把天氣放上動態島、鎖定畫面小工具，一眼瞄到不用解鎖。</p>
           </div>
         </li>
         <li class="browser-gate-feature-item">
           <span class="browser-gate-feature-icon" aria-hidden="true">🔔</span>
-          <div>
+          <div class="browser-gate-feature-copy">
             <h3 class="browser-gate-feature-title">推播通知</h3>
             <p class="browser-gate-feature-desc">重要公告跟天氣提醒會直接推播到手機，不用一直自己打開來看。</p>
           </div>
