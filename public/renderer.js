@@ -3812,12 +3812,76 @@ document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
 
 // 工具分頁裡的每個項目，點下去就直接切去對應的分頁（這些分頁本來就存在，
 // 工具分頁只是一個統整入口，不是彈出選單了）。
-document.querySelectorAll(".tools-menu-item").forEach((item) => {
+document.querySelectorAll(".tools-menu-item[data-tab]").forEach((item) => {
   item.addEventListener("click", () => {
     document.querySelector(`.tab-btn[data-tab="${item.dataset.tab}"]`).click();
     document.querySelector(".main").scrollTo({ top: 0, behavior: "smooth" });
   });
 });
+
+// ==================== 即時閃電地圖 ====================
+// 資料來源是 /api/weather/lightning（api/_lib/cwa.js 打氣象署 O-A0039-001
+// KMZ 解析出來的），畫面是原生的 Apple Map（MapKit），網頁只負責「抓資料→
+// 丟給原生端」，自己不畫地圖。原生端開著的時候，每隔一段時間自動重新抓一次
+// 更新畫面；原生端的「重新整理」按鈕按下去，也是發通知請網頁重新抓一次，
+// 網頁完全不碰網路以外的事都交給 LightningMapPlugin（見該 Swift 檔開頭註解）。
+let lightningMapOpen = false;
+let lightningMapRefreshTimer = null;
+const LIGHTNING_MAP_AUTO_REFRESH_MS = 2 * 60 * 1000; // 氣象署這份資料本身約 1 分鐘更新一次，2 分鐘輪詢夠用，不用太頻繁
+
+async function fetchLightningData() {
+  const resp = await fetch("/api/weather/lightning");
+  const data = await resp.json();
+  if (!data.ok) throw new Error(data.reason || "查詢閃電資料失敗");
+  return data;
+}
+
+async function openLightningMap() {
+  if (!window.MapSkyNative?.isNative) {
+    setStatus("即時閃電地圖僅支援 iOS App，網頁版無法使用");
+    return;
+  }
+  const { LightningMap } = window.Capacitor?.Plugins || {};
+  if (!LightningMap) return;
+  try {
+    const data = await fetchLightningData();
+    await LightningMap.show({ strikes: data.strikes, updatedAt: data.updatedAt });
+    lightningMapOpen = true;
+    if (lightningMapRefreshTimer) clearInterval(lightningMapRefreshTimer);
+    lightningMapRefreshTimer = setInterval(refreshLightningMap, LIGHTNING_MAP_AUTO_REFRESH_MS);
+  } catch (e) {
+    setStatus("載入閃電資料失敗，請稍後再試");
+  }
+}
+
+async function refreshLightningMap() {
+  if (!lightningMapOpen) return;
+  const { LightningMap } = window.Capacitor?.Plugins || {};
+  if (!LightningMap) return;
+  try {
+    const data = await fetchLightningData();
+    await LightningMap.update({ strikes: data.strikes, updatedAt: data.updatedAt });
+  } catch (e) {
+    // 輪詢更新失敗就算了，維持畫面上原本的資料，下一次輪詢再試
+  }
+}
+
+const lightningMapBtn = el("lightningMapBtn");
+if (lightningMapBtn) {
+  lightningMapBtn.addEventListener("click", openLightningMap);
+}
+
+if (window.Capacitor?.Plugins?.LightningMap) {
+  const { LightningMap } = window.Capacitor.Plugins;
+  LightningMap.addListener("refreshRequested", refreshLightningMap);
+  LightningMap.addListener("closed", () => {
+    lightningMapOpen = false;
+    if (lightningMapRefreshTimer) {
+      clearInterval(lightningMapRefreshTimer);
+      lightningMapRefreshTimer = null;
+    }
+  });
+}
 
 // ==================== 冒險分頁：動態島 ====================
 // ---------- 動態島(Dynamic Island)天氣卡片 ----------
