@@ -733,6 +733,7 @@ body.auth-ok .login-gate {
   font-weight: 600;
   cursor: pointer;
 }
+.login-gate-more-toggle.hidden { display: none; }
 .login-gate-more-chevron {
   width: 7px;
   height: 7px;
@@ -746,6 +747,7 @@ body.auth-ok .login-gate {
   margin-top: 10px;
   overflow: hidden;
 }
+.login-gate-buttons-extra.hidden { display: none; }
 .login-gate-error {
   margin-top: 14px;
   padding: 8px 10px;
