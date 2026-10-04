@@ -3827,13 +3827,32 @@ document.querySelectorAll(".tools-menu-item[data-tab]").forEach((item) => {
 // 網頁完全不碰網路以外的事都交給 LightningMapPlugin（見該 Swift 檔開頭註解）。
 let lightningMapOpen = false;
 let lightningMapRefreshTimer = null;
-const LIGHTNING_MAP_AUTO_REFRESH_MS = 2 * 60 * 1000; // 氣象署這份資料本身約 1 分鐘更新一次，2 分鐘輪詢夠用，不用太頻繁
+
+// 原生端右下角選單目前能選的圖層，"lightning" 是預設開啟的那個。雷達回波
+// 圖更新比閃電慢很多（氣象署約 10 分鐘一張），輪詢間隔分開算，不跟閃電
+// 共用同一個 2 分鐘。
+let currentMapLayer = "lightning";
+const LIGHTNING_MAP_AUTO_REFRESH_MS = 2 * 60 * 1000; // 閃電：氣象署這份資料約 1 分鐘更新一次
+const RADAR_MAP_AUTO_REFRESH_MS = 5 * 60 * 1000; // 雷達回波：約 10 分鐘更新一次，5 分鐘輪詢夠用
 
 async function fetchLightningData() {
   const resp = await fetch("/api/weather/lightning");
   const data = await resp.json();
   if (!data.ok) throw new Error(data.reason || "查詢閃電資料失敗");
   return data;
+}
+
+async function fetchRadarData() {
+  const resp = await fetch("/api/weather/lightning?layer=radar");
+  const data = await resp.json();
+  if (!data.ok) throw new Error(data.reason || "查詢雷達回波資料失敗");
+  return data;
+}
+
+function restartMapAutoRefresh() {
+  if (lightningMapRefreshTimer) clearInterval(lightningMapRefreshTimer);
+  const intervalMs = currentMapLayer === "radar" ? RADAR_MAP_AUTO_REFRESH_MS : LIGHTNING_MAP_AUTO_REFRESH_MS;
+  lightningMapRefreshTimer = setInterval(refreshLightningMap, intervalMs);
 }
 
 async function openLightningMap() {
@@ -3847,8 +3866,8 @@ async function openLightningMap() {
     const data = await fetchLightningData();
     await LightningMap.show({ strikes: data.strikes, updatedAt: data.updatedAt });
     lightningMapOpen = true;
-    if (lightningMapRefreshTimer) clearInterval(lightningMapRefreshTimer);
-    lightningMapRefreshTimer = setInterval(refreshLightningMap, LIGHTNING_MAP_AUTO_REFRESH_MS);
+    currentMapLayer = "lightning";
+    restartMapAutoRefresh();
   } catch (e) {
     setStatus("載入閃電資料失敗，請稍後再試");
   }
@@ -3859,8 +3878,15 @@ async function refreshLightningMap() {
   const { LightningMap } = window.Capacitor?.Plugins || {};
   if (!LightningMap) return;
   try {
-    const data = await fetchLightningData();
-    await LightningMap.update({ strikes: data.strikes, updatedAt: data.updatedAt });
+    if (currentMapLayer === "radar") {
+      const data = await fetchRadarData();
+      if (data.imageUrl && data.bounds) {
+        await LightningMap.setRadar({ imageUrl: data.imageUrl, bounds: data.bounds, updatedAt: data.updatedAt });
+      }
+    } else {
+      const data = await fetchLightningData();
+      await LightningMap.update({ strikes: data.strikes, updatedAt: data.updatedAt });
+    }
   } catch (e) {
     // 輪詢更新失敗就算了，維持畫面上原本的資料，下一次輪詢再試
   }
@@ -3874,6 +3900,13 @@ if (lightningMapBtn) {
 if (window.Capacitor?.Plugins?.LightningMap) {
   const { LightningMap } = window.Capacitor.Plugins;
   LightningMap.addListener("refreshRequested", refreshLightningMap);
+  // 使用者在原生端右下角選單切換圖層：立刻照新圖層抓一次資料塞回去，不用
+  // 等下一次輪詢（不然選了雷達回波可能要空等快 5 分鐘才有畫面）。
+  LightningMap.addListener("layerChanged", async ({ layer }) => {
+    currentMapLayer = layer === "radar" ? "radar" : "lightning";
+    restartMapAutoRefresh();
+    await refreshLightningMap();
+  });
   LightningMap.addListener("closed", () => {
     lightningMapOpen = false;
     if (lightningMapRefreshTimer) {
