@@ -23,6 +23,7 @@ const WEEKLY_FORECAST_DATA_ID = "F-D0047-091"; // 全臺各縣市未來1週逐12
 const OBSERVATION_DATA_ID = "O-A0003-001"; // 氣象觀測站 10 分鐘綜觀氣象資料（現在天氣觀測報告：即時風速、即時紫外線指數）
 const DIALAMOON_BASE = "https://svs.gsfc.nasa.gov/api/dialamoon"; // NASA SVS 月相圖 API
 const LIGHTNING_DATA_ID = "O-A0039-001"; // 即時雷擊資料（對地／雲間），約每 1 分鐘更新一次
+const RADAR_DATA_ID = "O-A0058-001"; // 雷達整合回波圖（台灣較大範圍、無地形），約每 10 分鐘更新一次
 
 const CWA_CITIES = [
   "臺北市", "新北市", "桃園市", "臺中市", "臺南市", "高雄市",
@@ -681,6 +682,52 @@ async function getLightning({ forceRefresh = false } = {}) {
   return { ok: true, ...payload, cached: false };
 }
 
+// ---------- 雷達整合回波圖 (O-A0058-001) ----------
+// 這份資料不是 KMZ，是一般的 JSON（氣象署的 cwaopendata 信封格式），裡面
+// resource.ProductURL 指向實際的 PNG 圖檔（存在氣象署自己的 S3），
+// datasetInfo.parameterSet 裡的 LongitudeRange／LatitudeRange 是那張圖
+// 涵蓋的地理範圍，格式是 "最小值-最大值" 的字串（例如 "115.00-126.50"）。
+// 這支只負責查「圖在哪裡、範圍多大」，不負責下載圖片本身——圖片本身交給
+// 原生端自己拿網址去下載（見 LightningMapViewController.setRadar()），
+// 不透過這支 API、也不透過 JS bridge 傳 base64，省流量跟記憶體。
+function parseRange(rangeStr) {
+  if (!rangeStr) return null;
+  const parts = String(rangeStr).split("-").map(Number);
+  if (parts.length !== 2 || !Number.isFinite(parts[0]) || !Number.isFinite(parts[1])) return null;
+  return { min: parts[0], max: parts[1] };
+}
+
+async function getRadarComposite({ forceRefresh = false } = {}) {
+  const apiKey = getApiKey();
+  if (!apiKey) return { ok: false, reason: "no-api-key" };
+  if (!forceRefresh) {
+    const cached = readCache("radar");
+    if (cached) return { ok: true, ...cached, cached: true };
+  }
+  const url = buildFileApiUrl(RADAR_DATA_ID, apiKey, "JSON");
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const json = await resp.json();
+  const dataset = json?.cwaopendata?.dataset;
+  const imageUrl = dataset?.resource?.ProductURL;
+  if (!imageUrl) throw new Error("回應裡沒有 ProductURL");
+
+  const paramSet = dataset?.datasetInfo?.parameterSet;
+  const lonRange = parseRange(paramSet?.LongitudeRange);
+  const latRange = parseRange(paramSet?.LatitudeRange);
+  const bounds = lonRange && latRange
+    ? { west: lonRange.min, east: lonRange.max, south: latRange.min, north: latRange.max }
+    : null;
+
+  const payload = {
+    imageUrl,
+    bounds,
+    updatedAt: dataset?.DateTime || json?.cwaopendata?.sent || new Date().toISOString(),
+  };
+  writeCache("radar", payload);
+  return { ok: true, ...payload, cached: false };
+}
+
 // ---------- 目前月相圖（NASA SVS Dial-A-Moon）----------
 // 直接把 NASA 提供的圖片原封不動轉發出去，不做去背處理。
 const MOON_PHASE_CACHE_TTL_MS = 30 * 60 * 1000; // NASA 圖每小時才換一張，30 分鐘夠用
@@ -892,5 +939,6 @@ module.exports = {
   getMoonPhaseImage,
   getUvIndexObservation,
   getLightning,
+  getRadarComposite,
   getCacheStatus,
 };
