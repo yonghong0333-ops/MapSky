@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const { PROVIDERS, redirectUriFor } = require("../_lib/providers");
+const { resolveLoginIdentity } = require("../_lib/identity");
 const { parseCookies, serializeCookie } = require("../_lib/cookies");
 const { sign, verify } = require("../_lib/jwt");
 const { getRedisClient } = require("../_lib/redis-client");
@@ -182,10 +183,14 @@ async function handleEmailVerify(req, res) {
       console.error("magic-link consume check failed", e.message);
     }
 
-    const sessionToken = sign({
-      provider: "email",
-      profile: { id: payload.email, name: payload.email, avatarUrl: null },
-    });
+    // profile.email 特地跟 id 填一樣的值（本來 id 就是 email 本身）：
+    // resolveLoginIdentity() 統一看 profile.email 欄位來比對，這裡補上
+    // 才會跟其他 OAuth 供應商走同一套邏輯——如果這個信箱之前已經用
+    // Google／Facebook 之類的方式登入過，這次會直接沿用那組帳號，暱稱、
+    // 大頭貼都還在，不會變成一個全新的空帳號。
+    const magicLinkProfile = { id: payload.email, name: payload.email, avatarUrl: null, email: payload.email };
+    const resolved = await resolveLoginIdentity("email", magicLinkProfile);
+    const sessionToken = sign({ provider: resolved.provider, profile: resolved.profile });
     res.setHeader("Set-Cookie", serializeCookie("nexora_session", sessionToken, { maxAge: 60 * 60 * 24 * 7 }));
 
     // 同時也準備一組交換碼，嘗試把這次登入轉交給原生 App——跟 OAuth 登入
@@ -302,7 +307,31 @@ module.exports = async function handler(req, res) {
     const profileJson = await profResp.json();
     const profile = provider.mapProfile(profileJson);
 
-    const token = sign({ provider: providerId, profile });
+    // GitHub 的 /user 這支 API 的 email 欄位常常是 null（使用者沒有把信箱
+    // 設成公開），就算 scope 有 user:email 也一樣要另外打 /user/emails
+    // 才拿得到；這裡只抓「primary 且 verified」那一筆，拿不到就算了，不
+    // 擋登入，只是這次沒有 email 可以跟其他登入方式比對而已。
+    if (providerId === "github" && !profile.email) {
+      try {
+        const emailsResp = await fetch("https://api.github.com/user/emails", {
+          headers: { Authorization: `Bearer ${accessToken}`, "User-Agent": "MapSky" },
+        });
+        if (emailsResp.ok) {
+          const emails = await emailsResp.json();
+          const primary = Array.isArray(emails) ? emails.find((e) => e.primary && e.verified) : null;
+          if (primary) profile.email = primary.email;
+        }
+      } catch (e) {
+        console.error("GitHub /user/emails 查詢失敗", e.message);
+      }
+    }
+
+    // 這個信箱如果之前已經用別的登入方式（或同一個供應商的 email magic
+    // link）登入過，這裡會直接沿用那組帳號的 provider/id，暱稱、大頭貼
+    // 這些既有資料才找得到；沒有 email 可查的話（例如 Facebook 使用者
+    // 沒給 email 權限）就跟以前一樣維持獨立帳號，不受影響。
+    const resolved = await resolveLoginIdentity(providerId, profile);
+    const token = sign({ provider: resolved.provider, profile: resolved.profile });
 
     // 清掉這次登入流程用的一次性 cookie，不管是不是桌面版都要清，避免留著
     // 被下一次登入流程誤用。oauth_state 只移除這一筆，其他還在進行中的登入流程保留。
