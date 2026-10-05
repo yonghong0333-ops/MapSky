@@ -187,8 +187,42 @@ async function handleEmailVerify(req, res) {
       profile: { id: payload.email, name: payload.email, avatarUrl: null },
     });
     res.setHeader("Set-Cookie", serializeCookie("nexora_session", sessionToken, { maxAge: 60 * 60 * 24 * 7 }));
-    res.writeHead(302, { Location: "/?login=success" });
-    return res.end();
+
+    // 同時也準備一組交換碼，嘗試把這次登入轉交給原生 App——跟 OAuth 登入
+    // 原生殼那條路是同一套機制（storeExchangeCode／
+    // mapsky://login-complete?xchg=...，原生那邊已經有現成的處理，不用
+    // 另外寫）。差別是 OAuth 一開始就知道是不是從 App 發起的登入，Magic
+    // Link 是從信箱點進來的，不知道使用者現在是在手機瀏覽器還是哪裡打開
+    // 這個連結，所以兩條路都準備好：先嘗試用 mapsky:// 打開 App，打不開
+    // （沒裝 App）的話，短暫延遲後自動退回網頁版——這個分頁本身已經設好
+    // cookie 了，退回網頁一樣是登入完成的狀態，不是重新來一次。
+    let xchg = null;
+    try {
+      xchg = await storeExchangeCode(sessionToken);
+    } catch (e) {
+      console.error("magic-link storeExchangeCode failed", e.message);
+    }
+    if (!xchg) {
+      res.writeHead(302, { Location: "/?login=success" });
+      return res.end();
+    }
+
+    const appUrl = `mapsky://login-complete?xchg=${encodeURIComponent(xchg)}`;
+    const appHtml = `<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>登入 MapSky</title></head>
+<body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:80px auto;padding:0 24px;text-align:center;color:#1f2937">
+<h2>登入成功</h2>
+<p style="color:#6b7280;line-height:1.7">正在為您打開 MapSky App…<br>如果手機上沒有安裝 App，幾秒後會自動改用網頁版繼續。</p>
+<p style="margin-top:20px;"><a href="/?login=success" style="color:#1d4ed8;text-decoration:underline;">或按這裡直接用網頁版繼續</a></p>
+<script>
+  window.location.href = ${JSON.stringify(appUrl)};
+  setTimeout(function () { window.location.href = "/?login=success"; }, 1200);
+</script>
+</body></html>`;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(200).send(appHtml);
   }
 
   // GET：先看看是不是已經被消費過了（例如掃描器已經點過、或使用者自己
