@@ -245,6 +245,28 @@
         <span class="login-gate-more-chevron" aria-hidden="true"></span>
       </button>
       <div id="loginGateButtonsExtra" class="login-gate-buttons login-gate-buttons-extra hidden"></div>
+
+      <!-- Magic Link（Email 驗證連結）登入：跟上面 OAuth 按鈕是平行的另一種
+           登入方式，不用先綁 Google／Facebook 等帳號，純用信箱收一封帶
+           登入連結的信。送出後進入 60 秒冷卻，按鈕上直接倒數，避免重複
+           點擊洗信箱；實際邏輯在 web-shim.js 的 initMagicLinkForm()。 -->
+      <div class="login-gate-divider" role="separator"><span>或</span></div>
+      <form id="loginGateMagicForm" class="login-gate-magic-form">
+        <input
+          type="email"
+          id="loginGateMagicEmail"
+          class="login-gate-magic-input"
+          placeholder="輸入 Email 取得登入連結"
+          autocomplete="email"
+          inputmode="email"
+          required
+        />
+        <button type="submit" id="loginGateMagicSubmit" class="login-gate-btn login-gate-magic-submit">
+          <span id="loginGateMagicSubmitLabel">寄送登入連結</span>
+        </button>
+      </form>
+      <p id="loginGateMagicHint" class="login-gate-magic-hint hidden"></p>
+
       <p id="loginGateError" class="login-gate-error hidden"></p>
       <p class="login-gate-legal">登入即代表您同意<a href="/terms" target="_blank" rel="noopener">服務條款</a></p>
     </div>

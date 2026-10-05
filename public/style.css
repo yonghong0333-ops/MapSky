@@ -718,6 +718,66 @@ body.auth-ok .login-gate {
   opacity: 0.4;
 }
 .login-gate-btn img, .login-gate-btn svg { width: 22px; height: 22px; flex-shrink: 0; }
+
+/* Magic Link（Email 驗證連結）登入 —— 跟上面 OAuth 按鈕中間用一條「或」
+   分隔，樣式上盡量跟按鈕群組一致（同樣寬度、同樣間距），讓它看起來是
+   「另一種平行的登入方式」，不是硬加上去的附加功能。 */
+.login-gate-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+.login-gate-divider::before,
+.login-gate-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--input-border);
+}
+.login-gate-magic-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.login-gate-magic-input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text-main);
+  font-size: 14px;
+  box-sizing: border-box;
+}
+.login-gate-magic-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.login-gate-magic-submit {
+  width: 100%;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+.login-gate-magic-submit::after { border-color: rgba(255, 255, 255, 0.85); }
+.login-gate-magic-submit:hover { background: var(--accent-hover); }
+.login-gate-magic-submit[disabled] {
+  opacity: 0.7;
+  cursor: default;
+  transform: none;
+}
+.login-gate-magic-hint {
+  margin-top: 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  text-align: center;
+}
+.login-gate-magic-hint-error { color: #d64545; }
 .login-gate-more-toggle {
   display: flex;
   align-items: center;

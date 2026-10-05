@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 const { PROVIDERS, redirectUriFor } = require("../_lib/providers");
 const { parseCookies, serializeCookie } = require("../_lib/cookies");
-const { sign } = require("../_lib/jwt");
+const { sign, verify } = require("../_lib/jwt");
 const { getRedisClient } = require("../_lib/redis-client");
 
 // 桌面殼登入完成後不能直接把 session cookie 設在系統瀏覽器上（桌面殼看不到），
@@ -84,6 +84,14 @@ const LOGIN_ERROR_TEXT = {
     why: "登入資料不完整。",
     tips: ["請回到 MapSky 重新按一次登入。"],
   },
+  "magic-link-invalid": {
+    why: "這組登入連結已經過期或不是有效的連結。",
+    tips: ["Email 驗證連結 15 分鐘後會自動失效，請回到 MapSky 重新寄一次。", "請確認點的是信件裡完整的連結，不是被信箱軟體截斷過的網址。"],
+  },
+  "magic-link-used": {
+    why: "這組登入連結已經用過了。",
+    tips: ["Email 驗證連結只能用一次，如果已經登入成功，直接關掉這個分頁就好；還沒登入的話請回到 MapSky 重新寄一次。"],
+  },
 };
 
 function sendLoginError(res, code) {
@@ -132,7 +140,48 @@ function parseStateEntries(raw) {
     .filter((e) => /^[0-9a-f]{32}(~d)?$/.test(e));
 }
 
+// Magic Link 驗證收尾：跟 OAuth 登入完全共用最後一步（同一個 sign()、
+// 同一個 nexora_session cookie、同樣 302 回首頁）——對這個 App 其餘部分
+// （後台管理權限判斷、會員 ID、個人資料、推播訂閱…全部都是看
+// `${provider}:${profile.id}` 這把 key）來說，Magic Link 登入進來的使用者
+// 就是 provider 是 "email"、id 是信箱本身的一個普通帳號，不用另外改任何
+// 地方配合。email 沒有大頭貼、暱稱預設用信箱——使用者登入後可以在設定頁
+// 照一般流程自己改。
+async function handleEmailVerify(req, res) {
+  const token = req.query.token;
+  const payload = token && verify(String(token));
+  if (!payload || payload.purpose !== "magic-link" || !payload.email) {
+    return sendLoginError(res, "magic-link-invalid");
+  }
+
+  // 單次有效：驗證成功就在 Redis 標記這個 token 用過，防止信件被轉寄或
+  // 連結外流後重複使用。沒接 Redis 的環境（本機開發）就跳過這層，只靠
+  // 15 分鐘的到期時間擋，不影響正常登入。
+  try {
+    const client = await getRedisClient();
+    if (client) {
+      const usedKey = `magiclink:used:${token}`;
+      if (await client.get(usedKey)) return sendLoginError(res, "magic-link-used");
+      await client.set(usedKey, "1", { EX: 900 });
+    }
+  } catch (e) {
+    console.error("magic-link consume check failed", e.message);
+  }
+
+  const sessionToken = sign({
+    provider: "email",
+    profile: { id: payload.email, name: payload.email, avatarUrl: null },
+  });
+  res.setHeader("Set-Cookie", serializeCookie("nexora_session", sessionToken, { maxAge: 60 * 60 * 24 * 7 }));
+  res.writeHead(302, { Location: "/?login=success" });
+  res.end();
+}
+
 module.exports = async function handler(req, res) {
+  if (req.query.provider === "email") {
+    return handleEmailVerify(req, res);
+  }
+
   const providerId = req.query.provider;
   const provider = PROVIDERS[providerId];
   const cookies = parseCookies(req);

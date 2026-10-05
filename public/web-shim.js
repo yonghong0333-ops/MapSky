@@ -1695,6 +1695,94 @@
     }
   }
 
+  // ---------------- Magic Link（Email 驗證連結）登入 ----------------
+  // 送出信箱 → 打 /api/auth/login?provider=email（POST）→ 後端寄信，信裡
+  // 的連結是 /api/auth/callback?provider=email&token=...，使用者點信、
+  // 瀏覽器直接打開那支網址，跟 OAuth 登入完成後一樣是 302 導回 /、帶著
+  // nexora_session cookie——這一步本身不用前端另外處理，使用者點信就
+  // 完成登入了，這支函式只負責「送出信箱、顯示寄送結果、60 秒冷卻」。
+  const MAGIC_LINK_COOLDOWN_SECONDS = 60;
+  let magicLinkCooldownTimer = null;
+
+  function setMagicLinkHint(text, isError) {
+    const hintEl = el("loginGateMagicHint");
+    if (!hintEl) return;
+    if (!text) {
+      hintEl.classList.add("hidden");
+      hintEl.textContent = "";
+      return;
+    }
+    hintEl.textContent = text;
+    hintEl.classList.remove("hidden");
+    hintEl.classList.toggle("login-gate-magic-hint-error", Boolean(isError));
+  }
+
+  function startMagicLinkCooldown(submitBtn, labelEl) {
+    let remaining = MAGIC_LINK_COOLDOWN_SECONDS;
+    submitBtn.disabled = true;
+    const tick = () => {
+      labelEl.textContent = `${remaining} 秒後可再寄送`;
+      if (remaining <= 0) {
+        clearInterval(magicLinkCooldownTimer);
+        magicLinkCooldownTimer = null;
+        submitBtn.disabled = false;
+        labelEl.textContent = "寄送登入連結";
+        return;
+      }
+      remaining -= 1;
+    };
+    tick();
+    magicLinkCooldownTimer = setInterval(tick, 1000);
+  }
+
+  function initMagicLinkForm() {
+    const form = el("loginGateMagicForm");
+    const emailInput = el("loginGateMagicEmail");
+    const submitBtn = el("loginGateMagicSubmit");
+    const labelEl = el("loginGateMagicSubmitLabel");
+    if (!form || !emailInput || !submitBtn || !labelEl || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (submitBtn.disabled) return; // 冷卻中，不用等 API 擋，前端先擋一層
+      const email = emailInput.value.trim();
+      if (!email) return;
+
+      submitBtn.disabled = true;
+      labelEl.textContent = "寄送中…";
+      setMagicLinkHint("");
+
+      try {
+        const resp = await fetch("/api/auth/login?provider=email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok && data.ok) {
+          setMagicLinkHint(`登入連結已經寄到 ${email}，記得檢查垃圾郵件匣。`, false);
+          startMagicLinkCooldown(submitBtn, labelEl);
+        } else if (resp.status === 429) {
+          setMagicLinkHint("剛寄過了，請稍等一下再試一次。", true);
+          startMagicLinkCooldown(submitBtn, labelEl);
+        } else if (data.reason === "invalid-email") {
+          setMagicLinkHint("這個 Email 格式怪怪的，請確認後再試一次。", true);
+          submitBtn.disabled = false;
+          labelEl.textContent = "寄送登入連結";
+        } else {
+          setMagicLinkHint("寄送失敗，請稍後再試一次。", true);
+          submitBtn.disabled = false;
+          labelEl.textContent = "寄送登入連結";
+        }
+      } catch (err) {
+        setMagicLinkHint("網路連線有問題，請稍後再試一次。", true);
+        submitBtn.disabled = false;
+        labelEl.textContent = "寄送登入連結";
+      }
+    });
+  }
+
   async function initAuthGate() {
     showGateError();
     const statusEl = el("loginGateStatus");
@@ -1787,6 +1875,7 @@
         });
       }
     }
+    initMagicLinkForm();
   }
 
   // 只有登入成功才把真正的功能（renderer.js + 輪詢）載入進來，

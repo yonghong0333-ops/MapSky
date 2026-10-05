@@ -1,7 +1,60 @@
 const crypto = require("crypto");
-const { PROVIDERS, isConfigured, redirectUriFor } = require("../_lib/providers");
+const { PROVIDERS, isConfigured, redirectUriFor, baseUrl } = require("../_lib/providers");
 const { parseCookies, serializeCookie } = require("../_lib/cookies");
 const { getRedisClient } = require("../_lib/redis-client");
+const { sign } = require("../_lib/jwt");
+const { sendMagicLinkEmail } = require("../_lib/mailer");
+
+// Magic Link 登入（Email 驗證連結）—— 寄信這一步放在這支檔案裡，不是另外
+// 開一支 send-magic-link.js：Vercel Hobby 方案一個部署最多 12 支
+// serverless function，這個專案剛好卡在上限，這支本來就是「開始登入」的
+// 地方（OAuth 的導去 authorizeUrl 也是在這支做），語意上也合。對應的
+// 「驗證連結」收尾放在 callback.js，同樣道理（那支本來就是「完成登入」
+// 的地方）。
+//
+// Token 用的是這個專案既有、不另外裝套件的簽章機制（_lib/jwt.js，HMAC-
+// SHA256 + Base64URL，功能上等同簡化版 JWT），секret 沿用既有的
+// SESSION_SECRET 環境變數——不用另外設一個 JWT_SECRET，OAuth 登入本來就
+// 靠這個環境變數簽 session token，Magic Link 只是多一種「怎麼證明這是同一
+// 個人」的方式，簽的還是同一份 session。
+async function handleSendMagicLink(req, res) {
+  let body = req.body;
+  if (typeof body === "string") {
+    try { body = JSON.parse(body); } catch { body = {}; }
+  }
+  const email = String((body && body.email) || "").trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ ok: false, reason: "invalid-email" });
+  }
+
+  // 輕量防洗版：同一個信箱 30 秒內只能重送一次。前端另外有 60 秒冷卻
+  // （擋使用者手快連點），這裡擋的是繞過前端、直接打 API 洗信箱。沒接
+  // Redis 的環境（本機開發）就跳過，不影響寄信本身。
+  let client = null;
+  try {
+    client = await getRedisClient();
+  } catch (e) {
+    client = null;
+  }
+  if (client) {
+    const rateKey = `magiclink:rate:${email}`;
+    if (await client.get(rateKey)) {
+      return res.status(429).json({ ok: false, reason: "too-soon" });
+    }
+    await client.set(rateKey, "1", { EX: 30 });
+  }
+
+  const token = sign({ purpose: "magic-link", email }, { expiresInSeconds: 15 * 60 });
+  const verifyUrl = `${baseUrl(req)}/api/auth/callback?provider=email&token=${encodeURIComponent(token)}`;
+
+  try {
+    await sendMagicLinkEmail(email, verifyUrl);
+  } catch (e) {
+    console.error("sendMagicLinkEmail failed", e.message);
+    return res.status(502).json({ ok: false, reason: "send-failed", message: e.message });
+  }
+  return res.status(200).json({ ok: true });
+}
 
 // 桌面殼登入完成（api/auth/callback.js 換到短效交換碼、導回 mapsky://login-complete?xchg=...）
 // 之後，會回頭呼叫這支帶 xchg 參數，換回真正的 session token。跟改暱稱／
@@ -73,6 +126,9 @@ function sendExchangeError(res, message) {
 }
 
 module.exports = async function handler(req, res) {
+  if (req.method === "POST" && req.query.provider === "email") {
+    return handleSendMagicLink(req, res);
+  }
   if (req.query.xchg !== undefined) {
     return handleDesktopExchange(req, res);
   }
