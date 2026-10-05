@@ -147,6 +147,18 @@ function parseStateEntries(raw) {
 // 就是 provider 是 "email"、id 是信箱本身的一個普通帳號，不用另外改任何
 // 地方配合。email 沒有大頭貼、暱稱預設用信箱——使用者登入後可以在設定頁
 // 照一般流程自己改。
+// ⚠️ 這支拆成 GET／POST 兩步，不是多餘的——Gmail App（還有不少公司信箱的
+// 安全閘道）收到信會自動幫使用者「預先打開」信裡的連結做安全掃描，搶在
+// 使用者自己真的點之前先 GET 一次。如果 GET 就直接消費 token、設 cookie，
+// 掃描器會把 token 用掉，使用者自己點的時候就已經是「這組連結已經用過了」
+// ——這是真實發生過的狀況（不是假設）。拆成兩步之後：
+//   GET  只驗證 token 有效，不消費、不設 cookie，回傳一個「請點這裡繼續」
+//        的中繼頁，頁面載入後用 JS 自動送出下面那個表單。
+//   POST 才是真正消費 token、設 cookie、算登入成功的那一步。安全掃描器
+//        通常只做 GET 預覽、不會執行頁面裡的 JS、更不會自己送出表單，
+//        就不會誤觸發這一步；使用者自己打開頁面才會真的執行 JS、完成登入。
+//   （頁面裡同時留一個手動按鈕當 JS 被瀏覽器擋掉時的備援，按下去一樣是
+//    送出同一個表單，不依賴 JS 一定要能跑。）
 async function handleEmailVerify(req, res) {
   const token = req.query.token;
   const payload = token && verify(String(token));
@@ -154,27 +166,63 @@ async function handleEmailVerify(req, res) {
     return sendLoginError(res, "magic-link-invalid");
   }
 
-  // 單次有效：驗證成功就在 Redis 標記這個 token 用過，防止信件被轉寄或
-  // 連結外流後重複使用。沒接 Redis 的環境（本機開發）就跳過這層，只靠
-  // 15 分鐘的到期時間擋，不影響正常登入。
-  try {
-    const client = await getRedisClient();
-    if (client) {
-      const usedKey = `magiclink:used:${token}`;
-      if (await client.get(usedKey)) return sendLoginError(res, "magic-link-used");
-      await client.set(usedKey, "1", { EX: 900 });
+  const usedKey = `magiclink:used:${token}`;
+
+  if (req.method === "POST") {
+    // 單次有效：真正消費的這一步才標記用過，防止信件被轉寄或連結外流後
+    // 重複使用。沒接 Redis 的環境（本機開發）就跳過這層，只靠 15 分鐘的
+    // 到期時間擋，不影響正常登入。
+    try {
+      const client = await getRedisClient();
+      if (client) {
+        if (await client.get(usedKey)) return sendLoginError(res, "magic-link-used");
+        await client.set(usedKey, "1", { EX: 900 });
+      }
+    } catch (e) {
+      console.error("magic-link consume check failed", e.message);
     }
-  } catch (e) {
-    console.error("magic-link consume check failed", e.message);
+
+    const sessionToken = sign({
+      provider: "email",
+      profile: { id: payload.email, name: payload.email, avatarUrl: null },
+    });
+    res.setHeader("Set-Cookie", serializeCookie("nexora_session", sessionToken, { maxAge: 60 * 60 * 24 * 7 }));
+    res.writeHead(302, { Location: "/?login=success" });
+    return res.end();
   }
 
-  const sessionToken = sign({
-    provider: "email",
-    profile: { id: payload.email, name: payload.email, avatarUrl: null },
-  });
-  res.setHeader("Set-Cookie", serializeCookie("nexora_session", sessionToken, { maxAge: 60 * 60 * 24 * 7 }));
-  res.writeHead(302, { Location: "/?login=success" });
-  res.end();
+  // GET：先看看是不是已經被消費過了（例如掃描器已經點過、或使用者自己
+  // 已經完成登入又重新整理這一頁），是的話直接顯示「已使用過」，不要讓
+  // 使用者又點一次按鈕却還是失敗、搞不清楚狀況。
+  try {
+    const client = await getRedisClient();
+    if (client && (await client.get(usedKey))) {
+      return sendLoginError(res, "magic-link-used");
+    }
+  } catch (e) {
+    console.error("magic-link pre-check failed", e.message);
+  }
+
+  const verifyAction = `/api/auth/callback?provider=email&token=${encodeURIComponent(String(token))}`;
+  const html = `<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>登入 MapSky</title></head>
+<body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:80px auto;padding:0 24px;text-align:center;color:#1f2937">
+<h2>正在登入 MapSky…</h2>
+<p style="color:#6b7280;line-height:1.7">請稍候，如果幾秒內沒有自動繼續，請按下面的按鈕。</p>
+<form id="magicLinkForm" method="POST" action="${verifyAction}">
+  <button type="submit" style="margin-top:16px;padding:12px 28px;background:#1d4ed8;color:#fff;border:0;border-radius:999px;font-size:15px;font-weight:700;">繼續登入</button>
+</form>
+<script>
+  setTimeout(function () {
+    var f = document.getElementById("magicLinkForm");
+    if (f.requestSubmit) f.requestSubmit(); else f.submit();
+  }, 300);
+</script>
+</body></html>`;
+  res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.send(html);
 }
 
 module.exports = async function handler(req, res) {
