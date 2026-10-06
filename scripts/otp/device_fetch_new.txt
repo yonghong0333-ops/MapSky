@@ -1,0 +1,6 @@
+      const resp = await fetch("/api/auth/login?provider=email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ email, deviceId: getOrCreateMagicDeviceId() }),
+      });

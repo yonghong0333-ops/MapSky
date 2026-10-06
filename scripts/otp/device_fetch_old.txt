@@ -1,0 +1,5 @@
+      const resp = await fetch("/api/auth/login?provider=email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
