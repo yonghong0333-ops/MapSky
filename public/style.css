@@ -866,6 +866,100 @@ body.auth-ok .login-gate {
 }
 .login-gate-legal a:hover { text-decoration: underline; }
 
+
+/* ---- Magic Link 寄出後的驗證畫面 ---- */
+.login-gate-verify {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 8px 0 4px;
+}
+.login-gate-verify.hidden { display: none; }
+.login-gate-verify-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(47, 111, 237, 0.12);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.login-gate-verify-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 0 0 8px;
+}
+.login-gate-verify-desc {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  margin: 0 0 4px;
+}
+.login-gate-verify-email {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+  word-break: break-all;
+  margin: 0 0 14px;
+}
+.login-gate-verify-hint {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-faint);
+  margin: 0 0 20px;
+}
+.login-gate-verify-resend {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+.login-gate-verify-resend:hover:not([disabled]) {
+  background: var(--accent-hover);
+}
+.login-gate-verify-resend[disabled] {
+  opacity: 0.55;
+  cursor: default;
+  background: rgba(47, 111, 237, 0.45);
+  border-color: transparent;
+}
+.login-gate-verify-back {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.login-gate-verify-back:hover {
+  color: var(--accent);
+}
+
+/* 進入驗證畫面時，隱藏原本的登入選項區塊 */
+.login-gate-card.is-verifying .login-gate-status,
+.login-gate-card.is-verifying .login-gate-buttons,
+.login-gate-card.is-verifying .login-gate-more-toggle,
+.login-gate-card.is-verifying .login-gate-buttons-extra,
+.login-gate-card.is-verifying .login-gate-divider,
+.login-gate-card.is-verifying .login-gate-magic-form,
+.login-gate-card.is-verifying .login-gate-magic-hint,
+.login-gate-card.is-verifying .login-gate-error {
+  display: none !important;
+}
+
 /* Sidebar */
 .sidebar {
   width: 270px;

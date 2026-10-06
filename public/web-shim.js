@@ -1703,6 +1703,7 @@
   // 完成登入了，這支函式只負責「送出信箱、顯示寄送結果、60 秒冷卻」。
   const MAGIC_LINK_COOLDOWN_SECONDS = 60;
   let magicLinkCooldownTimer = null;
+  let magicLinkLastEmail = "";
 
   function setMagicLinkHint(text, isError) {
     const hintEl = el("loginGateMagicHint");
@@ -1717,20 +1718,25 @@
     hintEl.classList.toggle("login-gate-magic-hint-error", Boolean(isError));
   }
 
-  function startMagicLinkCooldown(submitBtn, labelEl) {
+  function setMagicSubmitIdle(submitBtn, labelEl) {
+    if (!submitBtn || !labelEl) return;
+    labelEl.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
+    submitBtn.setAttribute("aria-label", "寄送登入連結");
+    submitBtn.setAttribute("title", "寄送登入連結");
+    submitBtn.disabled = false;
+  }
+
+  function startMagicLinkCooldown(onTick) {
     let remaining = MAGIC_LINK_COOLDOWN_SECONDS;
-    submitBtn.disabled = true;
+    if (magicLinkCooldownTimer) {
+      clearInterval(magicLinkCooldownTimer);
+      magicLinkCooldownTimer = null;
+    }
     const tick = () => {
-      labelEl.innerHTML = remaining > 0 ? String(remaining) : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
-      submitBtn.setAttribute("aria-label", remaining > 0 ? `${remaining} 秒後可再寄送` : "寄送登入連結");
-      submitBtn.setAttribute("title", remaining > 0 ? `${remaining} 秒後可再寄送` : "寄送登入連結");
+      if (typeof onTick === "function") onTick(remaining);
       if (remaining <= 0) {
         clearInterval(magicLinkCooldownTimer);
         magicLinkCooldownTimer = null;
-        submitBtn.disabled = false;
-        labelEl.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
-        submitBtn.setAttribute("aria-label", "寄送登入連結");
-        submitBtn.setAttribute("title", "寄送登入連結");
         return;
       }
       remaining -= 1;
@@ -1739,60 +1745,136 @@
     magicLinkCooldownTimer = setInterval(tick, 1000);
   }
 
+  function showMagicLinkVerifyPanel(email) {
+    const card = document.querySelector(".login-gate-card");
+    const panel = el("loginGateVerifyPanel");
+    const emailEl = el("loginGateVerifyEmail");
+    const resendBtn = el("loginGateVerifyResend");
+    const resendLabel = el("loginGateVerifyResendLabel");
+    if (!panel) return;
+
+    magicLinkLastEmail = email || magicLinkLastEmail;
+    if (emailEl) emailEl.textContent = magicLinkLastEmail;
+    if (card) card.classList.add("is-verifying");
+    panel.classList.remove("hidden");
+
+    if (resendBtn && resendLabel) {
+      resendBtn.disabled = true;
+      startMagicLinkCooldown((remaining) => {
+        if (remaining > 0) {
+          resendBtn.disabled = true;
+          resendLabel.textContent = `${remaining} 秒後可再寄送`;
+        } else {
+          resendBtn.disabled = false;
+          resendLabel.textContent = "再寄一次登入連結";
+        }
+      });
+    }
+  }
+
+  function hideMagicLinkVerifyPanel() {
+    const card = document.querySelector(".login-gate-card");
+    const panel = el("loginGateVerifyPanel");
+    if (card) card.classList.remove("is-verifying");
+    if (panel) panel.classList.add("hidden");
+  }
+
+  async function sendMagicLink(email, { fromVerifyPanel } = {}) {
+    const submitBtn = el("loginGateMagicSubmit");
+    const labelEl = el("loginGateMagicSubmitLabel");
+    const resendBtn = el("loginGateVerifyResend");
+    const resendLabel = el("loginGateVerifyResendLabel");
+
+    if (submitBtn) submitBtn.disabled = true;
+    if (labelEl) {
+      labelEl.innerHTML = "…";
+      submitBtn.setAttribute("aria-label", "寄送中…");
+      submitBtn.setAttribute("title", "寄送中…");
+    }
+    if (fromVerifyPanel && resendBtn && resendLabel) {
+      resendBtn.disabled = true;
+      resendLabel.textContent = "寄送中…";
+    }
+    if (!fromVerifyPanel) setMagicLinkHint("");
+
+    try {
+      const resp = await fetch("/api/auth/login?provider=email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && data.ok) {
+        showMagicLinkVerifyPanel(email);
+        return true;
+      } else if (resp.status === 429) {
+        showMagicLinkVerifyPanel(email);
+        return true;
+      } else if (data.reason === "invalid-email") {
+        if (fromVerifyPanel) hideMagicLinkVerifyPanel();
+        setMagicLinkHint("這個 Email 格式怪怪的，請確認後再試一次。", true);
+        setMagicSubmitIdle(submitBtn, labelEl);
+        return false;
+      } else {
+        if (fromVerifyPanel && resendBtn && resendLabel) {
+          resendBtn.disabled = false;
+          resendLabel.textContent = "再寄一次登入連結";
+        }
+        setMagicLinkHint("寄送失敗，請稍後再試一次。", true);
+        setMagicSubmitIdle(submitBtn, labelEl);
+        return false;
+      }
+    } catch (err) {
+      if (fromVerifyPanel && resendBtn && resendLabel) {
+        resendBtn.disabled = false;
+        resendLabel.textContent = "再寄一次登入連結";
+      }
+      setMagicLinkHint("網路連線有問題，請稍後再試一次。", true);
+      setMagicSubmitIdle(submitBtn, labelEl);
+      return false;
+    }
+  }
+
   function initMagicLinkForm() {
     const form = el("loginGateMagicForm");
     const emailInput = el("loginGateMagicEmail");
     const submitBtn = el("loginGateMagicSubmit");
     const labelEl = el("loginGateMagicSubmitLabel");
+    const resendBtn = el("loginGateVerifyResend");
+    const backBtn = el("loginGateVerifyBack");
     if (!form || !emailInput || !submitBtn || !labelEl || form.dataset.bound) return;
     form.dataset.bound = "1";
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      if (submitBtn.disabled) return; // 冷卻中，不用等 API 擋，前端先擋一層
+      if (submitBtn.disabled) return;
       const email = emailInput.value.trim();
       if (!email) return;
-
-      submitBtn.disabled = true;
-      labelEl.innerHTML = "…";
-      submitBtn.setAttribute("aria-label", "寄送中…");
-      submitBtn.setAttribute("title", "寄送中…");
-      setMagicLinkHint("");
-
-      try {
-        const resp = await fetch("/api/auth/login?provider=email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
-        const data = await resp.json().catch(() => ({}));
-        if (resp.ok && data.ok) {
-          setMagicLinkHint(`登入連結已經寄到 ${email}，記得檢查垃圾郵件匣。`, false);
-          startMagicLinkCooldown(submitBtn, labelEl);
-        } else if (resp.status === 429) {
-          setMagicLinkHint("剛寄過了，請稍等一下再試一次。", true);
-          startMagicLinkCooldown(submitBtn, labelEl);
-        } else if (data.reason === "invalid-email") {
-          setMagicLinkHint("這個 Email 格式怪怪的，請確認後再試一次。", true);
-          submitBtn.disabled = false;
-          labelEl.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
-        submitBtn.setAttribute("aria-label", "寄送登入連結");
-        submitBtn.setAttribute("title", "寄送登入連結");
-        } else {
-          setMagicLinkHint("寄送失敗，請稍後再試一次。", true);
-          submitBtn.disabled = false;
-          labelEl.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
-        submitBtn.setAttribute("aria-label", "寄送登入連結");
-        submitBtn.setAttribute("title", "寄送登入連結");
-        }
-      } catch (err) {
-        setMagicLinkHint("網路連線有問題，請稍後再試一次。", true);
-        submitBtn.disabled = false;
-        labelEl.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
-        submitBtn.setAttribute("aria-label", "寄送登入連結");
-        submitBtn.setAttribute("title", "寄送登入連結");
-      }
+      await sendMagicLink(email, { fromVerifyPanel: false });
     });
+
+    if (resendBtn && !resendBtn.dataset.bound) {
+      resendBtn.dataset.bound = "1";
+      resendBtn.addEventListener("click", async () => {
+        if (resendBtn.disabled) return;
+        const email = magicLinkLastEmail || (emailInput && emailInput.value.trim());
+        if (!email) return;
+        await sendMagicLink(email, { fromVerifyPanel: true });
+      });
+    }
+
+    if (backBtn && !backBtn.dataset.bound) {
+      backBtn.dataset.bound = "1";
+      backBtn.addEventListener("click", () => {
+        if (magicLinkCooldownTimer) {
+          clearInterval(magicLinkCooldownTimer);
+          magicLinkCooldownTimer = null;
+        }
+        hideMagicLinkVerifyPanel();
+        setMagicSubmitIdle(submitBtn, labelEl);
+        setMagicLinkHint("");
+      });
+    }
   }
 
   async function initAuthGate() {
