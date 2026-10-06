@@ -172,14 +172,8 @@ async function handleEmailVerify(req, res) {
   }
 
   const usedKey = `magiclink:used:${token}`;
-  const cookieDevice = String(parseCookies(req).mapsky_ml_device || "");
-  const boundDeviceId = payload.deviceId ? String(payload.deviceId) : "";
-  const isSameDevice = !boundDeviceId || (cookieDevice && cookieDevice === boundDeviceId);
 
   if (req.method === "POST") {
-    if (!isSameDevice) {
-      return sendLoginError(res, "magic-link-device-mismatch");
-    }
     // 單次有效：真正消費的這一步才標記用過，防止信件被轉寄或連結外流後
     // 重複使用。沒接 Redis 的環境（本機開發）就跳過這層，只靠 15 分鐘的
     // 到期時間擋，不影響正常登入。
@@ -252,31 +246,6 @@ async function handleEmailVerify(req, res) {
     console.error("magic-link pre-check failed", e.message);
   }
 
-  if (!isSameDevice) {
-    // OTP is entered inside MapSky app only, not in the browser.
-    const emailSafe = String(payload.email).replace(/[<>&"']/g, "");
-    const appHint = `mapsky://login-otp?email=${encodeURIComponent(payload.email)}`;
-    const webHint = `/?need_otp=1&email=${encodeURIComponent(payload.email)}`;
-    const html = `<!doctype html>
-<html lang="zh-Hant"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>請回到 MapSky</title></head>
-<body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:60px auto;padding:0 24px;text-align:center;color:#1f2937">
-<h2 style="margin-bottom:8px;">請回到 MapSky 完成驗證</h2>
-<p style="color:#6b7280;line-height:1.7;">這不是當初申請登入的裝置，無法直接用連結登入。<br>
-請打開 <strong>MapSky</strong>，在登入畫面輸入寄到 <strong>${emailSafe}</strong> 的 <strong>6 位數驗證碼</strong>。</p>
-<p style="margin-top:24px;">
-  <a href="${appHint}" style="display:inline-block;padding:14px 28px;background:#1d4ed8;color:#fff;border-radius:999px;text-decoration:none;font-weight:700;">打開 MapSky</a>
-</p>
-<p style="margin-top:16px;font-size:13px;"><a href="${webHint}" style="color:#1d4ed8;">或在網頁版繼續輸入驗證碼</a></p>
-<script>
-  setTimeout(function () { window.location.href = ${JSON.stringify(appHint)}; }, 400);
-</script>
-</body></html>`;
-    res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.send(html);
-  }
-
   const verifyAction = `/api/auth/callback?provider=email&token=${encodeURIComponent(String(token))}`;
   const html = `<!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8">
@@ -284,7 +253,7 @@ async function handleEmailVerify(req, res) {
 <title>登入 MapSky</title></head>
 <body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:80px auto;padding:0 24px;text-align:center;color:#1f2937">
 <h2>正在登入 MapSky…</h2>
-<p style="color:#6b7280;line-height:1.7">已確認為同一裝置，請稍候。</p>
+<p style="color:#6b7280;line-height:1.7">請稍候，如果幾秒內沒有自動繼續，請按下面的按鈕。</p>
 <form id="magicLinkForm" method="POST" action="${verifyAction}">
   <button type="submit" style="margin-top:16px;padding:12px 28px;background:#1d4ed8;color:#fff;border:0;border-radius:999px;font-size:15px;font-weight:700;">繼續登入</button>
 </form>
