@@ -2,12 +2,10 @@
 //
 // 1. 超級管理員：寫在 Vercel 環境變數 ADMIN_IDS 裡，格式是「provider:id」
 //    用逗號分隔，例如：facebook:1234567890,google:987654321
-//    這一層是寫死的白名單，只能去 Vercel 後台改，App 本身沒有任何功能可以
-//    新增/移除超級管理員，也不能把超級管理員踢掉——這是最高權限、誰都動不了。
+//    也支援 email:you@example.com（Email 登入身分）。
+//    這一層是寫死的白名單，只能去 Vercel 後台改。
 //
-// 2. 一般管理員：存在 Redis（Vercel 透過 Upstash Marketplace 整合接的）裡，
-//    可以在 App 的後台管理分頁直接指派、也可以直接踢除，不用改環境變數、
-//    不用重新部署。只有超級管理員能指派/踢除一般管理員。
+// 2. 一般管理員：存在 Redis 裡，可在後台指派／踢除。
 
 const { getRedisClient } = require("./redis-client");
 
@@ -26,9 +24,20 @@ function sessionKey(payload) {
 }
 
 function isSuperAdminSession(payload) {
+  const admins = getSuperAdminIds();
   const key = sessionKey(payload);
-  if (!key) return false;
-  return getSuperAdminIds().includes(key);
+  if (key && admins.includes(key)) return true;
+  // Email 登入或身分被 email 蓋過時，也用信箱比對（ADMIN_IDS 可寫 email:xxx）
+  const email = payload && payload.profile && payload.profile.email
+    ? String(payload.profile.email).trim().toLowerCase()
+    : "";
+  if (email && admins.includes(`email:${email}`)) return true;
+  // 若 session 本身就是 email provider，id 就是信箱
+  if (payload && payload.provider === "email" && payload.profile && payload.profile.id) {
+    const idEmail = String(payload.profile.id).trim().toLowerCase();
+    if (admins.includes(`email:${idEmail}`)) return true;
+  }
+  return false;
 }
 
 async function getDynamicAdmins() {
@@ -49,7 +58,16 @@ async function isAdminSession(payload) {
   const key = sessionKey(payload);
   if (!key) return false;
   const dynamicAdmins = await getDynamicAdmins();
-  return dynamicAdmins.some((a) => a.key === key);
+  if (dynamicAdmins.some((a) => a.key === key)) return true;
+  // 動態管理員也支援用 email 對上（若 id 是信箱）
+  const email = payload && payload.profile && payload.profile.email
+    ? String(payload.profile.email).trim().toLowerCase()
+    : "";
+  if (email) {
+    const emailKey = `email:${email}`;
+    if (dynamicAdmins.some((a) => a.key === emailKey)) return true;
+  }
+  return false;
 }
 
 async function addDynamicAdmin({ provider, id, name }) {
@@ -61,7 +79,7 @@ async function addDynamicAdmin({ provider, id, name }) {
   }
   const list = await getDynamicAdmins();
   if (list.some((a) => a.key === key)) {
-    return list; // 已經是管理員了，不重複加
+    return list;
   }
   const next = [...list, { key, provider, id, name: name || id, addedAt: new Date().toISOString() }];
   await client.set(REDIS_ADMIN_LIST_KEY, JSON.stringify(next));
