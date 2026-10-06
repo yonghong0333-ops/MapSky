@@ -4353,3 +4353,23 @@ body.auth-ok .login-gate.login-gate--booting {
   border: 1px solid rgba(92, 225, 255, 0.15);
   box-shadow: 0 8px 28px rgba(20, 40, 90, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.2) inset;
 }
+
+.current-forecast-btn {
+  width: 100%;
+  margin-top: 4px;
+  padding: 12px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(92, 225, 255, 0.4);
+  background: rgba(6, 18, 42, 0.35);
+  color: #e6f9ff;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(92, 225, 255, 0.12);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.current-forecast-btn:active {
+  background: rgba(92, 225, 255, 0.12);
+}
