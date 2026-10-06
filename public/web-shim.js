@@ -1745,18 +1745,42 @@
     magicLinkCooldownTimer = setInterval(tick, 1000);
   }
 
+
+  function isMobileLoginDevice() {
+    const ua = navigator.userAgent || "";
+    if (window.appInfo && window.appInfo.isNativeApp) return true;
+    if (/iPhone|iPod|Android.+Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua)) return true;
+    if (/iPad|Tablet/i.test(ua)) return true;
+    const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+    const narrow = window.matchMedia && window.matchMedia("(max-width: 900px)").matches;
+    return Boolean(coarse && narrow);
+  }
+
   function showMagicLinkVerifyPanel(email) {
     const card = document.querySelector(".login-gate-card");
     const panel = el("loginGateVerifyPanel");
     const emailEl = el("loginGateVerifyEmail");
     const resendBtn = el("loginGateVerifyResend");
     const resendLabel = el("loginGateVerifyResendLabel");
+    const mobileHint = el("loginGateVerifyMobileHint");
+    const otpBlock = el("loginGateVerifyOtpBlock");
+    const otpInput = el("loginGateVerifyOtpInput");
+    const otpError = el("loginGateVerifyOtpError");
     if (!panel) return;
 
     magicLinkLastEmail = email || magicLinkLastEmail;
     if (emailEl) emailEl.textContent = magicLinkLastEmail;
     if (card) card.classList.add("is-verifying");
     panel.classList.remove("hidden");
+
+    const mobile = isMobileLoginDevice();
+    if (mobileHint) mobileHint.classList.toggle("hidden", !mobile);
+    if (otpBlock) otpBlock.classList.toggle("hidden", mobile);
+    if (otpError) { otpError.classList.add("hidden"); otpError.textContent = ""; }
+    if (otpInput && !mobile) {
+      otpInput.value = "";
+      setTimeout(() => otpInput.focus(), 50);
+    }
 
     if (resendBtn && resendLabel) {
       resendBtn.disabled = true;
@@ -1766,7 +1790,7 @@
           resendLabel.textContent = `${remaining} 秒後可再寄送`;
         } else {
           resendBtn.disabled = false;
-          resendLabel.textContent = "再寄一次登入連結";
+          resendLabel.textContent = "再寄一次";
         }
       });
     }
@@ -1861,6 +1885,54 @@
         if (!email) return;
         await sendMagicLink(email, { fromVerifyPanel: true });
       });
+    }
+
+
+    const otpForm = el("loginGateVerifyOtpForm");
+    const otpInput = el("loginGateVerifyOtpInput");
+    const otpError = el("loginGateVerifyOtpError");
+    const otpSubmit = el("loginGateVerifyOtpSubmit");
+    if (otpForm && !otpForm.dataset.bound) {
+      otpForm.dataset.bound = "1";
+      otpForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!otpInput) return;
+        const code = String(otpInput.value || "").replace(/\D/g, "").slice(0, 6);
+        const email = magicLinkLastEmail || (emailInput && emailInput.value.trim());
+        if (!email || code.length !== 6) {
+          if (otpError) { otpError.textContent = "請輸入信件中的 6 位數驗證碼"; otpError.classList.remove("hidden"); }
+          return;
+        }
+        if (otpSubmit) otpSubmit.disabled = true;
+        if (otpError) otpError.classList.add("hidden");
+        try {
+          const resp = await fetch("/api/auth/login?provider=email&action=verify-code", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ email, code }),
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (resp.ok && data.ok) {
+            window.location.href = "/?login=success";
+            return;
+          }
+          let msg = "驗證碼不正確，請再試一次";
+          if (data.reason === "wrong-code") msg = "驗證碼不正確或已過期";
+          else if (data.reason === "invalid-code") msg = "請輸入 6 位數字驗證碼";
+          else if (data.reason === "otp-unavailable") msg = "驗證服務暫時無法使用，請稍後再試";
+          if (otpError) { otpError.textContent = msg; otpError.classList.remove("hidden"); }
+        } catch (err) {
+          if (otpError) { otpError.textContent = "網路連線有問題，請稍後再試"; otpError.classList.remove("hidden"); }
+        } finally {
+          if (otpSubmit) otpSubmit.disabled = false;
+        }
+      });
+      if (otpInput) {
+        otpInput.addEventListener("input", () => {
+          otpInput.value = otpInput.value.replace(/\D/g, "").slice(0, 6);
+        });
+      }
     }
 
     if (backBtn && !backBtn.dataset.bound) {
