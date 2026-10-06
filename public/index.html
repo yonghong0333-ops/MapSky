@@ -272,7 +272,7 @@
       <p id="loginGateMagicHint" class="login-gate-magic-hint hidden"></p>
 
       <!-- 寄出 Magic Link 後切換到此畫面，引導使用者去查收信箱 -->
-      <div id="loginGateVerifyPanel" class="login-gate-verify hidden">
+            <div id="loginGateVerifyPanel" class="login-gate-verify hidden">
         <div class="login-gate-verify-icon" aria-hidden="true">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <rect x="2" y="4" width="20" height="16" rx="3"/>
@@ -280,17 +280,27 @@
           </svg>
         </div>
         <h2 class="login-gate-verify-title">請查收您的信箱</h2>
-        <p class="login-gate-verify-desc">我們已把登入連結寄到</p>
+        <p class="login-gate-verify-desc">我們已把登入資訊寄到</p>
         <p id="loginGateVerifyEmail" class="login-gate-verify-email"></p>
-        <p class="login-gate-verify-hint">點開信件中的連結即可完成登入。<br/>若沒看到，請檢查垃圾郵件匣。</p>
-        <button type="button" id="loginGateVerifyResend" class="login-gate-verify-resend" disabled>
+        <div id="loginGateVerifyMobileHint" class="login-gate-verify-hint">
+          請用<strong>同一支手機</strong>打開信件，點「登入 MapSky」即可完成登入。<br/>
+          若沒看到，請檢查垃圾郵件匣。
+        </div>
+        <div id="loginGateVerifyOtpBlock" class="login-gate-verify-otp hidden">
+          <p class="login-gate-verify-hint">請輸入信件中的 <strong>6 位數驗證碼</strong></p>
+          <form id="loginGateVerifyOtpForm" class="login-gate-verify-otp-form" autocomplete="one-time-code">
+            <input type="text" id="loginGateVerifyOtpInput" class="login-gate-verify-otp-input" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" aria-label="6 位數驗證碼" required />
+            <button type="submit" id="loginGateVerifyOtpSubmit" class="login-gate-verify-resend">驗證並登入</button>
+          </form>
+          <p id="loginGateVerifyOtpError" class="login-gate-verify-otp-error hidden"></p>
+        </div>
+        <button type="button" id="loginGateVerifyResend" class="login-gate-verify-resend login-gate-verify-resend-secondary" disabled>
           <span id="loginGateVerifyResendLabel">60 秒後可再寄送</span>
         </button>
         <button type="button" id="loginGateVerifyBack" class="login-gate-verify-back">使用其他登入方式</button>
       </div>
 
-
-      <p id="loginGateError" class="login-gate-error hidden"></p>
+<p id="loginGateError" class="login-gate-error hidden"></p>
       <p class="login-gate-legal">登入即代表您同意<a href="/terms" target="_blank" rel="noopener">服務條款</a></p>
     </div>
   </div>

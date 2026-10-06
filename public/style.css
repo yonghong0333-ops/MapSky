@@ -960,6 +960,27 @@ body.auth-ok .login-gate {
   display: none !important;
 }
 
+
+.login-gate-verify-otp { width: 100%; margin-bottom: 12px; }
+.login-gate-verify-otp.hidden { display: none; }
+.login-gate-verify-otp-form { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 6px; }
+.login-gate-verify-otp-input {
+  width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--input-border);
+  background: var(--input-bg); color: var(--text-main); font-size: 22px; font-weight: 800;
+  letter-spacing: 0.35em; text-align: center; box-sizing: border-box;
+}
+.login-gate-verify-otp-input:focus { outline: none; border-color: var(--accent); }
+.login-gate-verify-otp-error { margin-top: 8px; font-size: 12.5px; color: #d64545; text-align: center; }
+.login-gate-verify-otp-error.hidden { display: none; }
+.login-gate-verify-resend-secondary {
+  margin-top: 8px; background: transparent !important; color: var(--accent) !important;
+  border: 1px solid var(--accent) !important;
+}
+.login-gate-verify-resend-secondary[disabled] {
+  opacity: 0.5; color: var(--text-muted) !important; border-color: var(--input-border) !important;
+}
+#loginGateVerifyMobileHint.hidden { display: none; }
+
 /* Sidebar */
 .sidebar {
   width: 270px;

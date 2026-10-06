@@ -3,6 +3,7 @@ const { PROVIDERS, isConfigured, redirectUriFor, baseUrl } = require("../_lib/pr
 const { parseCookies, serializeCookie } = require("../_lib/cookies");
 const { getRedisClient } = require("../_lib/redis-client");
 const { sign } = require("../_lib/jwt");
+const { resolveLoginIdentity } = require("../_lib/identity");
 const { sendMagicLinkEmail } = require("../_lib/mailer");
 
 // Magic Link 登入（Email 驗證連結）—— 寄信這一步放在這支檔案裡，不是另外
@@ -44,15 +45,51 @@ async function handleSendMagicLink(req, res) {
     await client.set(rateKey, "1", { EX: 30 });
   }
 
+  const otpCode = String(crypto.randomInt(100000, 999999));
+  if (client) {
+    await client.set(`magiclink:otp:${email}`, otpCode, { EX: 15 * 60 });
+  }
+
   const token = sign({ purpose: "magic-link", email }, { expiresInSeconds: 15 * 60 });
   const verifyUrl = `${baseUrl(req)}/api/auth/callback?provider=email&token=${encodeURIComponent(token)}`;
 
   try {
-    await sendMagicLinkEmail(email, verifyUrl);
+    await sendMagicLinkEmail(email, verifyUrl, otpCode);
   } catch (e) {
     console.error("sendMagicLinkEmail failed", e.message);
     return res.status(502).json({ ok: false, reason: "send-failed", message: e.message });
   }
+  return res.status(200).json({ ok: true });
+}
+
+async function handleVerifyOtp(req, res) {
+  let body = req.body;
+  if (typeof body === "string") {
+    try { body = JSON.parse(body); } catch { body = {}; }
+  }
+  const email = String((body && body.email) || "").trim().toLowerCase();
+  const code = String((body && body.code) || "").trim();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ ok: false, reason: "invalid-email" });
+  }
+  if (!/^\d{6}$/.test(code)) {
+    return res.status(400).json({ ok: false, reason: "invalid-code" });
+  }
+  let client = null;
+  try { client = await getRedisClient(); } catch (e) { client = null; }
+  if (!client) {
+    return res.status(503).json({ ok: false, reason: "otp-unavailable" });
+  }
+  const otpKey = `magiclink:otp:${email}`;
+  const stored = await client.get(otpKey);
+  if (!stored || stored !== code) {
+    return res.status(401).json({ ok: false, reason: "wrong-code" });
+  }
+  await client.del(otpKey);
+  const magicLinkProfile = { id: email, name: email, avatarUrl: null, email };
+  const resolved = await resolveLoginIdentity("email", magicLinkProfile);
+  const sessionToken = sign({ provider: resolved.provider, profile: resolved.profile });
+  res.setHeader("Set-Cookie", serializeCookie("nexora_session", sessionToken, { maxAge: 60 * 60 * 24 * 7 }));
   return res.status(200).json({ ok: true });
 }
 
@@ -127,6 +164,9 @@ function sendExchangeError(res, message) {
 
 module.exports = async function handler(req, res) {
   if (req.method === "POST" && req.query.provider === "email") {
+    if (req.query.action === "verify-code") {
+      return handleVerifyOtp(req, res);
+    }
     return handleSendMagicLink(req, res);
   }
   if (req.query.xchg !== undefined) {
