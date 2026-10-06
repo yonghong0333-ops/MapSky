@@ -1704,6 +1704,25 @@
   const MAGIC_LINK_COOLDOWN_SECONDS = 60;
   let magicLinkCooldownTimer = null;
   let magicLinkLastEmail = "";
+  const MAGIC_DEVICE_KEY = "mapsky_ml_device_id";
+  function getOrCreateMagicDeviceId() {
+    try {
+      let id = localStorage.getItem(MAGIC_DEVICE_KEY);
+      if (id && /^[A-Za-z0-9_-]{8,64}$/.test(id)) return id;
+      if (window.crypto && crypto.randomUUID) {
+        id = crypto.randomUUID().replace(/-/g, "");
+      } else {
+        id = "d" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      }
+      id = String(id).slice(0, 32);
+      localStorage.setItem(MAGIC_DEVICE_KEY, id);
+      return id;
+    } catch (e) {
+      return "fallback" + String(Date.now()).slice(-10);
+    }
+  }
+
+
 
   function setMagicLinkHint(text, isError) {
     const hintEl = el("loginGateMagicHint");
@@ -1825,7 +1844,8 @@
       const resp = await fetch("/api/auth/login?provider=email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        credentials: "same-origin",
+        body: JSON.stringify({ email, deviceId: getOrCreateMagicDeviceId() }),
       });
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data.ok) {

@@ -89,6 +89,10 @@ const LOGIN_ERROR_TEXT = {
     why: "這組登入連結已經過期或不是有效的連結。",
     tips: ["Email 驗證連結 15 分鐘後會自動失效，請回到 MapSky 重新寄一次。", "請確認點的是信件裡完整的連結，不是被信箱軟體截斷過的網址。"],
   },
+  "magic-link-device-mismatch": {
+    title: "請改用驗證碼",
+    message: "這不是當初申請登入的裝置。請回到原本的裝置點連結，或輸入信中的 6 位數驗證碼。",
+  },
   "magic-link-used": {
     why: "這組登入連結已經用過了。",
     tips: ["Email 驗證連結只能用一次，如果已經登入成功，直接關掉這個分頁就好；還沒登入的話請回到 MapSky 重新寄一次。"],
@@ -168,8 +172,14 @@ async function handleEmailVerify(req, res) {
   }
 
   const usedKey = `magiclink:used:${token}`;
+  const cookieDevice = String(parseCookies(req).mapsky_ml_device || "");
+  const boundDeviceId = payload.deviceId ? String(payload.deviceId) : "";
+  const isSameDevice = !boundDeviceId || (cookieDevice && cookieDevice === boundDeviceId);
 
   if (req.method === "POST") {
+    if (!isSameDevice) {
+      return sendLoginError(res, "magic-link-device-mismatch");
+    }
     // 單次有效：真正消費的這一步才標記用過，防止信件被轉寄或連結外流後
     // 重複使用。沒接 Redis 的環境（本機開發）就跳過這層，只靠 15 分鐘的
     // 到期時間擋，不影響正常登入。
@@ -242,6 +252,47 @@ async function handleEmailVerify(req, res) {
     console.error("magic-link pre-check failed", e.message);
   }
 
+  if (!isSameDevice) {
+    const emailSafe = String(payload.email).replace(/[<>&"']/g, "");
+    const otpHtml = `<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>輸入驗證碼 - MapSky</title></head>
+<body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:60px auto;padding:0 24px;text-align:center;color:#1f2937">
+<h2 style="margin-bottom:8px;">請輸入驗證碼</h2>
+<p style="color:#6b7280;line-height:1.7;">偵測到這不是當初申請登入的裝置。<br>請輸入寄到 <strong>${emailSafe}</strong> 的 6 位數驗證碼。</p>
+<form id="otpForm" style="margin-top:20px;">
+  <input id="otpInput" type="text" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code"
+    style="width:100%;box-sizing:border-box;padding:14px 16px;font-size:24px;font-weight:800;letter-spacing:0.35em;text-align:center;border:1px solid #d1d5db;border-radius:12px;" />
+  <button type="submit" id="otpBtn" style="margin-top:14px;width:100%;padding:14px 0;background:#1d4ed8;color:#fff;border:0;border-radius:999px;font-size:15px;font-weight:700;">驗證並登入</button>
+</form>
+<p id="otpErr" style="color:#b3261e;font-size:13px;margin-top:12px;min-height:1.2em;"></p>
+<script>
+(function(){
+  var form=document.getElementById("otpForm"),input=document.getElementById("otpInput"),btn=document.getElementById("otpBtn"),err=document.getElementById("otpErr");
+  var email=${JSON.stringify(payload.email)};
+  input.addEventListener("input",function(){input.value=input.value.replace(/\D/g,"").slice(0,6);});
+  form.addEventListener("submit",async function(e){
+    e.preventDefault();
+    var code=(input.value||"").replace(/\D/g,"").slice(0,6);
+    if(code.length!==6){err.textContent="請輸入 6 位數字驗證碼";return;}
+    btn.disabled=true;err.textContent="";
+    try{
+      var resp=await fetch("/api/auth/login?provider=email&action=verify-code",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({email:email,code:code})});
+      var data=await resp.json().catch(function(){return{};});
+      if(resp.ok&&data.ok){window.location.href="/?login=success";return;}
+      err.textContent=data.reason==="wrong-code"?"驗證碼不正確或已過期":"驗證失敗，請再試一次";
+    }catch(ex){err.textContent="網路連線有問題，請稍後再試";}
+    finally{btn.disabled=false;}
+  });
+  setTimeout(function(){input.focus();},100);
+})();
+</script>
+</body></html>`;
+    res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.send(otpHtml);
+  }
+
   const verifyAction = `/api/auth/callback?provider=email&token=${encodeURIComponent(String(token))}`;
   const html = `<!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8">
@@ -249,7 +300,7 @@ async function handleEmailVerify(req, res) {
 <title>登入 MapSky</title></head>
 <body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:80px auto;padding:0 24px;text-align:center;color:#1f2937">
 <h2>正在登入 MapSky…</h2>
-<p style="color:#6b7280;line-height:1.7">請稍候，如果幾秒內沒有自動繼續，請按下面的按鈕。</p>
+<p style="color:#6b7280;line-height:1.7">已確認為同一裝置，請稍候。</p>
 <form id="magicLinkForm" method="POST" action="${verifyAction}">
   <button type="submit" style="margin-top:16px;padding:12px 28px;background:#1d4ed8;color:#fff;border:0;border-radius:999px;font-size:15px;font-weight:700;">繼續登入</button>
 </form>
