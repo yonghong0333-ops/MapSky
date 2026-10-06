@@ -2068,7 +2068,7 @@
       if (loginGateBootSafetyTimer) clearTimeout(loginGateBootSafetyTimer);
       loginGateBootSafetyTimer = setTimeout(function () {
         try { endLoginGateBoot(); } catch (e) {}
-      }, 20000);
+      }, 30000);
       if (!session.profile.onboarded) showOnboarding(session);
       const slot = el("settingsAccountSlot");
       if (slot) {

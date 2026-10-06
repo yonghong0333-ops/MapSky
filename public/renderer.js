@@ -538,7 +538,6 @@ async function selectCity(label) {
   if (cached) {
     // 有舊資料：先直接顯示，不擋畫面，背景再悄悄刷新
     renderWeather(cached);
-    notifyWeatherDataReady();
     setStatus("資料更新中…");
   } else {
     // 第一次查這個縣市，還沒有任何資料可以先顯示，只好等
@@ -552,23 +551,29 @@ async function selectCity(label) {
     saveCityWeatherCache();
     if (currentCity && currentCity.label === label) {
       renderWeather(location);
-      notifyWeatherDataReady();
       setStatus("更新完成");
     }
   } catch (e) {
     if (currentCity && currentCity.label === label) {
       // 有舊資料可以顯示的話，刷新失敗就默默保留舊畫面就好，不用跳錯誤嚇使用者
       setStatus(cached ? "更新完成（顯示上次資料）" : `取得天氣資料失敗：${e.message}`);
-      notifyWeatherDataReady();
     }
   }
 
-  loadSunTimes(label);
-  loadMoonTimes(label);
-  loadWindObservation(label);
-  loadUvIndex(label);
-  loadMoonPhaseImage();
-  loadWeeklyForecast(label);
+  // 等主天氣 + 日出日落／月相／風／紫外線／一週預報都跑完，再通知關閉開機轉圈
+  try {
+    await Promise.allSettled([
+      loadSunTimes(label),
+      loadMoonTimes(label),
+      loadWindObservation(label),
+      loadUvIndex(label),
+      Promise.resolve(loadMoonPhaseImage()),
+      loadWeeklyForecast(label),
+    ]);
+  } catch (e) {}
+  if (currentCity && currentCity.label === label) {
+    notifyWeatherDataReady();
+  }
 }
 
 // ---------------- 日出／日落 ----------------
