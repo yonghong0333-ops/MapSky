@@ -2118,36 +2118,28 @@
       return;
     }
 
-    // 未登入：把主畫面繼續擋著，只在登入畫面上顯示可用的登入方式。
-    // 預設只露出 Google／Facebook 兩個，其他的收起來，點「更多登入方式」
-    // 才展開——同一批 providers，只是依 id 分成兩組渲染，按鈕本身
-    // （buildGateButtons）完全沒變。
+    // 未登入：把主畫面繼續擋著，只在登入畫面上顯示全部登入方式（不再用「更多／收起」）。
     endLoginGateBoot();
     if (statusEl) {
       statusEl.textContent = "";
       statusEl.classList.remove("login-gate-status--loading");
     }
+    // 順序：Google、Facebook 在前，其餘照 providers 原順序接在後面
     const primaryIds = ["google", "facebook"];
-    const primaryProviders = providers.filter((p) => primaryIds.includes(p.id));
-    const extraProviders = providers.filter((p) => !primaryIds.includes(p.id));
+    const primaryProviders = (providers || []).filter((p) => primaryIds.includes(p.id));
+    const extraProviders = (providers || []).filter((p) => !primaryIds.includes(p.id));
+    const allProviders = primaryProviders.concat(extraProviders);
     if (buttonsEl) {
-      buttonsEl.innerHTML = buildGateButtons(primaryProviders);
+      buttonsEl.innerHTML = buildGateButtons(allProviders);
       buttonsEl.classList.remove("hidden");
     }
     const extraEl = el("loginGateButtonsExtra");
     const moreToggle = el("loginGateMoreToggle");
-    if (extraEl && moreToggle && extraProviders.length > 0) {
-      extraEl.innerHTML = buildGateButtons(extraProviders);
-      moreToggle.classList.remove("hidden");
-      if (!moreToggle.dataset.bound) {
-        moreToggle.dataset.bound = "1";
-        moreToggle.addEventListener("click", () => {
-          const expanded = moreToggle.classList.toggle("expanded");
-          extraEl.classList.toggle("hidden", !expanded);
-          moreToggle.querySelector("span").textContent = expanded ? "收起" : "更多登入方式";
-        });
-      }
+    if (extraEl) {
+      extraEl.innerHTML = "";
+      extraEl.classList.add("hidden");
     }
+    if (moreToggle) moreToggle.classList.add("hidden");
     initMagicLinkForm();
     maybeOpenOtpFromQuery();
   }
