@@ -1,0 +1,18 @@
+name: Fix cross-device OTP
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/otp/fix_cross_device_otp.py
+      - name: Commit
+        run: |
+          git config user.name "MapSky Bot"
+          git config user.email "bot@mapsky.local"
+          git add api/_lib/mailer.js api/auth/login.js api/auth/callback.js public/web-shim.js
+          git commit -m "fix(auth): cross-device shows OTP; code included in email again" || echo "no changes"
+          git push origin HEAD:main
