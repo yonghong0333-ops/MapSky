@@ -232,10 +232,15 @@
 
   <div id="loginGate" class="login-gate login-gate--booting">
     <div id="loginGateBoot" class="login-gate-boot" role="status" aria-live="polite">
-      <div class="login-gate-boot-orbit" aria-hidden="true">
-        <span class="login-gate-boot-ring"></span>
-        <span class="login-gate-boot-ring login-gate-boot-ring--delay"></span>
-        <img class="login-gate-boot-logo" src="icons/logo-dark.png" alt="" />
+      <div class="login-gate-boot-weather" aria-hidden="true">
+        <img class="login-gate-boot-wx is-active" src="icons/sunny.png" alt="" data-wx="sunny" />
+        <img class="login-gate-boot-wx" src="icons/partly-cloudy.png" alt="" data-wx="partly" />
+        <img class="login-gate-boot-wx" src="icons/overcast.png" alt="" data-wx="overcast" />
+        <img class="login-gate-boot-wx" src="icons/drizzle.png" alt="" data-wx="drizzle" />
+        <img class="login-gate-boot-wx" src="icons/rain.png" alt="" data-wx="rain" />
+        <img class="login-gate-boot-wx" src="icons/thunderstorm.png" alt="" data-wx="storm" />
+        <img class="login-gate-boot-wx" src="icons/sunrise.png" alt="" data-wx="sunrise" />
+        <img class="login-gate-boot-wx" src="icons/sunset.png" alt="" data-wx="sunset" />
       </div>
       <p class="login-gate-boot-text">正在確認登入狀態…</p>
     </div>

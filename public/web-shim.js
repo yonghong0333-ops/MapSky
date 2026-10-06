@@ -1999,7 +1999,23 @@
     }
   }
 
+  let loginGateWeatherTimer = null;
+  function startLoginGateWeatherCycle() {
+    const root = el("loginGateBoot");
+    if (!root) return;
+    const frames = Array.from(root.querySelectorAll(".login-gate-boot-wx"));
+    if (frames.length < 2) return;
+    let i = frames.findIndex((f) => f.classList.contains("is-active"));
+    if (i < 0) i = 0;
+    if (loginGateWeatherTimer) clearInterval(loginGateWeatherTimer);
+    loginGateWeatherTimer = setInterval(() => {
+      frames[i].classList.remove("is-active");
+      i = (i + 1) % frames.length;
+      frames[i].classList.add("is-active");
+    }, 900);
+  }
   function endLoginGateBoot() {
+    if (loginGateWeatherTimer) { clearInterval(loginGateWeatherTimer); loginGateWeatherTimer = null; }
     const gate = el("loginGate");
     const boot = el("loginGateBoot");
     if (gate) gate.classList.remove("login-gate--booting");
@@ -2007,6 +2023,7 @@
   }
 
   async function initAuthGate() {
+    startLoginGateWeatherCycle();
     showGateError();
     const statusEl = el("loginGateStatus");
     const buttonsEl = el("loginGateButtons");
