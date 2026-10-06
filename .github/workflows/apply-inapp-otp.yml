@@ -1,0 +1,19 @@
+name: Apply in-app OTP
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble
+        run: python3 scripts/otp/assemble_inapp_otp.py
+      - name: Commit
+        run: |
+          git config user.name "MapSky Bot"
+          git config user.email "bot@mapsky.local"
+          git add api/auth/callback.js public/web-shim.js
+          git commit -m "fix(auth): verify OTP inside MapSky, not browser" || echo "no changes"
+          git push origin HEAD:main
