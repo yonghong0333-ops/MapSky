@@ -4164,3 +4164,12 @@ body.auth-ok .login-gate.login-gate--booting {
   -webkit-appearance: none;
   appearance: none;
 }
+
+/* 更多／收起：在額外登入方式下方、「或」上方 */
+.login-gate-more-toggle {
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+.login-gate-buttons-extra:not(.hidden) + .login-gate-more-toggle {
+  margin-top: 10px;
+}

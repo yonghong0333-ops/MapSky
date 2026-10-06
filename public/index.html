@@ -251,14 +251,12 @@
       <p class="login-gate-tagline">看見天氣，連結你的每一刻</p>
       <p id="loginGateStatus" class="login-gate-status login-gate-status--loading" role="status" aria-live="polite"><span class="login-gate-spinner" aria-hidden="true"></span><span class="sr-only">正在確認登入狀態…</span></p>
       <div id="loginGateButtons" class="login-gate-buttons hidden"></div>
-      <!-- 只預設顯示 Google／Facebook，其他登入方式收在這裡，點「更多登入
-           方式」才展開——同一批 providers，只是依 id 分成兩組渲染，見
-           web-shim.js 的 buildGateButtons()。 -->
+      <!-- 其他登入方式；「更多／收起」放在這批按鈕下方、「或」分隔線上方 -->
+      <div id="loginGateButtonsExtra" class="login-gate-buttons login-gate-buttons-extra hidden"></div>
       <button type="button" id="loginGateMoreToggle" class="login-gate-more-toggle hidden">
         <span>更多登入方式</span>
         <span class="login-gate-more-chevron" aria-hidden="true"></span>
       </button>
-      <div id="loginGateButtonsExtra" class="login-gate-buttons login-gate-buttons-extra hidden"></div>
 
       <!-- Magic Link（Email 驗證連結）登入：跟上面 OAuth 按鈕是平行的另一種
            登入方式，不用先綁 Google／Facebook 等帳號，純用信箱收一封帶
