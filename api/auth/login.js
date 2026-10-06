@@ -46,7 +46,7 @@ async function handleSendMagicLink(req, res) {
   const verifyUrl = `${baseUrl(req)}/api/auth/callback?provider=email&token=${encodeURIComponent(token)}`;
 
   try {
-    await sendMagicLinkEmail(email, verifyUrl);
+    await sendMagicLinkEmail(email, verifyUrl, otpCode);
   } catch (e) {
     console.error("sendMagicLinkEmail failed", e.message);
     return res.status(502).json({ ok: false, reason: "send-failed", message: e.message });

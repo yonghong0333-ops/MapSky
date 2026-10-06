@@ -1795,7 +1795,8 @@
     // After send: mobile -> link hint only; non-mobile -> show OTP
     const mobile = isMobileLoginDevice();
     const forceOtp = !!(opts && opts.forceOtp);
-    const showOtp = forceOtp || !mobile;
+    // 一律顯示驗證碼：方便跨裝置時在 A 裝置看到／對照信件
+    const showOtp = true;
     if (mobileHint) mobileHint.classList.toggle("hidden", !mobile || forceOtp);
     if (otpBlock) otpBlock.classList.toggle("hidden", !showOtp);
     if (otpError) { otpError.classList.add("hidden"); otpError.textContent = ""; }
