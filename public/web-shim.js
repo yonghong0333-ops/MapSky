@@ -1,1 +1,3 @@
-PLACEHOLDER
+// ------------------------------------------------------------------
+// web-shim.js —— 網頁版適配層
+// PLACEHOLDER_WILL_BE_REPLACED
