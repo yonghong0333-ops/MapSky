@@ -2015,6 +2015,11 @@
       frames[i].classList.add("is-active");
     }, 900);
   }
+  function setLoginGateBootText(msg) {
+    const t = el("loginGateBootText") || document.querySelector(".login-gate-boot-text");
+    if (t) t.textContent = msg || "";
+  }
+
   function endLoginGateBoot() {
     if (loginGateBootSafetyTimer) { clearTimeout(loginGateBootSafetyTimer); loginGateBootSafetyTimer = null; }
     if (loginGateWeatherTimer) { clearInterval(loginGateWeatherTimer); loginGateWeatherTimer = null; }
@@ -2026,6 +2031,7 @@
 
   async function initAuthGate() {
     startLoginGateWeatherCycle();
+    setLoginGateBootText("正在確認登入狀態…");
     // 安全機制：最多 12 秒，避免 /api/auth/session 卡住時永遠轉圈
     if (loginGateBootSafetyTimer) clearTimeout(loginGateBootSafetyTimer);
     loginGateBootSafetyTimer = setTimeout(() => {
@@ -2059,6 +2065,7 @@
 
     if (session.loggedIn) {
       // 已登入：等天氣資料出來再停轉圈（renderer 會呼叫 __mapskyOnWeatherDataReady）
+      setLoginGateBootText("載入天氣與相關資訊中…");
       document.body.classList.add("auth-ok");
       window.__mapskyOnWeatherDataReady = function () {
         window.__mapskyOnWeatherDataReady = null;
