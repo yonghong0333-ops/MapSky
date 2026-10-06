@@ -211,17 +211,26 @@ async function handleEmailVerify(req, res) {
     // mapsky://login-complete?xchg=...，原生那邊已經有現成的處理，不用
     // 另外寫）。差別是 OAuth 一開始就知道是不是從 App 發起的登入，Magic
     // Link 是從信箱點進來的，不知道使用者現在是在手機瀏覽器還是哪裡打開
-    // 這個連結，所以兩條路都準備好：先嘗試用 mapsky:// 打開 App，打不開
-    // （沒裝 App）的話，短暫延遲後自動退回網頁版——這個分頁本身已經設好
-    // cookie 了，退回網頁一樣是登入完成的狀態，不是重新來一次。
+    // 這個連結，所以兩條路都準備好。
+    //
+    // ⚠️ 打開 App 這一步「一定要是使用者自己點的」，不能用 JS 自動導過去：
+    // 試過用 setTimeout 自動 window.location.href 導去 mapsky://，實測會被
+    // iOS Safari 擋掉（Safari 對不是使用者直接點擊觸發的網址跳轉常常靜默
+    // 擋下，不會報錯），App 打不開，使用者也沒發現已經自動退回網頁版登入
+    // 成功了，就會回信箱再點一次連結——這時候 token 已經用過，才會看到
+    // 「這組登入連結已經用過了」，這才是使用者真正卡住的原因，不是 token
+    // 驗證邏輯本身的問題。改成兩個按鈕都要使用者自己點：真的點下去才算
+    // 「使用者手勢」，才能可靠觸發 mapsky:// 打開 App。
     let xchg = null;
     try {
       xchg = await storeExchangeCode(sessionToken);
     } catch (e) {
       console.error("magic-link storeExchangeCode failed", e.message);
     }
+
+    const webUrl = "/?login=success";
     if (!xchg) {
-      res.writeHead(302, { Location: "/?login=success" });
+      res.writeHead(302, { Location: webUrl });
       return res.end();
     }
 
@@ -231,13 +240,12 @@ async function handleEmailVerify(req, res) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>登入 MapSky</title></head>
 <body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:80px auto;padding:0 24px;text-align:center;color:#1f2937">
-<h2>登入成功</h2>
-<p style="color:#6b7280;line-height:1.7">正在為您打開 MapSky App…<br>如果手機上沒有安裝 App，幾秒後會自動改用網頁版繼續。</p>
-<p style="margin-top:20px;"><a href="/?login=success" style="color:#1d4ed8;text-decoration:underline;">或按這裡直接用網頁版繼續</a></p>
-<script>
-  window.location.href = ${JSON.stringify(appUrl)};
-  setTimeout(function () { window.location.href = "/?login=success"; }, 1200);
-</script>
+<h2>登入成功 ✓</h2>
+<p style="color:#6b7280;line-height:1.7">如果手機上已經安裝 MapSky，請點下面按鈕在 App 裡繼續；沒有安裝的話，點下面的連結用網頁版繼續就好。</p>
+<p style="margin-top:28px;">
+  <a href="${appUrl}" style="display:inline-block;padding:13px 30px;background:#1d4ed8;color:#fff;border-radius:999px;text-decoration:none;font-size:15px;font-weight:700;">在 MapSky App 中開啟</a>
+</p>
+<p style="margin-top:18px;"><a href="${webUrl}" style="color:#6b7280;text-decoration:underline;font-size:13.5px;">沒有安裝 App，繼續使用網頁版</a></p>
 </body></html>`;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(200).send(appHtml);
