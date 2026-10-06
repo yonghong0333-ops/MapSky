@@ -8,5 +8,188 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: placeholder
-        run: echo pending
+      - name: Patch OTP auth
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          import re
+
+          # --- login.js ---
+          p = Path("api/auth/login.js")
+          src = p.read_text(encoding="utf-8")
+          if "handleVerifyOtp" not in src:
+              if "resolveLoginIdentity" not in src:
+                  src = src.replace(
+                      'const { sign } = require("../_lib/jwt");',
+                      'const { sign } = require("../_lib/jwt");\nconst { resolveLoginIdentity } = require("../_lib/identity");',
+                  )
+              old = (
+                  "  const token = sign({ purpose: \"magic-link\", email }, { expiresInSeconds: 15 * 60 });\n"
+                  "  const verifyUrl = `${baseUrl(req)}/api/auth/callback?provider=email&token=${encodeURIComponent(token)}`;\n\n"
+                  "  try {\n"
+                  "    await sendMagicLinkEmail(email, verifyUrl);\n"
+                  "  } catch (e) {\n"
+                  "    console.error(\"sendMagicLinkEmail failed\", e.message);\n"
+                  "    return res.status(502).json({ ok: false, reason: \"send-failed\", message: e.message });\n"
+                  "  }\n"
+                  "  return res.status(200).json({ ok: true });\n"
+                  "}"
+              )
+              new = (
+                  "  const otpCode = String(crypto.randomInt(100000, 999999));\n"
+                  "  if (client) {\n"
+                  "    await client.set(`magiclink:otp:${email}`, otpCode, { EX: 15 * 60 });\n"
+                  "  }\n\n"
+                  "  const token = sign({ purpose: \"magic-link\", email }, { expiresInSeconds: 15 * 60 });\n"
+                  "  const verifyUrl = `${baseUrl(req)}/api/auth/callback?provider=email&token=${encodeURIComponent(token)}`;\n\n"
+                  "  try {\n"
+                  "    await sendMagicLinkEmail(email, verifyUrl, otpCode);\n"
+                  "  } catch (e) {\n"
+                  "    console.error(\"sendMagicLinkEmail failed\", e.message);\n"
+                  "    return res.status(502).json({ ok: false, reason: \"send-failed\", message: e.message });\n"
+                  "  }\n"
+                  "  return res.status(200).json({ ok: true });\n"
+                  "}\n\n"
+                  "async function handleVerifyOtp(req, res) {\n"
+                  "  let body = req.body;\n"
+                  "  if (typeof body === \"string\") {\n"
+                  "    try { body = JSON.parse(body); } catch { body = {}; }\n"
+                  "  }\n"
+                  "  const email = String((body && body.email) || \"\").trim().toLowerCase();\n"
+                  "  const code = String((body && body.code) || \"\").trim();\n"
+                  "  if (!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {\n"
+                  "    return res.status(400).json({ ok: false, reason: \"invalid-email\" });\n"
+                  "  }\n"
+                  "  if (!/^\\d{6}$/.test(code)) {\n"
+                  "    return res.status(400).json({ ok: false, reason: \"invalid-code\" });\n"
+                  "  }\n"
+                  "  let client = null;\n"
+                  "  try { client = await getRedisClient(); } catch (e) { client = null; }\n"
+                  "  if (!client) {\n"
+                  "    return res.status(503).json({ ok: false, reason: \"otp-unavailable\" });\n"
+                  "  }\n"
+                  "  const otpKey = `magiclink:otp:${email}`;\n"
+                  "  const stored = await client.get(otpKey);\n"
+                  "  if (!stored || stored !== code) {\n"
+                  "    return res.status(401).json({ ok: false, reason: \"wrong-code\" });\n"
+                  "  }\n"
+                  "  await client.del(otpKey);\n"
+                  "  const magicLinkProfile = { id: email, name: email, avatarUrl: null, email };\n"
+                  "  const resolved = await resolveLoginIdentity(\"email\", magicLinkProfile);\n"
+                  "  const sessionToken = sign({ provider: resolved.provider, profile: resolved.profile });\n"
+                  "  res.setHeader(\"Set-Cookie\", serializeCookie(\"nexora_session\", sessionToken, { maxAge: 60 * 60 * 24 * 7 }));\n"
+                  "  return res.status(200).json({ ok: true });\n"
+                  "}"
+              )
+              if old not in src:
+                  raise SystemExit("login send block not found")
+              src = src.replace(old, new)
+              old_r = (
+                  "  if (req.method === \"POST\" && req.query.provider === \"email\") {\n"
+                  "    return handleSendMagicLink(req, res);\n"
+                  "  }"
+              )
+              new_r = (
+                  "  if (req.method === \"POST\" && req.query.provider === \"email\") {\n"
+                  "    if (req.query.action === \"verify-code\") {\n"
+                  "      return handleVerifyOtp(req, res);\n"
+                  "    }\n"
+                  "    return handleSendMagicLink(req, res);\n"
+                  "  }"
+              )
+              if old_r not in src:
+                  raise SystemExit("router not found")
+              src = src.replace(old_r, new_r)
+              p.write_text(src, encoding="utf-8")
+              print("login.js ok")
+          else:
+              print("login.js already ok")
+
+          # --- HTML ---
+          html_path = Path("public/index.html")
+          html = html_path.read_text(encoding="utf-8")
+          if 'id="loginGateVerifyOtpBlock"' not in html:
+              panel = (
+                  '      <div id="loginGateVerifyPanel" class="login-gate-verify hidden">\n'
+                  '        <div class="login-gate-verify-icon" aria-hidden="true">\n'
+                  '          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">\n'
+                  '            <rect x="2" y="4" width="20" height="16" rx="3"/>\n'
+                  '            <path d="M2 7l10 7 10-7"/>\n'
+                  '          </svg>\n'
+                  '        </div>\n'
+                  '        <h2 class="login-gate-verify-title">請查收您的信箱</h2>\n'
+                  '        <p class="login-gate-verify-desc">我們已把登入資訊寄到</p>\n'
+                  '        <p id="loginGateVerifyEmail" class="login-gate-verify-email"></p>\n'
+                  '        <div id="loginGateVerifyMobileHint" class="login-gate-verify-hint">\n'
+                  '          請用<strong>同一支手機</strong>打開信件，點「登入 MapSky」即可完成登入。<br/>\n'
+                  '          若沒看到，請檢查垃圾郵件匣。\n'
+                  '        </div>\n'
+                  '        <div id="loginGateVerifyOtpBlock" class="login-gate-verify-otp hidden">\n'
+                  '          <p class="login-gate-verify-hint">請輸入信件中的 <strong>6 位數驗證碼</strong></p>\n'
+                  '          <form id="loginGateVerifyOtpForm" class="login-gate-verify-otp-form" autocomplete="one-time-code">\n'
+                  '            <input type="text" id="loginGateVerifyOtpInput" class="login-gate-verify-otp-input" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" aria-label="6 位數驗證碼" required />\n'
+                  '            <button type="submit" id="loginGateVerifyOtpSubmit" class="login-gate-verify-resend">驗證並登入</button>\n'
+                  '          </form>\n'
+                  '          <p id="loginGateVerifyOtpError" class="login-gate-verify-otp-error hidden"></p>\n'
+                  '        </div>\n'
+                  '        <button type="button" id="loginGateVerifyResend" class="login-gate-verify-resend login-gate-verify-resend-secondary" disabled>\n'
+                  '          <span id="loginGateVerifyResendLabel">60 秒後可再寄送</span>\n'
+                  '        </button>\n'
+                  '        <button type="button" id="loginGateVerifyBack" class="login-gate-verify-back">使用其他登入方式</button>\n'
+                  '      </div>'
+              )
+              html2, n = re.subn(
+                  r'<div id="loginGateVerifyPanel" class="login-gate-verify hidden">.*?</div>\s*(?=\s*<p id="loginGateError")',
+                  panel + "\n\n",
+                  html, count=1, flags=re.S,
+              )
+              assert n == 1, f"html fail {n}"
+              html_path.write_text(html2, encoding="utf-8")
+              print("html ok")
+          else:
+              print("html already ok")
+
+          # --- CSS ---
+          css_path = Path("public/style.css")
+          css = css_path.read_text(encoding="utf-8")
+          if ".login-gate-verify-otp-input" not in css:
+              block = (
+                  "\n.login-gate-verify-otp { width: 100%; margin-bottom: 12px; }\n"
+                  ".login-gate-verify-otp.hidden { display: none; }\n"
+                  ".login-gate-verify-otp-form { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 6px; }\n"
+                  ".login-gate-verify-otp-input {\n"
+                  "  width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--input-border);\n"
+                  "  background: var(--input-bg); color: var(--text-main); font-size: 22px; font-weight: 800;\n"
+                  "  letter-spacing: 0.35em; text-align: center; box-sizing: border-box;\n"
+                  "}\n"
+                  ".login-gate-verify-otp-input:focus { outline: none; border-color: var(--accent); }\n"
+                  ".login-gate-verify-otp-error { margin-top: 8px; font-size: 12.5px; color: #d64545; text-align: center; }\n"
+                  ".login-gate-verify-otp-error.hidden { display: none; }\n"
+                  ".login-gate-verify-resend-secondary {\n"
+                  "  margin-top: 8px; background: transparent !important; color: var(--accent) !important;\n"
+                  "  border: 1px solid var(--accent) !important;\n"
+                  "}\n"
+                  ".login-gate-verify-resend-secondary[disabled] {\n"
+                  "  opacity: 0.5; color: var(--text-muted) !important; border-color: var(--input-border) !important;\n"
+                  "}\n"
+                  "#loginGateVerifyMobileHint.hidden { display: none; }\n"
+              )
+              if "/* Sidebar */" in css:
+                  css = css.replace("/* Sidebar */", block + "\n/* Sidebar */")
+              else:
+                  css += block
+              css_path.write_text(css, encoding="utf-8")
+              print("css ok")
+          else:
+              print("css already ok")
+
+          print("PARTIAL DONE - JS still needed")
+          PY
+      - name: Commit
+        run: |
+          git config user.name "MapSky Bot"
+          git config user.email "bot@mapsky.local"
+          git add -A
+          git status
+          git commit -m "feat(auth): OTP for non-mobile email login (partial)" || echo "no changes"
+          git push origin HEAD:main
