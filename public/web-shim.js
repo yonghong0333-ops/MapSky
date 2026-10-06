@@ -2000,6 +2000,7 @@
   }
 
   let loginGateWeatherTimer = null;
+  let loginGateBootSafetyTimer = null;
   function startLoginGateWeatherCycle() {
     const root = el("loginGateBoot");
     if (!root) return;
@@ -2015,6 +2016,7 @@
     }, 900);
   }
   function endLoginGateBoot() {
+    if (loginGateBootSafetyTimer) { clearTimeout(loginGateBootSafetyTimer); loginGateBootSafetyTimer = null; }
     if (loginGateWeatherTimer) { clearInterval(loginGateWeatherTimer); loginGateWeatherTimer = null; }
     const gate = el("loginGate");
     const boot = el("loginGateBoot");
@@ -2024,6 +2026,11 @@
 
   async function initAuthGate() {
     startLoginGateWeatherCycle();
+    // 安全機制：最多 12 秒，避免 /api/auth/session 卡住時永遠轉圈
+    if (loginGateBootSafetyTimer) clearTimeout(loginGateBootSafetyTimer);
+    loginGateBootSafetyTimer = setTimeout(() => {
+      try { endLoginGateBoot(); } catch (e) {}
+    }, 12000);
     showGateError();
     const statusEl = el("loginGateStatus");
     const buttonsEl = el("loginGateButtons");
@@ -2045,11 +2052,13 @@
     // 這裡會是 false，正常往下走原本的流程。
     const isAdminUser = Boolean(session.loggedIn && session.isAdmin);
     if (session.maintenanceMode && !isAdminUser) {
+      endLoginGateBoot();
       showMaintenanceScreen(session, providers);
       return;
     }
 
     if (session.loggedIn) {
+      endLoginGateBoot();
       document.body.classList.add("auth-ok");
       if (!session.profile.onboarded) showOnboarding(session);
       const slot = el("settingsAccountSlot");
@@ -2097,6 +2106,7 @@
     // 預設只露出 Google／Facebook 兩個，其他的收起來，點「更多登入方式」
     // 才展開——同一批 providers，只是依 id 分成兩組渲染，按鈕本身
     // （buildGateButtons）完全沒變。
+    endLoginGateBoot();
     if (statusEl) {
       statusEl.textContent = "";
       statusEl.classList.remove("login-gate-status--loading");
