@@ -1794,9 +1794,9 @@
 
     const mobile = isMobileLoginDevice();
     if (mobileHint) mobileHint.classList.toggle("hidden", !mobile);
-    if (otpBlock) otpBlock.classList.toggle("hidden", mobile);
+    if (otpBlock) otpBlock.classList.remove("hidden");
     if (otpError) { otpError.classList.add("hidden"); otpError.textContent = ""; }
-    if (otpInput && !mobile) {
+    if (otpInput) {
       otpInput.value = "";
       setTimeout(() => otpInput.focus(), 50);
     }
@@ -1877,6 +1877,23 @@
       setMagicSubmitIdle(submitBtn, labelEl);
       return false;
     }
+  }
+
+
+  function maybeOpenOtpFromQuery() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("need_otp") !== "1") return;
+      const email = (params.get("email") || "").trim();
+      if (!email) return;
+      try {
+        const u = new URL(window.location.href);
+        u.searchParams.delete("need_otp");
+        u.searchParams.delete("email");
+        window.history.replaceState({}, "", u.pathname + u.search + u.hash);
+      } catch (e) {}
+      showMagicLinkVerifyPanel(email);
+    } catch (e) {}
   }
 
   function initMagicLinkForm() {
@@ -2062,6 +2079,7 @@
       }
     }
     initMagicLinkForm();
+    maybeOpenOtpFromQuery();
   }
 
   // 只有登入成功才把真正的功能（renderer.js + 輪詢）載入進來，

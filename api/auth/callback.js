@@ -253,44 +253,28 @@ async function handleEmailVerify(req, res) {
   }
 
   if (!isSameDevice) {
+    // OTP is entered inside MapSky app only, not in the browser.
     const emailSafe = String(payload.email).replace(/[<>&"']/g, "");
-    const otpHtml = `<!doctype html>
+    const appHint = `mapsky://login-otp?email=${encodeURIComponent(payload.email)}`;
+    const webHint = `/?need_otp=1&email=${encodeURIComponent(payload.email)}`;
+    const html = `<!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>輸入驗證碼 - MapSky</title></head>
+<title>請回到 MapSky</title></head>
 <body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:60px auto;padding:0 24px;text-align:center;color:#1f2937">
-<h2 style="margin-bottom:8px;">請輸入驗證碼</h2>
-<p style="color:#6b7280;line-height:1.7;">偵測到這不是當初申請登入的裝置。<br>請輸入寄到 <strong>${emailSafe}</strong> 的 6 位數驗證碼。</p>
-<form id="otpForm" style="margin-top:20px;">
-  <input id="otpInput" type="text" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code"
-    style="width:100%;box-sizing:border-box;padding:14px 16px;font-size:24px;font-weight:800;letter-spacing:0.35em;text-align:center;border:1px solid #d1d5db;border-radius:12px;" />
-  <button type="submit" id="otpBtn" style="margin-top:14px;width:100%;padding:14px 0;background:#1d4ed8;color:#fff;border:0;border-radius:999px;font-size:15px;font-weight:700;">驗證並登入</button>
-</form>
-<p id="otpErr" style="color:#b3261e;font-size:13px;margin-top:12px;min-height:1.2em;"></p>
+<h2 style="margin-bottom:8px;">請回到 MapSky 完成驗證</h2>
+<p style="color:#6b7280;line-height:1.7;">這不是當初申請登入的裝置，無法直接用連結登入。<br>
+請打開 <strong>MapSky</strong>，在登入畫面輸入寄到 <strong>${emailSafe}</strong> 的 <strong>6 位數驗證碼</strong>。</p>
+<p style="margin-top:24px;">
+  <a href="${appHint}" style="display:inline-block;padding:14px 28px;background:#1d4ed8;color:#fff;border-radius:999px;text-decoration:none;font-weight:700;">打開 MapSky</a>
+</p>
+<p style="margin-top:16px;font-size:13px;"><a href="${webHint}" style="color:#1d4ed8;">或在網頁版繼續輸入驗證碼</a></p>
 <script>
-(function(){
-  var form=document.getElementById("otpForm"),input=document.getElementById("otpInput"),btn=document.getElementById("otpBtn"),err=document.getElementById("otpErr");
-  var email=${JSON.stringify(payload.email)};
-  input.addEventListener("input",function(){input.value=input.value.replace(/\D/g,"").slice(0,6);});
-  form.addEventListener("submit",async function(e){
-    e.preventDefault();
-    var code=(input.value||"").replace(/\D/g,"").slice(0,6);
-    if(code.length!==6){err.textContent="請輸入 6 位數字驗證碼";return;}
-    btn.disabled=true;err.textContent="";
-    try{
-      var resp=await fetch("/api/auth/login?provider=email&action=verify-code",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({email:email,code:code})});
-      var data=await resp.json().catch(function(){return{};});
-      if(resp.ok&&data.ok){window.location.href="/?login=success";return;}
-      err.textContent=data.reason==="wrong-code"?"驗證碼不正確或已過期":"驗證失敗，請再試一次";
-    }catch(ex){err.textContent="網路連線有問題，請稍後再試";}
-    finally{btn.disabled=false;}
-  });
-  setTimeout(function(){input.focus();},100);
-})();
+  setTimeout(function () { window.location.href = ${JSON.stringify(appHint)}; }, 400);
 </script>
 </body></html>`;
     res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.send(otpHtml);
+    return res.send(html);
   }
 
   const verifyAction = `/api/auth/callback?provider=email&token=${encodeURIComponent(String(token))}`;
