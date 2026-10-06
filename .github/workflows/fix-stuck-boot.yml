@@ -1,0 +1,18 @@
+name: Fix stuck boot screen
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/otp/fix_stuck_boot.py
+      - name: Commit
+        run: |
+          git config user.name "MapSky Bot"
+          git config user.email "bot@mapsky.local"
+          git add public/web-shim.js
+          git commit -m "fix(auth): end boot animation after session check (was stuck forever)" || echo "no changes"
+          git push origin HEAD:main
