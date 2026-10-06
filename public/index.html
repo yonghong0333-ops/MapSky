@@ -230,7 +230,15 @@
     </filter>
   </svg>
 
-  <div id="loginGate" class="login-gate">
+  <div id="loginGate" class="login-gate login-gate--booting">
+    <div id="loginGateBoot" class="login-gate-boot" role="status" aria-live="polite">
+      <div class="login-gate-boot-orbit" aria-hidden="true">
+        <span class="login-gate-boot-ring"></span>
+        <span class="login-gate-boot-ring login-gate-boot-ring--delay"></span>
+        <img class="login-gate-boot-logo" src="icons/logo-dark.png" alt="" />
+      </div>
+      <p class="login-gate-boot-text">正在確認登入狀態…</p>
+    </div>
     <div class="login-gate-card">
       <img class="login-gate-logo" src="icons/logo-dark.png" alt="MapSky" />
       <h1 class="login-gate-title">MapSky</h1>

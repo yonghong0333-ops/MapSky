@@ -1999,6 +1999,13 @@
     }
   }
 
+  function endLoginGateBoot() {
+    const gate = el("loginGate");
+    const boot = el("loginGateBoot");
+    if (gate) gate.classList.remove("login-gate--booting");
+    if (boot) boot.classList.add("hidden");
+  }
+
   async function initAuthGate() {
     showGateError();
     const statusEl = el("loginGateStatus");
@@ -2008,6 +2015,7 @@
     try {
       [providers, session] = await Promise.all([loadProviders(), loadSession()]);
     } catch {
+      endLoginGateBoot();
       if (statusEl) {
       statusEl.classList.remove("login-gate-status--loading");
       statusEl.textContent = "無法連線到登入伺服器，請重新整理再試一次。";
