@@ -172,8 +172,14 @@ async function handleEmailVerify(req, res) {
   }
 
   const usedKey = `magiclink:used:${token}`;
+  const cookieDevice = String(parseCookies(req).mapsky_ml_device || "");
+  const boundDeviceId = payload.deviceId ? String(payload.deviceId) : "";
+  const isCrossDevice = Boolean(boundDeviceId && cookieDevice && cookieDevice !== boundDeviceId);
 
   if (req.method === "POST") {
+    if (isCrossDevice) {
+      return sendLoginError(res, "magic-link-device-mismatch");
+    }
     // 單次有效：真正消費的這一步才標記用過，防止信件被轉寄或連結外流後
     // 重複使用。沒接 Redis 的環境（本機開發）就跳過這層，只靠 15 分鐘的
     // 到期時間擋，不影響正常登入。
@@ -244,6 +250,13 @@ async function handleEmailVerify(req, res) {
     }
   } catch (e) {
     console.error("magic-link pre-check failed", e.message);
+  }
+
+  if (isCrossDevice) {
+    const emailSafe = String(payload.email).replace(/[<>&"']/g, "");
+    const html = `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>輸入驗證碼</title></head><body style="font-family:sans-serif;max-width:420px;margin:60px auto;padding:0 24px;text-align:center"><h2>請輸入驗證碼</h2><p style="color:#6b7280">偵測到這是其他裝置。<br>請輸入在 MapSky 畫面上顯示的 6 位數驗證碼。</p><form id="otpForm"><input id="otpInput" maxlength="6" inputmode="numeric" style="width:100%;padding:14px;font-size:24px;letter-spacing:0.3em;text-align:center;box-sizing:border-box"/><button type="submit" id="otpBtn" style="margin-top:12px;width:100%;padding:14px;background:#1d4ed8;color:#fff;border:0;border-radius:999px">驗證並登入</button></form><p id="otpErr" style="color:#b3261e"></p><script>(function(){var f=document.getElementById('otpForm'),i=document.getElementById('otpInput'),b=document.getElementById('otpBtn'),e=document.getElementById('otpErr');var email=${JSON.stringify(payload.email)};i.oninput=function(){i.value=i.value.replace(/\D/g,'').slice(0,6)};f.onsubmit=async function(ev){ev.preventDefault();var c=(i.value||'').replace(/\D/g,'').slice(0,6);if(c.length!==6){e.textContent='請輸入6位驗證碼';return;}b.disabled=true;e.textContent='';try{var r=await fetch('/api/auth/login?provider=email&action=verify-code',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({email:email,code:c})});var d=await r.json().catch(function(){return{}});if(r.ok&&d.ok){location.href='/?login=success';return;}e.textContent=d.reason==='wrong-code'?'驗證碼不正確或已過期':'驗證失敗';}catch(x){e.textContent='網路錯誤';}finally{b.disabled=false;}};setTimeout(function(){i.focus()},100);})();</script></body></html>`;
+    res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.send(html);
   }
 
   const verifyAction = `/api/auth/callback?provider=email&token=${encodeURIComponent(String(token))}`;

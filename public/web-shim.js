@@ -1799,6 +1799,16 @@
     if (mobileHint) mobileHint.classList.toggle("hidden", !mobile || forceOtp);
     if (otpBlock) otpBlock.classList.toggle("hidden", !showOtp);
     if (otpError) { otpError.classList.add("hidden"); otpError.textContent = ""; }
+    const otpDisplay = el("loginGateVerifyOtpDisplay");
+    if (otpDisplay) {
+      if (showOtp && opts && opts.otp) {
+        otpDisplay.textContent = String(opts.otp);
+        otpDisplay.classList.remove("hidden");
+      } else {
+        otpDisplay.textContent = "";
+        otpDisplay.classList.add("hidden");
+      }
+    }
     if (otpInput && showOtp) {
       otpInput.value = "";
       setTimeout(() => otpInput.focus(), 50);
@@ -1852,7 +1862,7 @@
       });
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data.ok) {
-        showMagicLinkVerifyPanel(email);
+        showMagicLinkVerifyPanel(email, { otp: data.otp });
         return true;
       } else if (resp.status === 429) {
         showMagicLinkVerifyPanel(email);

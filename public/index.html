@@ -287,7 +287,8 @@
           若沒看到，請檢查垃圾郵件匣。
         </div>
         <div id="loginGateVerifyOtpBlock" class="login-gate-verify-otp hidden">
-          <p class="login-gate-verify-hint">請輸入信件中的 <strong>6 位數驗證碼</strong></p>
+          <p class="login-gate-verify-hint">請輸入下方驗證碼完成登入</p>
+          <div id="loginGateVerifyOtpDisplay" class="login-gate-verify-otp-display hidden" aria-live="polite"></div>
           <form id="loginGateVerifyOtpForm" class="login-gate-verify-otp-form" autocomplete="one-time-code">
             <input type="text" id="loginGateVerifyOtpInput" class="login-gate-verify-otp-input" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" aria-label="6 位數驗證碼" required />
             <button type="submit" id="loginGateVerifyOtpSubmit" class="login-gate-verify-resend">驗證並登入</button>

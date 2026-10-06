@@ -3965,3 +3965,11 @@ html.app-paused *, html.app-paused *::before, html.app-paused *::after,
     animation: none !important;
   }
 }
+
+.login-gate-verify-otp-display {
+  width: 100%; margin: 8px 0 12px; padding: 12px 16px; border-radius: 12px;
+  border: 1px solid var(--input-border); background: var(--input-bg);
+  color: var(--accent); font-size: 26px; font-weight: 800;
+  letter-spacing: 0.35em; text-align: center; box-sizing: border-box;
+}
+.login-gate-verify-otp-display.hidden { display: none; }

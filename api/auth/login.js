@@ -46,7 +46,7 @@ async function handleSendMagicLink(req, res) {
   const verifyUrl = `${baseUrl(req)}/api/auth/callback?provider=email&token=${encodeURIComponent(token)}`;
 
   try {
-    await sendMagicLinkEmail(email, verifyUrl, otpCode);
+    await sendMagicLinkEmail(email, verifyUrl);
   } catch (e) {
     console.error("sendMagicLinkEmail failed", e.message);
     return res.status(502).json({ ok: false, reason: "send-failed", message: e.message });
@@ -57,7 +57,7 @@ async function handleSendMagicLink(req, res) {
     cookiesOut.push(serializeCookie("mapsky_ml_device", tokenPayload.deviceId, { maxAge: 15 * 60 }));
   }
   if (cookiesOut.length) res.setHeader("Set-Cookie", cookiesOut);
-  return res.status(200).json({ ok: true });
+  return res.status(200).json({ ok: true, otp: otpCode });
 }
 
 async function handleVerifyOtp(req, res) {
