@@ -4144,3 +4144,7 @@ html.app-paused *, html.app-paused *::before, html.app-paused *::after,
   width: 100px;
   height: 100px;
 }
+
+body.auth-ok .login-gate.login-gate--booting {
+  display: flex;
+}

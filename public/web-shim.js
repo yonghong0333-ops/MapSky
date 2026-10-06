@@ -2058,8 +2058,17 @@
     }
 
     if (session.loggedIn) {
-      endLoginGateBoot();
+      // 已登入：等天氣資料出來再停轉圈（renderer 會呼叫 __mapskyOnWeatherDataReady）
       document.body.classList.add("auth-ok");
+      window.__mapskyOnWeatherDataReady = function () {
+        window.__mapskyOnWeatherDataReady = null;
+        endLoginGateBoot();
+      };
+      // 延長安全上限：等資料最多 20 秒
+      if (loginGateBootSafetyTimer) clearTimeout(loginGateBootSafetyTimer);
+      loginGateBootSafetyTimer = setTimeout(function () {
+        try { endLoginGateBoot(); } catch (e) {}
+      }, 20000);
       if (!session.profile.onboarded) showOnboarding(session);
       const slot = el("settingsAccountSlot");
       if (slot) {
