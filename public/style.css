@@ -4148,3 +4148,19 @@ html.app-paused *, html.app-paused *::before, html.app-paused *::after,
 body.auth-ok .login-gate.login-gate--booting {
   display: flex;
 }
+
+/* 更多／收起：文字按鈕，不要藍底（避免 iOS 預設 button 樣式） */
+.login-gate-more-toggle,
+.login-gate-more-toggle.expanded,
+.login-gate-more-toggle:active,
+.login-gate-more-toggle:focus,
+.login-gate-more-toggle:hover {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--text-muted) !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
