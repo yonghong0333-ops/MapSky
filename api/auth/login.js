@@ -6,18 +6,6 @@ const { sign } = require("../_lib/jwt");
 const { resolveLoginIdentity } = require("../_lib/identity");
 const { sendMagicLinkEmail } = require("../_lib/mailer");
 
-// Magic Link 登入（Email 驗證連結）—— 寄信這一步放在這支檔案裡，不是另外
-// 開一支 send-magic-link.js：Vercel Hobby 方案一個部署最多 12 支
-// serverless function，這個專案剛好卡在上限，這支本來就是「開始登入」的
-// 地方（OAuth 的導去 authorizeUrl 也是在這支做），語意上也合。對應的
-// 「驗證連結」收尾放在 callback.js，同樣道理（那支本來就是「完成登入」
-// 的地方）。
-//
-// Token 用的是這個專案既有、不另外裝套件的簽章機制（_lib/jwt.js，HMAC-
-// SHA256 + Base64URL，功能上等同簡化版 JWT），секret 沿用既有的
-// SESSION_SECRET 環境變數——不用另外設一個 JWT_SECRET，OAuth 登入本來就
-// 靠這個環境變數簽 session token，Magic Link 只是多一種「怎麼證明這是同一
-// 個人」的方式，簽的還是同一份 session。
 async function handleSendMagicLink(req, res) {
   let body = req.body;
   if (typeof body === "string") {
@@ -28,9 +16,6 @@ async function handleSendMagicLink(req, res) {
     return res.status(400).json({ ok: false, reason: "invalid-email" });
   }
 
-  // 輕量防洗版：同一個信箱 30 秒內只能重送一次。前端另外有 60 秒冷卻
-  // （擋使用者手快連點），這裡擋的是繞過前端、直接打 API 洗信箱。沒接
-  // Redis 的環境（本機開發）就跳過，不影響寄信本身。
   let client = null;
   try {
     client = await getRedisClient();
@@ -50,7 +35,14 @@ async function handleSendMagicLink(req, res) {
     await client.set(`magiclink:otp:${email}`, otpCode, { EX: 15 * 60 });
   }
 
-  const token = sign({ purpose: "magic-link", email }, { expiresInSeconds: 15 * 60 });
+  // 裝置綁定：前端送來的 deviceId 寫進 token，並設 HttpOnly cookie。
+  // 點信連結時若 cookie 吻合 → 同裝置直接登入；否則改要求驗證碼。
+  const deviceId = String((body && body.deviceId) || "").trim().slice(0, 64);
+  const tokenPayload = { purpose: "magic-link", email };
+  if (deviceId && /^[A-Za-z0-9_-]{8,64}$/.test(deviceId)) {
+    tokenPayload.deviceId = deviceId;
+  }
+  const token = sign(tokenPayload, { expiresInSeconds: 15 * 60 });
   const verifyUrl = `${baseUrl(req)}/api/auth/callback?provider=email&token=${encodeURIComponent(token)}`;
 
   try {
@@ -59,6 +51,12 @@ async function handleSendMagicLink(req, res) {
     console.error("sendMagicLinkEmail failed", e.message);
     return res.status(502).json({ ok: false, reason: "send-failed", message: e.message });
   }
+
+  const cookiesOut = [];
+  if (tokenPayload.deviceId) {
+    cookiesOut.push(serializeCookie("mapsky_ml_device", tokenPayload.deviceId, { maxAge: 15 * 60 }));
+  }
+  if (cookiesOut.length) res.setHeader("Set-Cookie", cookiesOut);
   return res.status(200).json({ ok: true });
 }
 
@@ -93,10 +91,6 @@ async function handleVerifyOtp(req, res) {
   return res.status(200).json({ ok: true });
 }
 
-// 桌面殼登入完成（api/auth/callback.js 換到短效交換碼、導回 mapsky://login-complete?xchg=...）
-// 之後，會回頭呼叫這支帶 xchg 參數，換回真正的 session token。跟改暱稱／
-// 推播訂閱塞進 session.js 是同一個理由：Vercel Hobby 方案一個部署最多 12 支
-// function，這支本來就是登入相關，直接沿用、不用另外多開一支 exchange.js。
 async function handleDesktopExchange(req, res) {
   const xchg = req.query.xchg;
   if (!xchg || typeof xchg !== "string") {
@@ -114,7 +108,6 @@ async function handleDesktopExchange(req, res) {
   }
 
   const key = `desktop_xchg:${xchg}`;
-  // 用 GETDEL 一次做完「讀取＋刪除」，讀一次就沒了，避免同一組交換碼被重放。
   let token;
   try {
     token = client.getDel
@@ -133,12 +126,6 @@ async function handleDesktopExchange(req, res) {
     return res.status(400).json({ error: "交換碼已過期或已使用過，請重新登入一次" });
   }
 
-  // iOS／Android 原生殼：App 用 mapsky://login-complete?xchg=... 拿到交換碼後，
-  // 導覽「目前這個 WebView」回來打這支網址（帶 redirect=1），而不是像桌面版
-  // Electron 殼那樣用 fetch 換 JSON 再自己動手設 cookie。好處是這次請求本身
-  // 就是 WebView 的一次正常頁面導覽，Set-Cookie 由 WebView 自己的 cookie jar
-  // 接住，跟網頁版 callback.js 最後做的事一模一樣，不需要另外寫原生程式碼
-  // 操作 WKWebView 的 cookie store。
   if (req.query.redirect === "1") {
     res.setHeader("Set-Cookie", serializeCookie("nexora_session", token, { maxAge: 60 * 60 * 24 * 7 }));
     res.writeHead(302, { Location: "/?login=success" });
@@ -197,31 +184,14 @@ module.exports = async function handler(req, res) {
     ...(provider.extraAuthParams || {}),
   });
 
-  // 桌面版打開這支網址時會多帶一個 desktop=1（見 electron/main.js 的
-  // openLoginInSystemBrowser），記一個 cookie 讓 callback.js 知道「這次登入
-  // 完成後要導回桌面殼」，而不是走網頁版預設的「把 session cookie 設在目前
-  // 這個瀏覽器上」。這個 cookie 只是流程內部用的標記，跟 oauth_state 同樣的
-  // 有效期限、同樣一次性（callback 處理完就會清掉）。
   const isDesktop = req.query.desktop === "1";
 
-  // oauth_state 現在存的是「一串」還沒完成的登入流程，逗號分隔，每筆是 <state> 或 <state>~d
-  // （~d = 這次是桌面版登入，callback 完成後要導回桌面殼）。原本只存一個，使用者如果開了
-  // 多個登入分頁、或在桌面版連按好幾次登入，後開的會把先開的擠掉，先開的那個登完回來就會
-  // 「state 不符」。改成最多同時保留 5 筆，callback 只移除自己那一筆。
-  // 桌面版標記也跟著 state 走，不再另外用 oauth_desktop cookie（舊的遺留值在這裡順手清掉），
-  // 免得放棄的桌面版登入把標記留給下一次網頁版登入。
   const pending = String(parseCookies(req).oauth_state || "")
     .split(",")
     .filter((e) => /^[0-9a-f]{32}(~d)?$/.test(e))
     .slice(-4);
   const entry = isDesktop ? `${state}~d` : state;
 
-  // 桌面版登入另外在伺服器（Redis）記一筆「這個 state 是桌面版登入」。callback 如果沒收到
-  // oauth_state cookie（使用者的預設瀏覽器封鎖 Cookie、或在另一個瀏覽器／設定檔完成登入…），
-  // 就用這筆紀錄驗證。這樣不會削弱安全性：桌面版最後是靠 mapsky://login-complete?xchg=... 把結果
-  // 交給 App，任何網頁本來就能直接叫起這個連結，cookie 綁定擋不住那條路；而 state 是 128 位元
-  // 隨機值、只能用一次、15 分鐘過期。網頁版登入（session cookie 必須設在同一個瀏覽器）不受影響，
-  // 還是要 cookie。
   if (isDesktop) {
     try {
       const client = await getRedisClient();
