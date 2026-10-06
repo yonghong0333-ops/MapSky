@@ -1,0 +1,12 @@
+name: Apply OTP auth
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: placeholder
+        run: echo pending
