@@ -1775,7 +1775,7 @@
     return Boolean(coarse && narrow);
   }
 
-  function showMagicLinkVerifyPanel(email) {
+  function showMagicLinkVerifyPanel(email, opts) {
     const card = document.querySelector(".login-gate-card");
     const panel = el("loginGateVerifyPanel");
     const emailEl = el("loginGateVerifyEmail");
@@ -1792,11 +1792,14 @@
     if (card) card.classList.add("is-verifying");
     panel.classList.remove("hidden");
 
+    // After send: mobile -> link hint only; non-mobile -> show OTP
     const mobile = isMobileLoginDevice();
-    if (mobileHint) mobileHint.classList.toggle("hidden", !mobile);
-    if (otpBlock) otpBlock.classList.remove("hidden");
+    const forceOtp = !!(opts && opts.forceOtp);
+    const showOtp = forceOtp || !mobile;
+    if (mobileHint) mobileHint.classList.toggle("hidden", !mobile || forceOtp);
+    if (otpBlock) otpBlock.classList.toggle("hidden", !showOtp);
     if (otpError) { otpError.classList.add("hidden"); otpError.textContent = ""; }
-    if (otpInput) {
+    if (otpInput && showOtp) {
       otpInput.value = "";
       setTimeout(() => otpInput.focus(), 50);
     }
@@ -1892,7 +1895,7 @@
         u.searchParams.delete("email");
         window.history.replaceState({}, "", u.pathname + u.search + u.hash);
       } catch (e) {}
-      showMagicLinkVerifyPanel(email);
+      showMagicLinkVerifyPanel(email, { forceOtp: true });
     } catch (e) {}
   }
 
