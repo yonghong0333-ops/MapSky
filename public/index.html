@@ -235,7 +235,7 @@
       <img class="login-gate-logo" src="icons/logo-dark.png" alt="MapSky" />
       <h1 class="login-gate-title">MapSky</h1>
       <p class="login-gate-tagline">看見天氣，連結你的每一刻</p>
-      <p id="loginGateStatus" class="login-gate-status">正在確認登入狀態…</p>
+      <p id="loginGateStatus" class="login-gate-status login-gate-status--loading" role="status" aria-live="polite"><span class="login-gate-spinner" aria-hidden="true"></span><span class="sr-only">正在確認登入狀態…</span></p>
       <div id="loginGateButtons" class="login-gate-buttons hidden"></div>
       <!-- 只預設顯示 Google／Facebook，其他登入方式收在這裡，點「更多登入
            方式」才展開——同一批 providers，只是依 id 分成兩組渲染，見

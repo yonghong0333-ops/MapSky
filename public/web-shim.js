@@ -2008,7 +2008,10 @@
     try {
       [providers, session] = await Promise.all([loadProviders(), loadSession()]);
     } catch {
-      if (statusEl) statusEl.textContent = "無法連線到登入伺服器，請重新整理再試一次。";
+      if (statusEl) {
+      statusEl.classList.remove("login-gate-status--loading");
+      statusEl.textContent = "無法連線到登入伺服器，請重新整理再試一次。";
+    }
       return;
     }
 
@@ -2069,7 +2072,10 @@
     // 預設只露出 Google／Facebook 兩個，其他的收起來，點「更多登入方式」
     // 才展開——同一批 providers，只是依 id 分成兩組渲染，按鈕本身
     // （buildGateButtons）完全沒變。
-    if (statusEl) statusEl.textContent = "";
+    if (statusEl) {
+      statusEl.textContent = "";
+      statusEl.classList.remove("login-gate-status--loading");
+    }
     const primaryIds = ["google", "facebook"];
     const primaryProviders = providers.filter((p) => primaryIds.includes(p.id));
     const extraProviders = providers.filter((p) => !primaryIds.includes(p.id));
