@@ -232,8 +232,9 @@
 
   <div id="loginGate" class="login-gate login-gate--booting">
     <div id="loginGateBoot" class="login-gate-boot" role="status" aria-live="polite">
-      <div class="login-gate-boot-row" aria-hidden="true">
-        <div class="login-gate-boot-weather" aria-hidden="true">
+      <div class="login-gate-boot-orbit-wrap" aria-hidden="true">
+        <span class="login-gate-boot-orbit-ring"></span>
+        <div class="login-gate-boot-weather">
         <img class="login-gate-boot-wx is-active" src="icons/sunny.png" alt="" data-wx="sunny" />
         <img class="login-gate-boot-wx" src="icons/partly-cloudy.png" alt="" data-wx="partly" />
         <img class="login-gate-boot-wx" src="icons/overcast.png" alt="" data-wx="overcast" />
@@ -243,7 +244,6 @@
         <img class="login-gate-boot-wx" src="icons/sunrise.png" alt="" data-wx="sunrise" />
         <img class="login-gate-boot-wx" src="icons/sunset.png" alt="" data-wx="sunset" />
       </div>
-        <span class="login-gate-boot-spinner" aria-hidden="true"></span>
       </div>
       <p class="login-gate-boot-text">正在確認登入狀態…</p>
     </div>

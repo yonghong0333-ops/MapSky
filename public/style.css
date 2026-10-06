@@ -4120,3 +4120,27 @@ html.app-paused *, html.app-paused *::before, html.app-paused *::after,
 @keyframes login-boot-spin {
   to { transform: rotate(360deg); }
 }
+
+.login-gate-boot-orbit-wrap {
+  position: relative;
+  width: 148px;
+  height: 148px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.login-gate-boot-orbit-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.28);
+  border-top-color: #ffffff;
+  border-right-color: rgba(47, 111, 237, 0.95);
+  animation: login-boot-spin 0.9s linear infinite;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+.login-gate-boot-orbit-wrap .login-gate-boot-weather {
+  width: 100px;
+  height: 100px;
+}
