@@ -2172,8 +2172,25 @@
         const logoutBtn = el("authLogoutBtn");
         if (logoutBtn) {
           logoutBtn.addEventListener("click", async () => {
-            await fetch("/api/auth/session?action=logout", { method: "POST" });
-            window.location.href = "/";
+            // Instant feedback: avoid 1s blank app shell while logout request runs
+            try {
+              document.body.classList.remove("auth-ok");
+              const gate = el("loginGate");
+              if (gate) {
+                gate.classList.remove("hidden");
+                gate.classList.add("login-gate--booting");
+              }
+              const boot = el("loginGateBoot");
+              if (boot) boot.classList.remove("hidden");
+              setLoginGateBootText("正在登出…");
+            } catch (e) {}
+            try {
+              await fetch("/api/auth/session?action=logout", {
+                method: "POST",
+                credentials: "same-origin",
+              });
+            } catch (e) {}
+            window.location.replace("/");
           });
         }
       }
