@@ -125,7 +125,17 @@ async function handleVerifyOtp(req, res) {
   const resolved = await resolveLoginIdentity("email", magicLinkProfile);
   const sessionToken = sign({ provider: resolved.provider, profile: resolved.profile });
   res.setHeader("Set-Cookie", serializeCookie("nexora_session", sessionToken, { maxAge: 60 * 60 * 24 * 7 }));
-  return res.status(200).json({ ok: true });
+
+  // 給原生 App 用的短效交換碼（與 magic-link / OAuth 同一套 desktop_xchg）
+  let xchg = null;
+  try {
+    xchg = crypto.randomBytes(24).toString("base64url");
+    await client.set(`desktop_xchg:${xchg}`, sessionToken, { EX: 60 });
+  } catch (e) {
+    console.error("otp store xchg failed", e.message);
+    xchg = null;
+  }
+  return res.status(200).json({ ok: true, xchg });
 }
 
 async function handleDesktopExchange(req, res) {

@@ -132,7 +132,7 @@ function sendCrossDeviceOtpPage(res, email) {
 <title>輸入驗證碼 - MapSky</title></head>
 <body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:60px auto;padding:0 24px;text-align:center;color:#1f2937">
 <h2>請輸入信件中的驗證碼</h2>
-<p style="color:#6b7280;line-height:1.7">請回到<strong>原本的 MapSky</strong> 輸入信件裡的 6 位數驗證碼。<br>若要在這個瀏覽器登入，也可以直接在下方輸入同一組驗證碼。</p>
+<p style="color:#6b7280;line-height:1.7">請輸入信件中的 <strong>6 位數驗證碼</strong>。<br>驗證成功後會嘗試跳回 MapSky App 完成登入。</p>
 <form id="otpForm">
   <input id="otpInput" maxlength="6" inputmode="numeric" autocomplete="one-time-code" style="width:100%;padding:14px;font-size:24px;letter-spacing:0.3em;text-align:center;box-sizing:border-box;border:1px solid #d1d5db;border-radius:12px"/>
   <button type="submit" id="otpBtn" style="margin-top:12px;width:100%;padding:14px;background:#1d4ed8;color:#fff;border:0;border-radius:999px;font-weight:700">驗證並登入</button>
@@ -151,7 +151,7 @@ function sendCrossDeviceOtpPage(res, email) {
     try{
       var r=await fetch('/api/auth/login?provider=email&action=verify-code',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({email:email,code:c})});
       var d=await r.json().catch(function(){return{}});
-      if(r.ok&&d.ok){location.href='/?login=success';return;}
+      if(r.ok&&d.ok){if(d.xchg){var app='mapsky://login-complete?xchg='+encodeURIComponent(d.xchg);try{location.href=app;}catch(z){}setTimeout(function(){location.href='/?login=success';},1600);return;}location.href='/?login=success';return;}
       if(d.reason==='wrong-code') e.textContent='驗證碼不正確或已過期';
       else if(d.reason==='too-many-attempts') e.textContent='嘗試次數過多，請重新寄一次驗證碼';
       else if(d.reason==='otp-unavailable') e.textContent='驗證服務暫時無法使用，請稍後再試';
