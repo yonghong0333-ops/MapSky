@@ -1,0 +1,56 @@
+name: apply-adventure-ui
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/apply-adventure-ui.yml'
+      - 'public/theme-tech-glass.css'
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Swap theme overlay only
+        run: |
+          set -e
+          python3 - <<'PY'
+          from pathlib import Path
+          style = Path('public/style.css').read_text(encoding='utf-8')
+          theme = Path('public/theme-tech-glass.css').read_text(encoding='utf-8')
+          # Only strip our theme overlays, never the real stylesheet body
+          markers = [
+              '/* MapSky \u2014 LIGHT TECH theme',
+              '/* MapSky \u2014 CYBER TECH theme',
+              '/* MapSky \u2014 Liquid Glass + Tech theme overrides',
+              '/* MapSky — LIGHT TECH theme',
+              '/* MapSky — CYBER TECH theme',
+              '/* MapSky — Liquid Glass + Tech theme overrides',
+          ]
+          cut = len(style)
+          for m in markers:
+              i = style.find(m)
+              if i >= 0:
+                  cut = min(cut, i)
+          base = style[:cut].rstrip()
+          out = base + '\n\n' + theme.strip() + '\n'
+          Path('public/style.css').write_text(out, encoding='utf-8')
+          print('base', len(base), 'out', len(out))
+          assert 'adventure-panel' in out
+          assert 'adventureBtnShine' in out
+          assert len(out) > 120000
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/style.css public/theme-tech-glass.css
+          if git diff --staged --quiet; then
+            echo No changes
+          else
+            git commit -m "style: light-tech Dynamic Island Adventure button redesign"
+            git push
+          fi
