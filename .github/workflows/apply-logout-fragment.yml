@@ -1,0 +1,45 @@
+name: apply-logout-fragment
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/apply-logout-fragment.yml'
+      - 'scripts/logout-handler.fragment.js'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace logout handler
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          import re
+          js_path = Path('public/web-shim.js')
+          frag = Path('scripts/logout-handler.fragment.js').read_text(encoding='utf-8').strip()
+          js = js_path.read_text(encoding='utf-8')
+          if '正在登出' in js:
+              print('already')
+          else:
+              pat = re.compile(
+                  r'logoutBtn\.addEventListener\("click", async \(\) => \{[\s\S]*?window\.location\.href = "/";\s*\}\);',
+                  re.M,
+              )
+              m = pat.search(js)
+              if not m:
+                  raise SystemExit('handler not found')
+              js = js[:m.start()] + frag + js[m.end():]
+              js_path.write_text(js, encoding='utf-8')
+              print('patched', '正在登出' in js)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/web-shim.js
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: show spinner immediately on logout"
+            git push
+          fi
