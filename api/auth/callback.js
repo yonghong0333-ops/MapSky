@@ -364,7 +364,7 @@ async function handleEmailVerify(req, res) {
 </head>
 <body>
 <div class="wrap" role="status" aria-live="polite">
-  <div class="orbit" aria-hidden="true"><span class="ring"></span><div class="sun"></div></div>
+  <div class="orbit" aria-hidden="true"><span class="ring"></span><img class="logo" src="/icons/icon-192.png" alt="MapSky" width="52" height="52"/></div>
   <p class="label">正在登入…</p>
 </div>
 <form id="magicLinkForm" method="POST" action="${verifyAction}">
