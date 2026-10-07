@@ -1,0 +1,40 @@
+name: boot-hide-inject
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/boot-hide-inject.yml'
+      - 'scripts/patch-boot-hide-inject.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 30
+      - name: Restore theme if placeholder
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('public/theme-tech-glass.css')
+          c = p.read_text(encoding='utf-8')
+          if len(c) < 500 or 'adventure-panel' not in c:
+              import subprocess
+              raw = subprocess.check_output(['git','show','757cc0273b8cc735d25ea098ef7e29df7a3d01dc:public/theme-tech-glass.css'])
+              p.write_bytes(raw)
+              print('restored theme', p.stat().st_size)
+          else:
+              print('theme ok', len(c))
+          PY
+      - run: python3 scripts/patch-boot-hide-inject.py
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/web-shim.js public/theme-tech-glass.css
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "fix: hide boot spinner over login form + restore theme"
+            git push
+          fi
