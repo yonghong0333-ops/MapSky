@@ -1,0 +1,96 @@
+name: boot-hide-css-only
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/boot-hide-css-only.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Append CSS + patch JS simply
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          import re
+
+          css_path = Path('public/style.css')
+          css = css_path.read_text(encoding='utf-8')
+          marker = '/* BOOT_HIDE_WHEN_NOT_BOOTING */'
+          if marker not in css:
+              css_path.write_text(css.rstrip() + '''
+
+/* BOOT_HIDE_WHEN_NOT_BOOTING */
+.login-gate:not(.login-gate--booting) > .login-gate-boot,
+.login-gate:not(.login-gate--booting) .login-gate-boot {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.login-gate-boot.hidden {
+  display: none !important;
+}
+''', encoding='utf-8')
+              print('css appended', css_path.stat().st_size)
+
+          js_path = Path('public/web-shim.js')
+          js = js_path.read_text(encoding='utf-8')
+          # Fix early-return path to always remove booting classes
+          old = '''if (!gate || !gate.classList.contains("login-gate--booting")) {
+      if (boot) boot.classList.add("hidden");
+      return;
+    }
+    if (gate.classList.contains("login-gate--opening")) return;'''
+          new = '''if (!gate || !gate.classList.contains("login-gate--booting")) {
+      if (boot) boot.classList.add("hidden");
+      if (gate) {
+        gate.classList.remove("login-gate--booting");
+        gate.classList.remove("login-gate--opening");
+      }
+      return;
+    }
+    if (gate.classList.contains("login-gate--opening")) {
+      if (boot) boot.classList.add("hidden");
+      gate.classList.remove("login-gate--booting");
+      gate.classList.remove("login-gate--opening");
+      return;
+    }'''
+          if old in js:
+              js = js.replace(old, new, 1)
+              print('js early-return fixed')
+          else:
+              print('js early-return not found')
+
+          # not logged in: force hide after endLoginGateBoot
+          needle = '''// 未登入：Google／Facebook 預設顯示，其他收在「更多登入方式」（無藍底按鈕）
+    endLoginGateBoot();'''
+          if needle in js:
+              js = js.replace(needle, needle + '''
+    const __bootEl = el("loginGateBoot");
+    if (__bootEl) __bootEl.classList.add("hidden");
+    const __gateEl = el("loginGate");
+    if (__gateEl) {
+      __gateEl.classList.remove("login-gate--booting");
+      __gateEl.classList.remove("login-gate--opening");
+    }''', 1)
+              print('js not-logged-in reinforce')
+          else:
+              print('js not-logged-in needle missing')
+
+          js_path.write_text(js, encoding='utf-8')
+          print('done')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/style.css public/web-shim.js
+          git status
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "fix: force-hide boot spinner over login form"
+            git push
+          fi
