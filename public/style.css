@@ -4963,3 +4963,17 @@ input::placeholder { color: #94a3b8 !important; }
   0% { opacity: 1; transform: translateY(0); }
   100% { opacity: 0; transform: translateY(8px); }
 }
+
+/* MAGIC_SEND_SPIN */
+.login-gate-magic-submit.is-sending {
+  background: var(--accent) !important;
+  opacity: 1 !important;
+  pointer-events: none;
+}
+.login-gate-magic-submit.is-sending .login-gate-magic-submit-icon,
+.login-gate-magic-submit.is-sending .login-gate-magic-spin {
+  animation: magicSendSpin 0.75s linear infinite;
+}
+@keyframes magicSendSpin {
+  to { transform: rotate(360deg); }
+}

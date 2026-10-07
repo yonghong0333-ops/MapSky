@@ -1748,6 +1748,7 @@
 
   function setMagicSubmitIdle(submitBtn, labelEl) {
     if (!submitBtn || !labelEl) return;
+    submitBtn.classList.remove("is-sending");
     labelEl.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
     submitBtn.setAttribute("aria-label", "寄送登入連結");
     submitBtn.setAttribute("title", "寄送登入連結");
@@ -1847,8 +1848,9 @@
     const resendLabel = el("loginGateVerifyResendLabel");
 
     if (submitBtn) submitBtn.disabled = true;
+    if (submitBtn) submitBtn.classList.add("is-sending");
     if (labelEl) {
-      labelEl.innerHTML = "…";
+      labelEl.innerHTML = `<svg class="login-gate-magic-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9" opacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9"/></svg>`;
       submitBtn.setAttribute("aria-label", "寄送中…");
       submitBtn.setAttribute("title", "寄送中…");
     }
