@@ -14,6 +14,16 @@
   // User-Agent，這裡拿來當判斷依據；window.Capacitor 是否存在也一起判斷，
   // 兩者符合其一即可。guardBrowserGate（要不要顯示「加入主畫面」引導畫面）
   // 跟下面的原生登入流程都靠這個變數判斷。
+  
+  // Force-hide boot overlay whenever login form is shown (not booting)
+  (function injectBootHideCss() {
+    if (document.getElementById("mapsky-boot-hide-css")) return;
+    var s = document.createElement("style");
+    s.id = "mapsky-boot-hide-css";
+    s.textContent = ".login-gate:not(.login-gate--booting) .login-gate-boot{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}.login-gate-boot.hidden{display:none!important}";
+    (document.head || document.documentElement).appendChild(s);
+  })();
+
   const isNativeShell = /MapSkyiOS/i.test(navigator.userAgent || "") ||
     Boolean(window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform());
   window.appInfo.isNativeApp = isNativeShell;
@@ -2220,6 +2230,15 @@
 
     // 未登入：Google／Facebook 預設顯示，其他收在「更多登入方式」（無藍底按鈕）
     endLoginGateBoot();
+    {
+      const b = el("loginGateBoot");
+      if (b) b.classList.add("hidden");
+      const g = el("loginGate");
+      if (g) {
+        g.classList.remove("login-gate--booting");
+        g.classList.remove("login-gate--opening");
+      }
+    }
     if (statusEl) {
       statusEl.textContent = "";
       statusEl.classList.remove("login-gate-status--loading");
