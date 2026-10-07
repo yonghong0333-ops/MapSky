@@ -1,0 +1,77 @@
+name: restore-theme-boot-hide
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/restore-theme-boot-hide.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+      - name: Restore theme from good commit and append hide rule
+        run: |
+          git show 757cc0273b8cc735d25ea098ef7e29df7a3d01dc:public/theme-tech-glass.css > public/theme-tech-glass.css
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('public/theme-tech-glass.css')
+          c = p.read_text(encoding='utf-8')
+          assert 'adventure-panel' in c and len(c) > 5000
+          if 'Boot spinner must not cover' not in c:
+              c = c.rstrip() + '''
+
+/* Boot spinner must not cover login form once gate is ready */
+.login-gate:not(.login-gate--booting) > .login-gate-boot,
+.login-gate:not(.login-gate--booting) .login-gate-boot {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.login-gate-boot.hidden {
+  display: none !important;
+}
+'''
+              p.write_text(c, encoding='utf-8')
+          print('theme ok', p.stat().st_size)
+          PY
+      - name: Reinforce end boot on not-logged-in
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          js_path = Path('public/web-shim.js')
+          js = js_path.read_text(encoding='utf-8')
+          needle = '''// 未登入：Google／Facebook 預設顯示，其他收在「更多登入方式」（無藍底按鈕）
+    endLoginGateBoot();'''
+          inject = needle + '''
+    {
+      const b = el("loginGateBoot");
+      if (b) b.classList.add("hidden");
+      const g = el("loginGate");
+      if (g) {
+        g.classList.remove("login-gate--booting");
+        g.classList.remove("login-gate--opening");
+      }
+    }'''
+          if 'loginGateBoot").classList.add("hidden")' in js or "loginGateBoot\").classList.add(\"hidden\")" in js:
+              print('js already reinforced')
+          elif needle in js:
+              js = js.replace(needle, inject, 1)
+              js_path.write_text(js, encoding='utf-8')
+              print('js reinforced')
+          else:
+              print('needle missing')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/theme-tech-glass.css public/web-shim.js
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "fix: restore theme + hide boot spinner over login form"
+            git push
+          fi
