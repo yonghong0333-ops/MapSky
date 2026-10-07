@@ -1971,7 +1971,61 @@
           });
           const data = await resp.json().catch(() => ({}));
           if (resp.ok && data.ok) {
-            window.location.href = "/?login=success";
+            // Soft login: full reload can briefly show a false offline screen
+            // in the native WebView / mobile browser. Stay on this page, mark
+            // auth-ok, start renderer, then refresh session UI.
+            if (data.xchg) {
+              try {
+                window.location.href = "mapsky://login-complete?xchg=" + encodeURIComponent(data.xchg);
+              } catch (z) {}
+            }
+            try {
+              hideMagicLinkVerifyPanel();
+              const gate = el("loginGate");
+              if (gate) {
+                gate.classList.add("login-gate--booting");
+                gate.classList.remove("hidden");
+              }
+              setLoginGateBootText("載入天氣與相關資訊中…");
+              document.body.classList.add("auth-ok");
+              window.__mapskyOnWeatherDataReady = function () {
+                window.__mapskyOnWeatherDataReady = null;
+                endLoginGateBoot();
+              };
+              if (loginGateBootSafetyTimer) clearTimeout(loginGateBootSafetyTimer);
+              loginGateBootSafetyTimer = setTimeout(function () {
+                try { endLoginGateBoot(); } catch (e) {}
+              }, 30000);
+              startAppAfterLogin();
+              loadSession().then(function (session) {
+                if (!session || !session.loggedIn) {
+                  window.location.replace("/?login=success");
+                  return;
+                }
+                if (!session.profile.onboarded) showOnboarding(session);
+                const slot = el("settingsAccountSlot");
+                if (slot) {
+                  slot.innerHTML = "";
+                  slot.appendChild(buildUserBar(session));
+                  slot.appendChild(buildProfileEditEntry(session));
+                  slot.appendChild(buildPushNotificationEntry(session));
+                  maybeAutoPromptPush(session);
+                  startDesktopAnnouncements();
+                  applySettingsAvatarIcon(currentAvatarSrc(session));
+                }
+                if (session.isAdmin) {
+                  const adminBtn = el("adminBottomBtn");
+                  if (adminBtn) adminBtn.classList.remove("hidden");
+                  const adminTabBtn = el("adminTabBtn");
+                  if (adminTabBtn) adminTabBtn.classList.remove("hidden");
+                }
+                window.__mapskyAdventureSkip = Boolean(session.adventureSkip);
+              }).catch(function () {
+                window.location.replace("/?login=success");
+              });
+            } catch (softErr) {
+              window.location.replace("/?login=success");
+            }
             return;
           }
           let msg = "驗證碼不正確，請再試一次";
