@@ -1,0 +1,53 @@
+name: boot-logo-css
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/boot-logo-css.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: CSS
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('public/style.css')
+          css = p.read_text(encoding='utf-8')
+          if 'BOOT_LOGO_ICON' in css:
+              print('already')
+          else:
+              p.write_text(css.rstrip() + '''
+
+/* BOOT_LOGO_ICON */
+.login-gate-boot-weather .login-gate-boot-logo {
+  width: 72px !important;
+  height: 72px !important;
+  border-radius: 18px !important;
+  opacity: 1 !important;
+  transform: none !important;
+  object-fit: contain !important;
+  filter: drop-shadow(0 6px 16px rgba(30, 60, 120, 0.22));
+}
+.login-gate-boot-weather {
+  width: 72px !important;
+  height: 72px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+''', encoding='utf-8')
+              print('ok')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/style.css
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: size MapSky logo in boot spinner"
+            git push
+          fi
