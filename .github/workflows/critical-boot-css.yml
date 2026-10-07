@@ -1,0 +1,24 @@
+name: critical-boot-css
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/critical-boot-css.yml'
+      - 'scripts/patch-index-critical-boot.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/patch-index-critical-boot.py
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/index.html
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: critical boot CSS — no white flash on login redirect"
+            git push
+          fi
