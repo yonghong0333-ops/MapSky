@@ -1,0 +1,120 @@
+name: force-boot-hide
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/force-boot-hide.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch web-shim.js
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          js_path = Path('public/web-shim.js')
+          js = js_path.read_text(encoding='utf-8')
+
+          # 1) Inject CSS hide rule once
+          if 'mapsky-boot-hide-css' not in js:
+              inject = '''
+  (function injectBootHideCss() {
+    if (document.getElementById("mapsky-boot-hide-css")) return;
+    var s = document.createElement("style");
+    s.id = "mapsky-boot-hide-css";
+    s.textContent = ".login-gate:not(.login-gate--booting) .login-gate-boot{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}.login-gate-boot.hidden{display:none!important}";
+    (document.head || document.documentElement).appendChild(s);
+  })();
+'''
+              anchor = 'function el('
+              if anchor not in js:
+                  raise SystemExit('no el() anchor')
+              pos = js.find(anchor)
+              js = js[:pos] + inject + '\n  ' + js[pos:]
+              print('injected css')
+          else:
+              print('css inject already')
+
+          # 2) After not-logged-in endLoginGateBoot, force hide
+          needle = '''// 未登入：Google／Facebook 預設顯示，其他收在「更多登入方式」（無藍底按鈕）
+    endLoginGateBoot();'''
+          if 'if (b) b.classList.add("hidden")' in js and '未登入：Google' in js:
+              # check if already reinforced near that block
+              idx = js.find(needle)
+              if idx >= 0 and 'if (b) b.classList.add("hidden")' in js[idx:idx+400]:
+                  print('reinforce already')
+              elif idx >= 0:
+                  extra = needle + '''
+    {
+      const b = el("loginGateBoot");
+      if (b) b.classList.add("hidden");
+      const g = el("loginGate");
+      if (g) {
+        g.classList.remove("login-gate--booting");
+        g.classList.remove("login-gate--opening");
+      }
+    }'''
+                  js = js.replace(needle, extra, 1)
+                  print('reinforced')
+              else:
+                  print('needle missing')
+          elif needle in js:
+              extra = needle + '''
+    {
+      const b = el("loginGateBoot");
+      if (b) b.classList.add("hidden");
+      const g = el("loginGate");
+      if (g) {
+        g.classList.remove("login-gate--booting");
+        g.classList.remove("login-gate--opening");
+      }
+    }'''
+              js = js.replace(needle, extra, 1)
+              print('reinforced')
+          else:
+              print('needle missing')
+
+          # 3) Fix endLoginGateBoot early return that left spinner visible
+          old = '''if (!gate || !gate.classList.contains("login-gate--booting")) {
+      if (boot) boot.classList.add("hidden");
+      return;
+    }
+    if (gate.classList.contains("login-gate--opening")) return;'''
+          new = '''if (!gate || !gate.classList.contains("login-gate--booting")) {
+      if (boot) boot.classList.add("hidden");
+      if (gate) {
+        gate.classList.remove("login-gate--booting");
+        gate.classList.remove("login-gate--opening");
+      }
+      return;
+    }
+    if (gate.classList.contains("login-gate--opening")) {
+      if (boot) boot.classList.add("hidden");
+      gate.classList.remove("login-gate--booting");
+      gate.classList.remove("login-gate--opening");
+      return;
+    }'''
+          if old in js:
+              js = js.replace(old, new, 1)
+              print('endLoginGateBoot early-return fixed')
+          else:
+              print('endLoginGateBoot block not matched (ok if already)')
+
+          js_path.write_text(js, encoding='utf-8')
+          print('wrote', js_path.stat().st_size)
+          print('has hide css', 'mapsky-boot-hide-css' in js)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/web-shim.js
+          git status
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "fix: force-hide boot spinner when login form shows"
+            git push
+            echo PUSHED
+          fi
