@@ -288,17 +288,48 @@ async function handleEmailVerify(req, res) {
     }
 
     const appUrl = `mapsky://login-complete?xchg=${encodeURIComponent(xchg)}`;
+    const ua = String(req.headers["user-agent"] || "");
+    const looksMobile = /iPhone|iPad|iPod|Android/i.test(ua);
+
+    // 同裝置：表單 POST 是使用者手勢觸發的導覽，優先 302 直接進 App
+    // （桌面殼／已安裝 App 的手機通常接得住）。若環境擋自訂 scheme，
+    // 客戶端仍會落到下面這頁，用按鈕／自動嘗試當備援。
+    if (looksMobile) {
+      res.writeHead(302, { Location: appUrl });
+      return res.end();
+    }
+
     const appHtml = `<!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>登入 MapSky</title></head>
+<title>登入成功 - MapSky</title>
+<meta http-equiv="refresh" content="0;url=${appUrl}">
+</head>
 <body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:80px auto;padding:0 24px;text-align:center;color:#1f2937">
 <h2>登入成功 ✓</h2>
-<p style="color:#6b7280;line-height:1.7">如果手機上已經安裝 MapSky，請點下面按鈕在 App 裡繼續；沒有安裝的話，點下面的連結用網頁版繼續就好。</p>
+<p style="color:#6b7280;line-height:1.7">正在跳回 MapSky App…<br>若沒有自動開啟，請按下面按鈕。</p>
 <p style="margin-top:28px;">
-  <a href="${appUrl}" style="display:inline-block;padding:13px 30px;background:#1d4ed8;color:#fff;border-radius:999px;text-decoration:none;font-size:15px;font-weight:700;">在 MapSky App 中開啟</a>
+  <a id="openApp" href="${appUrl}" style="display:inline-block;padding:13px 30px;background:#1d4ed8;color:#fff;border-radius:999px;text-decoration:none;font-size:15px;font-weight:700;">開啟 MapSky App</a>
 </p>
-<p style="margin-top:18px;"><a href="${webUrl}" style="color:#6b7280;text-decoration:underline;font-size:13.5px;">沒有安裝 App，繼續使用網頁版</a></p>
+<p style="margin-top:18px;"><a href="${webUrl}" style="color:#6b7280;text-decoration:underline;font-size:13.5px;">使用網頁版繼續</a></p>
+<script>
+(function () {
+  var url = ${JSON.stringify(appUrl)};
+  function go() {
+    try { window.location.href = url; } catch (e) {}
+    try {
+      var a = document.createElement("a");
+      a.href = url;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+    } catch (e) {}
+  }
+  go();
+  setTimeout(go, 400);
+  // 若 1.8 秒後還在這個分頁，維持按鈕可見即可
+})();
+</script>
 </body></html>`;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(200).send(appHtml);
@@ -327,15 +358,15 @@ async function handleEmailVerify(req, res) {
 <title>登入 MapSky</title></head>
 <body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:80px auto;padding:0 24px;text-align:center;color:#1f2937">
 <h2>正在登入 MapSky…</h2>
-<p style="color:#6b7280;line-height:1.7">請稍候，如果幾秒內沒有自動繼續，請按下面的按鈕。</p>
+<p style="color:#6b7280;line-height:1.7">同裝置驗證中，完成後會嘗試跳回 App。<br>若沒有自動繼續，請按下面的按鈕。</p>
 <form id="magicLinkForm" method="POST" action="${verifyAction}">
-  <button type="submit" style="margin-top:16px;padding:12px 28px;background:#1d4ed8;color:#fff;border:0;border-radius:999px;font-size:15px;font-weight:700;">繼續登入</button>
+  <button type="submit" style="margin-top:16px;padding:12px 28px;background:#1d4ed8;color:#fff;border:0;border-radius:999px;font-size:15px;font-weight:700;">繼續並開啟 App</button>
 </form>
 <script>
   setTimeout(function () {
     var f = document.getElementById("magicLinkForm");
     if (f.requestSubmit) f.requestSubmit(); else f.submit();
-  }, 300);
+  }, 200);
 </script>
 </body></html>`;
   res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
