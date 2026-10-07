@@ -8,7 +8,7 @@ logoutBtn.addEventListener("click", async () => {
               }
               const boot = el("loginGateBoot");
               if (boot) boot.classList.remove("hidden");
-              setLoginGateBootText("\u6b63\u5728\u767b\u51fa\u2026");
+              setLoginGateBootText("正在登出…");
             } catch (e) {}
             try {
               await fetch("/api/auth/session?action=logout", {
