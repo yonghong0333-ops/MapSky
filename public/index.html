@@ -292,14 +292,15 @@
           </svg>
         </div>
         <h2 class="login-gate-verify-title">請查收您的信箱</h2>
-        <p class="login-gate-verify-desc">我們已把登入資訊寄到</p>
+        <p class="login-gate-verify-desc">我們已把 6 位數驗證碼寄到</p>
         <p id="loginGateVerifyEmail" class="login-gate-verify-email"></p>
         <div id="loginGateVerifyMobileHint" class="login-gate-verify-hint">
-          請用<strong>同一支手機</strong>打開信件，點「登入 MapSky」即可完成登入。<br/>
-          若沒看到，請檢查垃圾郵件匣。
+          請用<strong>同一支手機</strong>打開信件，點「或點這裡直接登入」即可完成登入。<br/>
+          也可以直接在下方輸入信件中的 6 位數驗證碼。<br/>
+          若沒看到信，請檢查垃圾郵件匣。
         </div>
-        <div id="loginGateVerifyOtpBlock" class="login-gate-verify-otp hidden">
-          <p class="login-gate-verify-hint">請輸入下方驗證碼完成登入</p>
+        <div id="loginGateVerifyOtpBlock" class="login-gate-verify-otp">
+          <p class="login-gate-verify-hint">請輸入信件中的 6 位數驗證碼</p>
           <div id="loginGateVerifyOtpDisplay" class="login-gate-verify-otp-display hidden" aria-live="polite"></div>
           <form id="loginGateVerifyOtpForm" class="login-gate-verify-otp-form" autocomplete="one-time-code">
             <input type="text" id="loginGateVerifyOtpInput" class="login-gate-verify-otp-input" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" aria-label="6 位數驗證碼" required />

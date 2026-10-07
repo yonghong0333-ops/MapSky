@@ -1792,25 +1792,20 @@
     if (card) card.classList.add("is-verifying");
     panel.classList.remove("hidden");
 
-    // After send: mobile -> link hint only; non-mobile -> show OTP
+    // 寄出信件後一律顯示驗證碼輸入框：使用者從信箱把 6 位數打回 MapSky。
+    // 不再把驗證碼顯示在畫面上，也不再因為是手機就把輸入框藏起來
+    // （藏起來會逼使用者去點信裡的連結，Gmail 內建瀏覽器沒有裝置 cookie，
+    // 登入會跑到錯誤的瀏覽器，原始 App 一直停在等待畫面）。
     const mobile = isMobileLoginDevice();
-    const forceOtp = !!(opts && opts.forceOtp);
-    // 一律顯示驗證碼：方便跨裝置時在 A 裝置看到／對照信件
-    const showOtp = forceOtp || !mobile;
-    if (mobileHint) mobileHint.classList.toggle("hidden", !mobile || forceOtp);
-    if (otpBlock) otpBlock.classList.toggle("hidden", !showOtp);
+    if (mobileHint) mobileHint.classList.toggle("hidden", !mobile);
+    if (otpBlock) otpBlock.classList.remove("hidden");
     if (otpError) { otpError.classList.add("hidden"); otpError.textContent = ""; }
     const otpDisplay = el("loginGateVerifyOtpDisplay");
     if (otpDisplay) {
-      if (showOtp && opts && opts.otp) {
-        otpDisplay.textContent = String(opts.otp);
-        otpDisplay.classList.remove("hidden");
-      } else {
-        otpDisplay.textContent = "";
-        otpDisplay.classList.add("hidden");
-      }
+      otpDisplay.textContent = "";
+      otpDisplay.classList.add("hidden");
     }
-    if (otpInput && showOtp) {
+    if (otpInput) {
       otpInput.value = "";
       setTimeout(() => otpInput.focus(), 50);
     }
@@ -1863,7 +1858,7 @@
       });
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data.ok) {
-        showMagicLinkVerifyPanel(email, { otp: data.otp });
+        showMagicLinkVerifyPanel(email);
         return true;
       } else if (resp.status === 429) {
         showMagicLinkVerifyPanel(email);
@@ -1972,6 +1967,7 @@
           if (data.reason === "wrong-code") msg = "驗證碼不正確或已過期";
           else if (data.reason === "invalid-code") msg = "請輸入 6 位數字驗證碼";
           else if (data.reason === "otp-unavailable") msg = "驗證服務暫時無法使用，請稍後再試";
+          else if (data.reason === "too-many-attempts") msg = "嘗試次數過多，請稍後再寄一次";
           if (otpError) { otpError.textContent = msg; otpError.classList.remove("hidden"); }
         } catch (err) {
           if (otpError) { otpError.textContent = "網路連線有問題，請稍後再試"; otpError.classList.remove("hidden"); }

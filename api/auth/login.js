@@ -6,6 +6,31 @@ const { sign } = require("../_lib/jwt");
 const { resolveLoginIdentity } = require("../_lib/identity");
 const { sendMagicLinkEmail } = require("../_lib/mailer");
 
+const OTP_TTL_SECONDS = 15 * 60;
+const OTP_MAX_ATTEMPTS = 5;
+
+function hashOtp(email, code) {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new Error("缺少 SESSION_SECRET");
+  return crypto.createHmac("sha256", secret).update(`ml-otp:${email}:${code}`).digest("hex");
+}
+
+function otpMatches(stored, incomingHash) {
+  if (typeof stored !== "string" || typeof incomingHash !== "string") return false;
+  const a = Buffer.from(stored);
+  const b = Buffer.from(incomingHash);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+async function getRedis() {
+  try {
+    return await getRedisClient();
+  } catch (e) {
+    return null;
+  }
+}
+
 async function handleSendMagicLink(req, res) {
   let body = req.body;
   if (typeof body === "string") {
@@ -16,24 +41,21 @@ async function handleSendMagicLink(req, res) {
     return res.status(400).json({ ok: false, reason: "invalid-email" });
   }
 
-  let client = null;
-  try {
-    client = await getRedisClient();
-  } catch (e) {
-    client = null;
-  }
-  if (client) {
-    const rateKey = `magiclink:rate:${email}`;
-    if (await client.get(rateKey)) {
-      return res.status(429).json({ ok: false, reason: "too-soon" });
-    }
-    await client.set(rateKey, "1", { EX: 30 });
+  const client = await getRedis();
+  if (!client) {
+    return res.status(503).json({ ok: false, reason: "otp-unavailable" });
   }
 
-  const otpCode = String(crypto.randomInt(100000, 999999));
-  if (client) {
-    await client.set(`magiclink:otp:${email}`, otpCode, { EX: 15 * 60 });
+  const rateKey = `magiclink:rate:${email}`;
+  if (await client.get(rateKey)) {
+    return res.status(429).json({ ok: false, reason: "too-soon" });
   }
+  await client.set(rateKey, "1", { EX: 30 });
+
+  // 6 位數、含前導 0，信件與輸入框都當字串比對
+  const otpCode = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+  await client.set(`magiclink:otp:${email}`, hashOtp(email, otpCode), { EX: OTP_TTL_SECONDS });
+  await client.del(`magiclink:otp-tries:${email}`);
 
   // 裝置綁定：前端送來的 deviceId 寫進 token，並設 HttpOnly cookie。
   // 點信連結時若 cookie 吻合 → 同裝置直接登入；否則改要求驗證碼。
@@ -42,22 +64,24 @@ async function handleSendMagicLink(req, res) {
   if (deviceId && /^[A-Za-z0-9_-]{8,64}$/.test(deviceId)) {
     tokenPayload.deviceId = deviceId;
   }
-  const token = sign(tokenPayload, { expiresInSeconds: 15 * 60 });
+  const token = sign(tokenPayload, { expiresInSeconds: OTP_TTL_SECONDS });
   const verifyUrl = `${baseUrl(req)}/api/auth/callback?provider=email&token=${encodeURIComponent(token)}`;
 
   try {
     await sendMagicLinkEmail(email, verifyUrl, otpCode);
   } catch (e) {
     console.error("sendMagicLinkEmail failed", e.message);
+    try { await client.del(`magiclink:otp:${email}`); } catch (_) {}
     return res.status(502).json({ ok: false, reason: "send-failed", message: e.message });
   }
 
   const cookiesOut = [];
   if (tokenPayload.deviceId) {
-    cookiesOut.push(serializeCookie("mapsky_ml_device", tokenPayload.deviceId, { maxAge: 15 * 60 }));
+    cookiesOut.push(serializeCookie("mapsky_ml_device", tokenPayload.deviceId, { maxAge: OTP_TTL_SECONDS }));
   }
   if (cookiesOut.length) res.setHeader("Set-Cookie", cookiesOut);
-  return res.status(200).json({ ok: true, otp: otpCode });
+  // 驗證碼只出現在信件裡，絕不回傳給前端
+  return res.status(200).json({ ok: true });
 }
 
 async function handleVerifyOtp(req, res) {
@@ -66,24 +90,37 @@ async function handleVerifyOtp(req, res) {
     try { body = JSON.parse(body); } catch { body = {}; }
   }
   const email = String((body && body.email) || "").trim().toLowerCase();
-  const code = String((body && body.code) || "").trim();
+  const code = String((body && body.code) || "").replace(/\D/g, "").slice(0, 6);
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ ok: false, reason: "invalid-email" });
   }
   if (!/^\d{6}$/.test(code)) {
     return res.status(400).json({ ok: false, reason: "invalid-code" });
   }
-  let client = null;
-  try { client = await getRedisClient(); } catch (e) { client = null; }
+  const client = await getRedis();
   if (!client) {
     return res.status(503).json({ ok: false, reason: "otp-unavailable" });
   }
+  const triesKey = `magiclink:otp-tries:${email}`;
+  const tries = Number((await client.get(triesKey)) || 0);
+  if (tries >= OTP_MAX_ATTEMPTS) {
+    return res.status(429).json({ ok: false, reason: "too-many-attempts" });
+  }
+
   const otpKey = `magiclink:otp:${email}`;
   const stored = await client.get(otpKey);
-  if (!stored || stored !== code) {
+  let incoming = "";
+  try {
+    incoming = hashOtp(email, code);
+  } catch (e) {
+    return res.status(503).json({ ok: false, reason: "otp-unavailable" });
+  }
+  if (!otpMatches(stored, incoming) && !(stored && stored.length === 6 && otpMatches(stored, code))) {
+    await client.set(triesKey, String(tries + 1), { EX: OTP_TTL_SECONDS });
     return res.status(401).json({ ok: false, reason: "wrong-code" });
   }
   await client.del(otpKey);
+  await client.del(triesKey);
   const magicLinkProfile = { id: email, name: email, avatarUrl: null, email };
   const resolved = await resolveLoginIdentity("email", magicLinkProfile);
   const sessionToken = sign({ provider: resolved.provider, profile: resolved.profile });
