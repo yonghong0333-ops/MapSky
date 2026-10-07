@@ -1,0 +1,80 @@
+name: trigger-vercel-deploy
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/trigger-vercel-deploy.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure boot-hide is present and touch file
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          import time
+          js_path = Path('public/web-shim.js')
+          js = js_path.read_text(encoding='utf-8')
+
+          if 'mapsky-boot-hide-css' not in js:
+              inject = '''
+  (function injectBootHideCss() {
+    if (document.getElementById("mapsky-boot-hide-css")) return;
+    var s = document.createElement("style");
+    s.id = "mapsky-boot-hide-css";
+    s.textContent = ".login-gate:not(.login-gate--booting) .login-gate-boot{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}.login-gate-boot.hidden{display:none!important}";
+    (document.head || document.documentElement).appendChild(s);
+  })();
+'''
+              anchor = 'function el('
+              pos = js.find(anchor)
+              if pos < 0:
+                  raise SystemExit('no el')
+              js = js[:pos] + inject + '\n  ' + js[pos:]
+              print('injected')
+
+          needle = '''// 未登入：Google／Facebook 預設顯示，其他收在「更多登入方式」（無藍底按鈕）
+    endLoginGateBoot();'''
+          if needle in js and 'if (b) b.classList.add("hidden")' not in js[js.find(needle):js.find(needle)+350]:
+              extra = needle + '''
+    {
+      const b = el("loginGateBoot");
+      if (b) b.classList.add("hidden");
+      const g = el("loginGate");
+      if (g) {
+        g.classList.remove("login-gate--booting");
+        g.classList.remove("login-gate--opening");
+      }
+    }'''
+              js = js.replace(needle, extra, 1)
+              print('reinforced')
+
+          # Bump marker so Vercel always sees a production-file change
+          marker = '/* vercel-deploy-bump:'
+          line = f'/* vercel-deploy-bump:{int(time.time())} */\n'
+          if marker in js:
+              import re
+              js = re.sub(r'/\* vercel-deploy-bump:\d+ \*/\n', line, js, count=1)
+          else:
+              # after first line of file
+              if js.startswith('/*') or js.startswith('//') or js.startswith('(function'):
+                  js = line + js
+              else:
+                  js = line + js
+          js_path.write_text(js, encoding='utf-8')
+          print('bumped', 'mapsky-boot-hide-css' in js)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/web-shim.js
+          git status
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "deploy: bump web-shim to trigger Vercel (boot-hide)"
+            git push
+            echo PUSHED
+          fi
