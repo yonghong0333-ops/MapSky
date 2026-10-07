@@ -1228,17 +1228,26 @@
     const App = capPlugin("App");
     if (App && App.addListener) {
       App.addListener("appUrlOpen", async ({ url }) => {
-        let xchg;
+        let xchg = null;
+        let magicToken = null;
         try {
-          xchg = new URL(url).searchParams.get("xchg");
+          const u = new URL(url);
+          xchg = u.searchParams.get("xchg");
+          magicToken = u.searchParams.get("token");
         } catch {
           return;
         }
-        if (!xchg) return;
         const Browser = capPlugin("Browser");
         if (Browser && Browser.close) {
           try { await Browser.close(); } catch { /* 忽略，可能本來就已經關了 */ }
         }
+        // Email 驗證：用 App 內建 WebView 開啟 callback（帶得到 device cookie）
+        // → 判定為同裝置 → 直接交換碼完成登入，不必打驗證碼
+        if (magicToken) {
+          window.location.href = `/api/auth/callback?provider=email&token=${encodeURIComponent(magicToken)}`;
+          return;
+        }
+        if (!xchg) return;
         window.location.href = `/api/auth/login?xchg=${encodeURIComponent(xchg)}&redirect=1`;
       });
     }

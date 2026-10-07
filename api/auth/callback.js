@@ -125,33 +125,54 @@ ${tipsBlock}
   return res.send(html);
 }
 
-function sendCrossDeviceOtpPage(res, email) {
+function sendCrossDeviceOtpPage(res, email, token) {
+  const tokenStr = token ? String(token) : "";
+  const appMagicUrl = tokenStr
+    ? `mapsky://auth/magic?token=${encodeURIComponent(tokenStr)}`
+    : "mapsky://";
   const html = `<!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>輸入驗證碼 - MapSky</title></head>
-<body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:60px auto;padding:0 24px;text-align:center;color:#1f2937">
-<h2>請輸入信件中的驗證碼</h2>
-<p style="color:#6b7280;line-height:1.7">請輸入信件中的 <strong>6 位數驗證碼</strong>。<br>驗證成功後會嘗試跳回 MapSky App 完成登入。</p>
+<title>完成登入 - MapSky</title></head>
+<body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:48px auto;padding:0 24px;text-align:center;color:#1f2937">
+<h2 style="margin-bottom:8px">完成登入</h2>
+<p style="color:#6b7280;line-height:1.7;font-size:14px">系統判斷此瀏覽器與申請登入的裝置<strong>不同</strong>（常見於郵件 App 內建瀏覽器）。</p>
+
+<div style="margin:24px 0;padding:18px 16px;background:#f0f7ff;border:1px solid #cfe0ff;border-radius:16px;text-align:left">
+  <div style="font-weight:700;font-size:14px;margin-bottom:6px">同一支手機？</div>
+  <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 14px">請用 MapSky App 開啟，系統會用 App 內的裝置資訊直接完成登入（交換碼），不必再打驗證碼。</p>
+  <a href="${appMagicUrl}" style="display:block;text-align:center;padding:13px 16px;background:#1d4ed8;color:#fff;border-radius:999px;text-decoration:none;font-weight:700;font-size:15px">在 MapSky App 完成登入</a>
+</div>
+
+<div style="margin:8px 0 6px;color:#9ca3af;font-size:12px">— 其他裝置請輸入驗證碼 —</div>
+<p style="color:#6b7280;line-height:1.6;font-size:13.5px">請輸入信件中的 6 位數驗證碼，在此裝置登入。</p>
 <form id="otpForm">
   <input id="otpInput" maxlength="6" inputmode="numeric" autocomplete="one-time-code" style="width:100%;padding:14px;font-size:24px;letter-spacing:0.3em;text-align:center;box-sizing:border-box;border:1px solid #d1d5db;border-radius:12px"/>
-  <button type="submit" id="otpBtn" style="margin-top:12px;width:100%;padding:14px;background:#1d4ed8;color:#fff;border:0;border-radius:999px;font-weight:700">驗證並登入</button>
+  <button type="submit" id="otpBtn" style="margin-top:12px;width:100%;padding:14px;background:#111827;color:#fff;border:0;border-radius:999px;font-weight:700">驗證並登入</button>
 </form>
 <p id="otpErr" style="color:#b3261e;min-height:1.5em"></p>
 <p style="margin-top:8px"><a href="/" style="color:#6b7280;font-size:13.5px">回到 MapSky</a></p>
 <script>(function(){
   var f=document.getElementById('otpForm'),i=document.getElementById('otpInput'),b=document.getElementById('otpBtn'),e=document.getElementById('otpErr');
   var email=${JSON.stringify(email)};
-  i.oninput=function(){i.value=i.value.replace(/\\D/g,'').slice(0,6)};
+  i.oninput=function(){i.value=i.value.replace(/\D/g,'').slice(0,6)};
   f.onsubmit=async function(ev){
     ev.preventDefault();
-    var c=(i.value||'').replace(/\\D/g,'').slice(0,6);
+    var c=(i.value||'').replace(/\D/g,'').slice(0,6);
     if(c.length!==6){e.textContent='請輸入信件中的 6 位驗證碼';return;}
     b.disabled=true;e.textContent='';
     try{
       var r=await fetch('/api/auth/login?provider=email&action=verify-code',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({email:email,code:c})});
       var d=await r.json().catch(function(){return{}});
-      if(r.ok&&d.ok){if(d.xchg){var app='mapsky://login-complete?xchg='+encodeURIComponent(d.xchg);try{location.href=app;}catch(z){}setTimeout(function(){location.href='/?login=success';},1600);return;}location.href='/?login=success';return;}
+      if(r.ok&&d.ok){
+        if(d.xchg){
+          var app='mapsky://login-complete?xchg='+encodeURIComponent(d.xchg);
+          try{location.href=app;}catch(z){}
+          setTimeout(function(){location.href='/?login=success';},1600);
+          return;
+        }
+        location.href='/?login=success';return;
+      }
       if(d.reason==='wrong-code') e.textContent='驗證碼不正確或已過期';
       else if(d.reason==='too-many-attempts') e.textContent='嘗試次數過多，請重新寄一次驗證碼';
       else if(d.reason==='otp-unavailable') e.textContent='驗證服務暫時無法使用，請稍後再試';
@@ -229,7 +250,7 @@ async function handleEmailVerify(req, res) {
 
   if (req.method === "POST") {
     if (isCrossDevice) {
-      return sendCrossDeviceOtpPage(res, payload.email);
+      return sendCrossDeviceOtpPage(res, payload.email, token);
     }
     // 單次有效：真正消費的這一步才標記用過，防止信件被轉寄或連結外流後
     // 重複使用。沒接 Redis 的環境（本機開發）就跳過這層，只靠 15 分鐘的
@@ -348,7 +369,7 @@ async function handleEmailVerify(req, res) {
   }
 
   if (isCrossDevice) {
-    return sendCrossDeviceOtpPage(res, payload.email);
+    return sendCrossDeviceOtpPage(res, payload.email, token);
   }
 
   const verifyAction = `/api/auth/callback?provider=email&token=${encodeURIComponent(String(token))}`;
