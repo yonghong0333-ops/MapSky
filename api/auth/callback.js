@@ -190,7 +190,9 @@ function sendCrossDeviceOtpPage(res, email, token, otpPlain) {
     try { window.location.href = appUrl; } catch (e2) {}
   }
 
+  // 一進頁就等同按「在 App 完成登入」
   setTimeout(tryOpenApp, 150);
+  // 若仍留在此頁，顯示驗證碼給「另一台裝置」使用
   setTimeout(function () {
     if (!document.hidden) showCode();
   }, 1800);
@@ -202,6 +204,7 @@ function sendCrossDeviceOtpPage(res, email, token, otpPlain) {
   res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
   return res.send(html);
 }
+
 
 // 桌面版登入的備援驗證（見 login.js 的說明）：讀出並刪除伺服器上記的 desktop_flow:<state>，
 // 值要等於這次的 provider。刪除是為了只能用一次。
