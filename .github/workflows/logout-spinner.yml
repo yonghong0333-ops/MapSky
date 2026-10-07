@@ -15,39 +15,45 @@ jobs:
         run: |
           python3 << 'PY'
           from pathlib import Path
-          p = Path('public/web-shim.js')
-          js = p.read_text(encoding='utf-8')
-          if '正在登出' in js:
-              print('already')
+          p = Path("public/web-shim.js")
+          js = p.read_text(encoding="utf-8")
+          marker = "\u6b63\u5728\u767b\u51fa"
+          if marker in js:
+              print("already")
           else:
-              old = '''logoutBtn.addEventListener("click", async () => {
-            await fetch("/api/auth/session?action=logout", { method: "POST" });
-            window.location.href = "/";
-          });'''
-              new = '''logoutBtn.addEventListener("click", async () => {
-            try {
-              document.body.classList.remove("auth-ok");
-              const gate = el("loginGate");
-              if (gate) {
-                gate.classList.remove("hidden");
-                gate.classList.add("login-gate--booting");
-              }
-              const boot = el("loginGateBoot");
-              if (boot) boot.classList.remove("hidden");
-              setLoginGateBootText("正在登出…");
-            } catch (e) {}
-            try {
-              await fetch("/api/auth/session?action=logout", {
-                method: "POST",
-                credentials: "same-origin",
-              });
-            } catch (e) {}
-            window.location.replace("/");
-          });'''
+              old = (
+                  'logoutBtn.addEventListener("click", async () => {\n'
+                  '            await fetch("/api/auth/session?action=logout", { method: "POST" });\n'
+                  '            window.location.href = "/";\n'
+                  '          });'
+              )
+              msg = "\u6b63\u5728\u767b\u51fa\u2026"
+              new = (
+                  'logoutBtn.addEventListener("click", async () => {\n'
+                  '            try {\n'
+                  '              document.body.classList.remove("auth-ok");\n'
+                  '              const gate = el("loginGate");\n'
+                  '              if (gate) {\n'
+                  '                gate.classList.remove("hidden");\n'
+                  '                gate.classList.add("login-gate--booting");\n'
+                  '              }\n'
+                  '              const boot = el("loginGateBoot");\n'
+                  '              if (boot) boot.classList.remove("hidden");\n'
+                  f'              setLoginGateBootText("{msg}");\n'
+                  '            } catch (e) {}\n'
+                  '            try {\n'
+                  '              await fetch("/api/auth/session?action=logout", {\n'
+                  '                method: "POST",\n'
+                  '                credentials: "same-origin",\n'
+                  '              });\n'
+                  '            } catch (e) {}\n'
+                  '            window.location.replace("/");\n'
+                  '          });'
+              )
               if old not in js:
-                  raise SystemExit('logout handler not found')
-              p.write_text(js.replace(old, new, 1), encoding='utf-8')
-              print('patched')
+                  raise SystemExit("logout handler not found")
+              p.write_text(js.replace(old, new, 1), encoding="utf-8")
+              print("patched", marker in p.read_text(encoding="utf-8"))
           PY
       - name: Commit
         run: |
@@ -55,6 +61,6 @@ jobs:
           git config user.email "bot@mapsky.local"
           git add public/web-shim.js
           if git diff --staged --quiet; then echo No changes; else
-            git commit -m "ui: show spinner immediately on logout (no blank shell)"
+            git commit -m "ui: show spinner immediately on logout"
             git push
           fi
