@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
-"""After OTP verify success, avoid full page reload (can flash offline in WebView)."""
 from pathlib import Path
 import re
 
 JS = Path("public/web-shim.js")
 
-OLD = '''          if (resp.ok && data.ok) {
-            window.location.href = "/?login=success";
-            return;
-          }'''
-
-NEW = '''          if (resp.ok && data.ok) {
+NEW = r'''          if (resp.ok && data.ok) {
             // Soft login: full reload can briefly show a false offline screen
             // in the native WebView / mobile browser. Stay on this page, mark
             // auth-ok, start renderer, then refresh session UI.
@@ -37,7 +31,6 @@ NEW = '''          if (resp.ok && data.ok) {
                 try { endLoginGateBoot(); } catch (e) {}
               }, 30000);
               startAppAfterLogin();
-              // Build account UI from a fresh session (cookie already set by verify response)
               loadSession().then(function (session) {
                 if (!session || !session.loggedIn) {
                   window.location.replace("/?login=success");
@@ -76,26 +69,19 @@ def main():
     if "Soft login: full reload can briefly show" in js:
         print("already patched")
         return
-    if OLD not in js:
-        # tolerant fallback
-        pat = re.compile(
-            r"if \(resp\.ok && data\.ok\) \{\s*"
-            r"window\.location\.href = \"/\?login=success\";\s*"
-            r"return;\s*"
-            r"\}",
-            re.M,
-        )
-        if not pat.search(js):
-            raise SystemExit("OTP success block not found")
-        js = pat.sub(NEW.strip().split("if (resp.ok")[0] + "if (resp.ok" + NEW.split("if (resp.ok", 1)[1] if False else NEW.strip(), js, count=1)
-        # simpler:
-        js = JS.read_text(encoding="utf-8")
-        m = pat.search(js)
-        js = js[: m.start()] + NEW.strip() + js[m.end() :]
-    else:
-        js = js.replace(OLD, NEW, 1)
+    pat = re.compile(
+        r"if \(resp\.ok && data\.ok\) \{\s*"
+        r"window\.location\.href = \"/\?login=success\";\s*"
+        r"return;\s*"
+        r"\}",
+        re.M,
+    )
+    m = pat.search(js)
+    if not m:
+        raise SystemExit("OTP success block not found")
+    js = js[: m.start()] + NEW.strip() + js[m.end() :]
     JS.write_text(js, encoding="utf-8")
-    print("patched", "Soft login" in JS.read_text(encoding="utf-8"))
+    print("patched ok", JS.stat().st_size)
 
 
 if __name__ == "__main__":
