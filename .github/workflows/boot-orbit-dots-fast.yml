@@ -20,6 +20,6 @@ jobs:
           git config user.email "bot@mapsky.local"
           git add public/index.html public/style.css
           if git diff --staged --quiet; then echo No changes; else
-            git commit -m "ui: wider dotted boot orbit, whip-fast on the way down"
+            git commit -m "ui: fewer boot dots, line at top, then many dots"
             git push
           fi
