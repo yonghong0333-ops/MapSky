@@ -3,7 +3,7 @@ from pathlib import Path
 
 JS = Path("public/web-shim.js")
 
-OLD = '''            // Only deep-link into the native shell. In mobile Chrome/Safari a
+OLD = '''// Only deep-link into the native shell. In mobile Chrome/Safari a
             // mapsky:// navigation leaves the page and can show a false
             // "無法連線" screen. Cookie session already works in-page.
             var inNative = Boolean(
@@ -16,12 +16,12 @@ OLD = '''            // Only deep-link into the native shell. In mobile Chrome/S
                 window.location.href = "mapsky://login-complete?xchg=" + encodeURIComponent(data.xchg);
               } catch (z) {}
             }
-            try {'''
+            '''
 
-NEW = '''            // Stay in-page after OTP. Do NOT navigate to mapsky:// — inside the
+NEW = '''// Stay in-page after OTP. Do NOT navigate to mapsky:// — inside the
             // MapSky App WebView that navigation unloads the page and triggers the
             // native "目前無法連線" screen. Session cookie is already set by verify-code.
-            try {'''
+            '''
 
 
 def main():
