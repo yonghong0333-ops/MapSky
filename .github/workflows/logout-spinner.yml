@@ -1,0 +1,24 @@
+name: logout-spinner
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/logout-spinner.yml'
+      - 'scripts/patch-logout-spinner.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/patch-logout-spinner.py
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/web-shim.js
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: show spinner immediately on logout (no blank shell)"
+            git push
+          fi
