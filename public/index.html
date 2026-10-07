@@ -70,22 +70,47 @@
   }
   .login-gate-boot-orbit-wrap {
     position: relative !important;
-    width: 88px !important;
-    height: 88px !important;
+    width: 168px !important;
+    height: 168px !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
   }
-  .login-gate-boot-orbit-ring {
+  .login-gate-boot-weather {
+    position: relative !important;
+    width: 96px !important;
+    height: 96px !important;
+    z-index: 1 !important;
+  }
+  .login-gate-boot-orbit-dots {
     position: absolute !important;
     inset: 0 !important;
-    border-radius: 50% !important;
-    border: 3px solid rgba(255, 255, 255, 0.4) !important;
-    border-top-color: #3b82f6 !important;
-    animation: criticalBootSpin 0.85s linear infinite !important;
+    animation: criticalBootSpin 1.15s linear infinite !important;
   }
+  .login-gate-boot-orbit-dots i {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: 12px !important;
+    height: 12px !important;
+    margin: -6px 0 0 -6px !important;
+    border-radius: 50% !important;
+    background: #ffffff !important;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.55) !important;
+  }
+  .login-gate-boot-orbit-dots i:nth-child(1) { transform: rotate(0deg) translate(72px) !important; opacity: 1 !important; }
+  .login-gate-boot-orbit-dots i:nth-child(2) { transform: rotate(45deg) translate(72px) !important; opacity: 0.86 !important; }
+  .login-gate-boot-orbit-dots i:nth-child(3) { transform: rotate(90deg) translate(72px) !important; opacity: 0.72 !important; }
+  .login-gate-boot-orbit-dots i:nth-child(4) { transform: rotate(135deg) translate(72px) !important; opacity: 0.58 !important; }
+  .login-gate-boot-orbit-dots i:nth-child(5) { transform: rotate(180deg) translate(72px) !important; opacity: 0.44 !important; }
+  .login-gate-boot-orbit-dots i:nth-child(6) { transform: rotate(225deg) translate(72px) !important; opacity: 0.32 !important; }
+  .login-gate-boot-orbit-dots i:nth-child(7) { transform: rotate(270deg) translate(72px) !important; opacity: 0.2 !important; }
+  .login-gate-boot-orbit-dots i:nth-child(8) { transform: rotate(315deg) translate(72px) !important; opacity: 0.12 !important; }
   @keyframes criticalBootSpin {
     to { transform: rotate(360deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .login-gate-boot-orbit-dots { animation: none !important; }
   }
 </style>
 <link rel="stylesheet" href="style.css" />
@@ -289,7 +314,7 @@
   <div id="loginGate" class="login-gate login-gate--booting">
     <div id="loginGateBoot" class="login-gate-boot" role="status" aria-live="polite">
       <div class="login-gate-boot-orbit-wrap" aria-hidden="true">
-        <span class="login-gate-boot-orbit-ring"></span>
+        <span class="login-gate-boot-orbit-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
         <div class="login-gate-boot-weather">
         <img class="login-gate-boot-wx is-active" src="icons/sunny.png" alt="" data-wx="sunny" />
         <img class="login-gate-boot-wx" src="icons/partly-cloudy.png" alt="" data-wx="partly" />
