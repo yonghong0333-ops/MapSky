@@ -21,7 +21,6 @@ jobs:
           from pathlib import Path
           style = Path('public/style.css').read_text(encoding='utf-8')
           theme = Path('public/theme-tech-glass.css').read_text(encoding='utf-8')
-          # Only strip our theme overlays, never the real stylesheet body
           markers = [
               '/* MapSky \u2014 LIGHT TECH theme',
               '/* MapSky \u2014 CYBER TECH theme',
@@ -38,16 +37,17 @@ jobs:
           base = style[:cut].rstrip()
           out = base + '\n\n' + theme.strip() + '\n'
           Path('public/style.css').write_text(out, encoding='utf-8')
-          print('base', len(base), 'out', len(out))
+          print('base', len(base), 'theme', len(theme), 'out', len(out))
           assert 'adventure-panel' in out
           assert 'adventureBtnShine' in out
+          assert 'Dynamic Island Adventure' in out
           assert len(out) > 120000
           PY
       - name: Commit
         run: |
           git config user.name "mapsky-bot"
           git config user.email "bot@mapsky.local"
-          git add public/style.css public/theme-tech-glass.css
+          git add public/style.css
           if git diff --staged --quiet; then
             echo No changes
           else
