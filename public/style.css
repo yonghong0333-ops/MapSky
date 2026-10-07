@@ -4121,43 +4121,68 @@ html.app-paused *, html.app-paused *::before, html.app-paused *::after,
   to { transform: rotate(360deg); }
 }
 
+/* BOOT_ORBIT_DOTS_V2 */
 .login-gate-boot-orbit-wrap {
   position: relative;
-  width: 168px;
-  height: 168px;
+  width: 248px;
+  height: 248px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+.login-gate-boot-orbit-ring {
+  display: none;
+}
 .login-gate-boot-orbit-dots {
   position: absolute;
   inset: 0;
-  animation: login-boot-spin 1.15s linear infinite;
+  animation: login-boot-orbit-whip 1.28s linear infinite;
   pointer-events: none;
 }
 .login-gate-boot-orbit-dots i {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 12px;
-  height: 12px;
-  margin: -6px 0 0 -6px;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
   border-radius: 50%;
   background: #ffffff;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.7);
 }
-.login-gate-boot-orbit-dots i:nth-child(1) { transform: rotate(0deg) translate(72px); opacity: 1; }
-.login-gate-boot-orbit-dots i:nth-child(2) { transform: rotate(45deg) translate(72px); opacity: 0.86; }
-.login-gate-boot-orbit-dots i:nth-child(3) { transform: rotate(90deg) translate(72px); opacity: 0.72; }
-.login-gate-boot-orbit-dots i:nth-child(4) { transform: rotate(135deg) translate(72px); opacity: 0.58; }
-.login-gate-boot-orbit-dots i:nth-child(5) { transform: rotate(180deg) translate(72px); opacity: 0.44; }
-.login-gate-boot-orbit-dots i:nth-child(6) { transform: rotate(225deg) translate(72px); opacity: 0.32; }
-.login-gate-boot-orbit-dots i:nth-child(7) { transform: rotate(270deg) translate(72px); opacity: 0.2; }
-.login-gate-boot-orbit-dots i:nth-child(8) { transform: rotate(315deg) translate(72px); opacity: 0.12; }
+.login-gate-boot-orbit-dots i:nth-child(1) { transform: rotate(0.0deg) translate(112px); opacity: 1.000; }
+.login-gate-boot-orbit-dots i:nth-child(2) { transform: rotate(15.0deg) translate(112px); opacity: 0.960; }
+.login-gate-boot-orbit-dots i:nth-child(3) { transform: rotate(30.0deg) translate(112px); opacity: 0.920; }
+.login-gate-boot-orbit-dots i:nth-child(4) { transform: rotate(45.0deg) translate(112px); opacity: 0.880; }
+.login-gate-boot-orbit-dots i:nth-child(5) { transform: rotate(60.0deg) translate(112px); opacity: 0.840; }
+.login-gate-boot-orbit-dots i:nth-child(6) { transform: rotate(75.0deg) translate(112px); opacity: 0.800; }
+.login-gate-boot-orbit-dots i:nth-child(7) { transform: rotate(90.0deg) translate(112px); opacity: 0.760; }
+.login-gate-boot-orbit-dots i:nth-child(8) { transform: rotate(105.0deg) translate(112px); opacity: 0.720; }
+.login-gate-boot-orbit-dots i:nth-child(9) { transform: rotate(120.0deg) translate(112px); opacity: 0.680; }
+.login-gate-boot-orbit-dots i:nth-child(10) { transform: rotate(135.0deg) translate(112px); opacity: 0.640; }
+.login-gate-boot-orbit-dots i:nth-child(11) { transform: rotate(150.0deg) translate(112px); opacity: 0.600; }
+.login-gate-boot-orbit-dots i:nth-child(12) { transform: rotate(165.0deg) translate(112px); opacity: 0.560; }
+.login-gate-boot-orbit-dots i:nth-child(13) { transform: rotate(180.0deg) translate(112px); opacity: 0.520; }
+.login-gate-boot-orbit-dots i:nth-child(14) { transform: rotate(195.0deg) translate(112px); opacity: 0.480; }
+.login-gate-boot-orbit-dots i:nth-child(15) { transform: rotate(210.0deg) translate(112px); opacity: 0.440; }
+.login-gate-boot-orbit-dots i:nth-child(16) { transform: rotate(225.0deg) translate(112px); opacity: 0.400; }
+.login-gate-boot-orbit-dots i:nth-child(17) { transform: rotate(240.0deg) translate(112px); opacity: 0.360; }
+.login-gate-boot-orbit-dots i:nth-child(18) { transform: rotate(255.0deg) translate(112px); opacity: 0.320; }
+.login-gate-boot-orbit-dots i:nth-child(19) { transform: rotate(270.0deg) translate(112px); opacity: 0.280; }
+.login-gate-boot-orbit-dots i:nth-child(20) { transform: rotate(285.0deg) translate(112px); opacity: 0.240; }
+.login-gate-boot-orbit-dots i:nth-child(21) { transform: rotate(300.0deg) translate(112px); opacity: 0.200; }
+.login-gate-boot-orbit-dots i:nth-child(22) { transform: rotate(315.0deg) translate(112px); opacity: 0.160; }
+.login-gate-boot-orbit-dots i:nth-child(23) { transform: rotate(330.0deg) translate(112px); opacity: 0.120; }
+.login-gate-boot-orbit-dots i:nth-child(24) { transform: rotate(345.0deg) translate(112px); opacity: 0.080; }
 .login-gate-boot-orbit-wrap .login-gate-boot-weather {
   width: 96px;
   height: 96px;
   z-index: 1;
+}
+@keyframes login-boot-orbit-whip {
+  0% { transform: rotate(0deg); }
+  14% { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
 }
 @media (prefers-reduced-motion: reduce) {
   .login-gate-boot-orbit-dots { animation: none; }
