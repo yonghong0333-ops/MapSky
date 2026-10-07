@@ -1,0 +1,24 @@
+name: callback-native-redirect
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/callback-native-redirect.yml'
+      - 'scripts/patch-callback-native-redirect.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/patch-callback-native-redirect.py
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add api/auth/callback.js
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "fix: in-app magic-link stays on web (no mapsky:// offline)"
+            git push
+          fi
