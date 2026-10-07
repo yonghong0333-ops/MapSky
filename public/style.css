@@ -1,5 +1,8 @@
-/* MapSky styles — split for deploy; theme last for liquid-glass overrides */
-@import url("style-part1.css");
-@import url("style-part2.css");
-@import url("style-part3.css");
+/* MapSky liquid-glass tech */
+@import url("sp1.css");
+@import url("sp2.css");
+@import url("sp3.css");
+@import url("sp4.css");
+@import url("sp5.css");
+@import url("sp6.css");
 @import url("theme-tech-glass.css");
