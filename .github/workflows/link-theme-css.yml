@@ -1,0 +1,65 @@
+name: link-theme-css
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/link-theme-css.yml'
+jobs:
+  link:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure theme stylesheet is linked + style has latest theme
+        run: |
+          set -e
+          # 1) Link theme CSS in index.html (after style.css)
+          if ! grep -q 'theme-tech-glass.css' public/index.html; then
+            python3 - <<'PY'
+          from pathlib import Path
+          p = Path('public/index.html')
+          t = p.read_text(encoding='utf-8')
+          old = '<link rel="stylesheet" href="style.css" />'
+          new = old + '\n<link rel="stylesheet" href="theme-tech-glass.css" />'
+          if old not in t:
+              raise SystemExit('style.css link not found')
+          p.write_text(t.replace(old, new, 1), encoding='utf-8')
+          print('linked theme-tech-glass.css')
+          PY
+          else
+            echo already linked
+          fi
+          # 2) Also fold theme into style.css end for clients that cache index
+          python3 - <<'PY'
+          from pathlib import Path
+          style = Path('public/style.css').read_text(encoding='utf-8')
+          theme = Path('public/theme-tech-glass.css').read_text(encoding='utf-8')
+          markers = [
+              '/* MapSky \u2014 LIGHT TECH theme',
+              '/* MapSky \u2014 CYBER TECH theme',
+              '/* MapSky \u2014 Liquid Glass + Tech theme overrides',
+              '/* MapSky — LIGHT TECH theme',
+              '/* MapSky — CYBER TECH theme',
+              '/* MapSky — Liquid Glass + Tech theme overrides',
+          ]
+          cut = len(style)
+          for m in markers:
+              i = style.find(m)
+              if i >= 0:
+                  cut = min(cut, i)
+          base = style[:cut].rstrip()
+          Path('public/style.css').write_text(base + '\n\n' + theme.strip() + '\n', encoding='utf-8')
+          print('style.css updated', Path('public/style.css').stat().st_size)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/index.html public/style.css
+          if git diff --staged --quiet; then
+            echo No changes
+          else
+            git commit -m "style: wire light-tech adventure redesign (link theme + style)"
+            git push
+          fi
