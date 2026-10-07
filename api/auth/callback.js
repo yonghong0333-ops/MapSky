@@ -334,6 +334,13 @@ async function handleEmailVerify(req, res) {
     // 同裝置：表單 POST 是使用者手勢觸發的導覽，優先 302 直接進 App
     // （桌面殼／已安裝 App 的手機通常接得住）。若環境擋自訂 scheme，
     // 客戶端仍會落到下面這頁，用按鈕／自動嘗試當備援。
+    const inNativeApp = /MapSkyiOS/i.test(ua) || /MapSkyApp/i.test(ua);
+    // Already in App WebView: cookie set — do not 302 to mapsky:// (causes offline screen)
+    if (inNativeApp) {
+      res.writeHead(302, { Location: webUrl });
+      return res.end();
+    }
+    // System mobile browser: open App via custom scheme
     if (looksMobile) {
       res.writeHead(302, { Location: appUrl });
       return res.end();
