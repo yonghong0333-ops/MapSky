@@ -1974,19 +1974,9 @@
             // Soft login: full reload can briefly show a false offline screen
             // in the native WebView / mobile browser. Stay on this page, mark
             // auth-ok, start renderer, then refresh session UI.
-            // Only deep-link into the native shell. In mobile Chrome/Safari a
-            // mapsky:// navigation leaves the page and can show a false
-            // "無法連線" screen. Cookie session already works in-page.
-            var inNative = Boolean(
-              (window.appInfo && window.appInfo.isNativeApp) ||
-              (window.MapSkyNative && window.MapSkyNative.isNative) ||
-              (window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform())
-            );
-            if (data.xchg && inNative) {
-              try {
-                window.location.href = "mapsky://login-complete?xchg=" + encodeURIComponent(data.xchg);
-              } catch (z) {}
-            }
+            // Stay in-page after OTP. Do NOT navigate to mapsky:// — inside the
+            // MapSky App WebView that navigation unloads the page and triggers the
+            // native "目前無法連線" screen. Session cookie is already set by verify-code.
             try {
               hideMagicLinkVerifyPanel();
               const gate = el("loginGate");
