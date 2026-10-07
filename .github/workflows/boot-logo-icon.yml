@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/boot-logo-icon.yml'
+      - 'scripts/patch-boot-icon-simple.py'
 jobs:
   patch:
     runs-on: ubuntu-latest
@@ -11,71 +12,12 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Patch boot icon
-        run: |
-          set -e
-          python3 << 'PY'
-          from pathlib import Path
-          import re
-          idx = Path('public/index.html')
-          h = idx.read_text(encoding='utf-8')
-          print('len', len(h))
-          print('has sunny', 'icons/sunny.png' in h)
-          pat = re.compile(
-              r'(<div class="login-gate-boot-weather">)[\s\S]*?(</div>\s*</div>\s*<p class="login-gate-boot-text")',
-              re.M,
-          )
-          m = pat.search(h)
-          print('match', bool(m))
-          if not m:
-              raise SystemExit('no match')
-          repl = m.group(1) + '\n          <img class="login-gate-boot-wx is-active login-gate-boot-logo" src="icons/icon-192.png" alt="MapSky" />\n        ' + m.group(2)
-          h2 = pat.sub(repl, h, count=1)
-          idx.write_text(h2, encoding='utf-8')
-          print('wrote index', 'icon-192.png' in idx.read_text(encoding='utf-8'))
-
-          cb = Path('api/auth/callback.js')
-          c = cb.read_text(encoding='utf-8')
-          old_orbit = '<div class="orbit" aria-hidden="true"><span class="ring"></span><div class="sun"></div></div>'
-          new_orbit = '<div class="orbit" aria-hidden="true"><span class="ring"></span><img class="logo" src="/icons/icon-192.png" alt="MapSky" width="52" height="52"/></div>'
-          if old_orbit in c:
-              c = c.replace(old_orbit, new_orbit, 1)
-              cb.write_text(c, encoding='utf-8')
-              print('callback orbit replaced')
-          else:
-              print('callback orbit missing')
-
-          css_path = Path('public/style.css')
-          css = css_path.read_text(encoding='utf-8')
-          if 'BOOT_LOGO_ICON' not in css:
-              css_path.write_text(css.rstrip() + '''
-
-/* BOOT_LOGO_ICON */
-.login-gate-boot-weather .login-gate-boot-logo {
-  width: 72px !important;
-  height: 72px !important;
-  border-radius: 18px !important;
-  opacity: 1 !important;
-  transform: none !important;
-  object-fit: contain !important;
-}
-.login-gate-boot-weather {
-  width: 72px !important;
-  height: 72px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-''', encoding='utf-8')
-              print('css written')
-          PY
+      - run: python3 scripts/patch-boot-icon-simple.py
       - name: Commit
         run: |
           git config user.name "mapsky-bot"
           git config user.email "bot@mapsky.local"
-          git status
           git add public/index.html public/style.css api/auth/callback.js
-          git status
           if git diff --staged --quiet; then echo No changes; else
             git commit -m "ui: login boot spinner uses MapSky app icon"
             git push
