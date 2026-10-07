@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Widen the boot sun orbit, use many small dots, whip-fast on the downward half."""
 from pathlib import Path
-import re
 
 DOT_N = 24
 RADIUS = 112
@@ -17,15 +16,16 @@ def nth_rules(important=False):
     for i in range(DOT_N):
         ang = i * (360 / DOT_N)
         op = 1.0 - i * (0.92 / (DOT_N - 1))
+        prefix = "  " if important else ""
         lines.append(
-            f".login-gate-boot-orbit-dots i:nth-child({i + 1}) {{"
+            f"{prefix}.login-gate-boot-orbit-dots i:nth-child({i + 1}) {{"
             f" transform: rotate({ang:.1f}deg) translate({RADIUS}px){bang};"
             f" opacity: {op:.3f}{bang}; }}"
         )
     return "\n".join(lines)
 
 
-CRITICAL_ORBIT = f'''  .login-gate-boot-orbit-wrap {{
+CRITICAL_ORBIT = f"""  .login-gate-boot-orbit-wrap {{
     position: relative !important;
     width: {WRAP}px !important;
     height: {WRAP}px !important;
@@ -58,7 +58,7 @@ CRITICAL_ORBIT = f'''  .login-gate-boot-orbit-wrap {{
     background: #ffffff !important;
     box-shadow: 0 0 6px rgba(255, 255, 255, 0.7) !important;
   }}
-{chr(10).join("  " + ln for ln in nth_rules(True).splitlines())}
+{nth_rules(True)}
   @keyframes criticalBootSpin {{
     0% {{ transform: rotate(0deg); }}
     14% {{ transform: rotate(180deg); }}
@@ -66,9 +66,9 @@ CRITICAL_ORBIT = f'''  .login-gate-boot-orbit-wrap {{
   }}
   @media (prefers-reduced-motion: reduce) {{
     .login-gate-boot-orbit-dots {{ animation: none !important; }}
-  }}'''
+  }}"""
 
-CSS_ORBIT = f'''/* BOOT_ORBIT_DOTS_V2 */
+CSS_ORBIT = f"""/* BOOT_ORBIT_DOTS_V2 */
 .login-gate-boot-orbit-wrap {{
   position: relative;
   width: {WRAP}px;
@@ -110,49 +110,56 @@ CSS_ORBIT = f'''/* BOOT_ORBIT_DOTS_V2 */
 }}
 @media (prefers-reduced-motion: reduce) {{
   .login-gate-boot-orbit-dots {{ animation: none; }}
-}}
-'''
+}}"""
 
 
-def patch_html(html: str) -> str:
-    pat_crit = re.compile(
-        r"  \\.login-gate-boot-orbit-wrap \\{[\\s\\S]*?@media \\(prefers-reduced-motion: reduce\\) \\{\\s*\\n    \\.login-gate-boot-orbit-dots \\{ animation: none !important; \\}\\s*\\n  \\}",
-        re.M,
-    )
-    html2, n = pat_crit.subn(CRITICAL_ORBIT, html, count=1)
-    if n != 1:
-        raise SystemExit(f"critical orbit css not found n={n}")
-    html = html2
-    dots_html = "<i></i>" * DOT_N
-    html2, n = re.subn(
-        r'<span class="login-gate-boot-orbit-dots" aria-hidden="true">(?:<i></i>)+</span>',
-        f'<span class="login-gate-boot-orbit-dots" aria-hidden="true">{dots_html}</span>',
+def replace_once(src, start_token, end_token, replacement, label):
+    start = src.find(start_token)
+    if start < 0:
+        raise SystemExit(f"{label}: start not found")
+    end = src.find(end_token, start)
+    if end < 0:
+        raise SystemExit(f"{label}: end not found")
+    end += len(end_token)
+    return src[:start] + replacement + src[end:]
+
+
+def patch_html(html):
+    html = replace_once(
         html,
-        count=1,
+        "  .login-gate-boot-orbit-wrap {",
+        "    .login-gate-boot-orbit-dots { animation: none !important; }\n  }",
+        CRITICAL_ORBIT,
+        "critical css",
     )
-    if n != 1:
-        raise SystemExit(f"orbit dots html not found n={n}")
-    return html2
+    start = html.find('<span class="login-gate-boot-orbit-dots" aria-hidden="true">')
+    if start < 0:
+        raise SystemExit("orbit dots html not found")
+    end = html.find("</span>", start)
+    if end < 0:
+        raise SystemExit("orbit dots html close not found")
+    end += len("</span>")
+    dots = "<i></i>" * DOT_N
+    new = f'<span class="login-gate-boot-orbit-dots" aria-hidden="true">{dots}</span>'
+    return html[:start] + new + html[end:]
 
 
-def patch_css(css: str) -> str:
+def patch_css(css):
     if "/* BOOT_ORBIT_DOTS_V2 */" in css:
-        pat = re.compile(
-            r"/\\* BOOT_ORBIT_DOTS_V2 \\*/[\\s\\S]*?@media \\(prefers-reduced-motion: reduce\\) \\{\\s*\\n  \\.login-gate-boot-orbit-dots \\{ animation: none; \\}\\s*\\n\\}",
-            re.M,
+        return replace_once(
+            css,
+            "/* BOOT_ORBIT_DOTS_V2 */",
+            ".login-gate-boot-orbit-dots { animation: none; }\n}",
+            CSS_ORBIT,
+            "css v2",
         )
-        css2, n = pat.subn(CSS_ORBIT.rstrip(), css, count=1)
-        if n != 1:
-            raise SystemExit("BOOT_ORBIT_DOTS_V2 block replace failed")
-        return css2
-    pat = re.compile(
-        r"\\.login-gate-boot-orbit-wrap \\{[\\s\\S]*?@media \\(prefers-reduced-motion: reduce\\) \\{\\s*\\n  \\.login-gate-boot-orbit-dots \\{ animation: none; \\}\\s*\\n\\}",
-        re.M,
+    return replace_once(
+        css,
+        ".login-gate-boot-orbit-wrap {",
+        ".login-gate-boot-orbit-dots { animation: none; }\n}",
+        CSS_ORBIT,
+        "css orbit",
     )
-    css2, n = pat.subn(CSS_ORBIT.rstrip(), css, count=1)
-    if n != 1:
-        raise SystemExit(f"style.css orbit block not found n={n}")
-    return css2
 
 
 def main():
