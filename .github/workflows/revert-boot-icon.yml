@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - '.github/workflows/revert-boot-icon.yml'
-      - 'scripts/revert-boot-icon.py'
 jobs:
   patch:
     runs-on: ubuntu-latest
@@ -12,7 +11,47 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - run: python3 scripts/revert-boot-icon.py
+      - name: Revert
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          import re
+          idx = Path('public/index.html')
+          h = idx.read_text(encoding='utf-8')
+          start = h.find('loginGateBoot')
+          if start < 0:
+              raise SystemExit('no boot')
+          pat = re.compile(
+              r'<div class="login-gate-boot-weather">[\s\S]*?</div>',
+              re.M,
+          )
+          m = pat.search(h, start)
+          if not m:
+              raise SystemExit('no weather block')
+          new = '''<div class="login-gate-boot-weather">
+        <img class="login-gate-boot-wx is-active" src="icons/sunny.png" alt="" data-wx="sunny" />
+        <img class="login-gate-boot-wx" src="icons/partly-cloudy.png" alt="" data-wx="partly" />
+        <img class="login-gate-boot-wx" src="icons/overcast.png" alt="" data-wx="overcast" />
+        <img class="login-gate-boot-wx" src="icons/drizzle.png" alt="" data-wx="drizzle" />
+        <img class="login-gate-boot-wx" src="icons/rain.png" alt="" data-wx="rain" />
+        <img class="login-gate-boot-wx" src="icons/thunderstorm.png" alt="" data-wx="storm" />
+      </div>'''
+          h = h[:m.start()] + new + h[m.end():]
+          idx.write_text(h, encoding='utf-8')
+          print('reverted', 'sunny.png' in idx.read_text(encoding='utf-8'))
+
+          css_path = Path('public/style.css')
+          css = css_path.read_text(encoding='utf-8')
+          if 'BOOT_LOGO_ICON' in css:
+              css = re.sub(
+                  r'\n*/\* BOOT_LOGO_ICON \*/[\s\S]*?justify-content: center !important;\n\}\n?',
+                  '\n',
+                  css,
+                  count=1,
+              )
+              css_path.write_text(css, encoding='utf-8')
+              print('css cleaned')
+          PY
       - name: Commit
         run: |
           git config user.name "mapsky-bot"
