@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 
 JS = Path("public/web-shim.js")
 CSS = Path("public/style.css")
@@ -25,42 +26,73 @@ def patch_js():
         print("JS already patched")
         return
 
-    old_sending = '''if (labelEl) {
-      labelEl.innerHTML = "…";
-      submitBtn.setAttribute("aria-label", "寄送中…");
-      submitBtn.setAttribute("title", "寄送中…");
-    }'''
-    new_sending = f'''if (submitBtn) submitBtn.classList.add("is-sending");
-    if (labelEl) {{
-      labelEl.innerHTML = `{SPIN_SVG}`;
-      submitBtn.setAttribute("aria-label", "寄送中…");
-      submitBtn.setAttribute("title", "寄送中…");
-    }}'''
-    if old_sending not in js:
-        raise SystemExit("sending block not found")
-    js = js.replace(old_sending, new_sending, 1)
+    # Replace the "…" loading label inside sendMagicLink
+    pat_send = re.compile(
+        r"(async function sendMagicLink[\s\S]*?if \(submitBtn\) submitBtn\.disabled = true;\s*"
+        r"if \(labelEl\) \{)\s*"
+        r"labelEl\.innerHTML = \"[^\"]*\";\s*"
+        r"submitBtn\.setAttribute\(\"aria-label\", \"[^\"]*\"\);\s*"
+        r"submitBtn\.setAttribute\(\"title\", \"[^\"]*\"\);\s*"
+        r"(\})",
+        re.M,
+    )
+    m = pat_send.search(js)
+    if not m:
+        raise SystemExit("sendMagicLink loading block not found")
+    repl = (
+        m.group(1)
+        + "\n      submitBtn.classList.add(\"is-sending\");\n"
+        + f"      labelEl.innerHTML = `{SPIN_SVG}`;\n"
+        + '      submitBtn.setAttribute("aria-label", "\u5bc4\u9001\u4e2d\u2026");\n'
+        + '      submitBtn.setAttribute("title", "\u5bc4\u9001\u4e2d\u2026");\n    '
+        + m.group(2)
+    )
+    # Use unicode chars properly
+    repl = (
+        m.group(1)
+        + "\n      submitBtn.classList.add(\"is-sending\");\n"
+        + f"      labelEl.innerHTML = `{SPIN_SVG}`;\n"
+        + "      submitBtn.setAttribute(\"aria-label\", \"\u5bc4\u9001\u4e2d\u2026\");\n"
+        + "      submitBtn.setAttribute(\"title\", \"\u5bc4\u9001\u4e2d\u2026\");\n    "
+        + m.group(2)
+    )
+    repl = (
+        m.group(1)
+        + "\n      submitBtn.classList.add(\"is-sending\");\n"
+        + f"      labelEl.innerHTML = `{SPIN_SVG}`;\n"
+        + "      submitBtn.setAttribute(\"aria-label\", \"寄送中…\");\n"
+        + "      submitBtn.setAttribute(\"title\", \"寄送中…\");\n    "
+        + m.group(2)
+    )
+    js = pat_send.sub(repl, js, count=1)
 
-    old_idle = '''function setMagicSubmitIdle(submitBtn, labelEl) {
-    if (!submitBtn || !labelEl) return;
-    labelEl.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
-    submitBtn.setAttribute("aria-label", "寄送登入連結");
-    submitBtn.setAttribute("title", "寄送登入連結");
-    submitBtn.disabled = false;
-  }'''
-    new_idle = f'''function setMagicSubmitIdle(submitBtn, labelEl) {{
-    if (!submitBtn || !labelEl) return;
-    submitBtn.classList.remove("is-sending");
-    labelEl.innerHTML = `{ARROW_SVG}`;
-    submitBtn.setAttribute("aria-label", "寄送登入連結");
-    submitBtn.setAttribute("title", "寄送登入連結");
-    submitBtn.disabled = false;
-  }}'''
-    if old_idle not in js:
+    # setMagicSubmitIdle: restore arrow + clear is-sending
+    pat_idle = re.compile(
+        r"function setMagicSubmitIdle\(submitBtn, labelEl\) \{\s*"
+        r"if \(!submitBtn \|\| !labelEl\) return;\s*"
+        r"labelEl\.innerHTML = `[^`]+`;\s*"
+        r"submitBtn\.setAttribute\(\"aria-label\", \"[^\"]*\"\);\s*"
+        r"submitBtn\.setAttribute\(\"title\", \"[^\"]*\"\);\s*"
+        r"submitBtn\.disabled = false;\s*"
+        r"\}",
+        re.M,
+    )
+    if not pat_idle.search(js):
         raise SystemExit("setMagicSubmitIdle not found")
-    js = js.replace(old_idle, new_idle, 1)
+    new_idle = (
+        "function setMagicSubmitIdle(submitBtn, labelEl) {\n"
+        "    if (!submitBtn || !labelEl) return;\n"
+        "    submitBtn.classList.remove(\"is-sending\");\n"
+        f"    labelEl.innerHTML = `{ARROW_SVG}`;\n"
+        "    submitBtn.setAttribute(\"aria-label\", \"寄送登入連結\");\n"
+        "    submitBtn.setAttribute(\"title\", \"寄送登入連結\");\n"
+        "    submitBtn.disabled = false;\n"
+        "  }"
+    )
+    js = pat_idle.sub(new_idle, js, count=1)
 
     JS.write_text(js, encoding="utf-8")
-    print("patched web-shim.js")
+    print("patched web-shim.js", "spin" in js)
 
 
 def patch_css():
@@ -69,7 +101,7 @@ def patch_css():
     if marker in css:
         print("CSS already has spin")
         return
-    block = '''
+    block = """
 
 /* MAGIC_SEND_SPIN */
 .login-gate-magic-submit.is-sending {
@@ -84,7 +116,7 @@ def patch_css():
 @keyframes magicSendSpin {
   to { transform: rotate(360deg); }
 }
-'''
+"""
     CSS.write_text(css.rstrip() + block, encoding="utf-8")
     print("patched style.css")
 
