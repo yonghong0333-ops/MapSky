@@ -1,0 +1,57 @@
+name: apply-light-tech
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/apply-light-tech.yml'
+      - 'public/theme-tech-glass.css'
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Rebuild style.css with light tech theme
+        run: |
+          set -e
+          git show 7df462d9b1a37e73912ad3d682433a5032ba2a4c:public/style.css > public/style.css
+          python3 - <<'PY'
+          from pathlib import Path
+          base = Path('public/style.css').read_text(encoding='utf-8')
+          theme = Path('public/theme-tech-glass.css').read_text(encoding='utf-8')
+          markers = [
+              '/* ============================================================',
+              '/* MapSky',
+              '/* MapSky —',
+          ]
+          cut = len(base)
+          for m in markers:
+              i = base.find(m)
+              if i >= 0:
+                  cut = min(cut, i)
+          # Also strip if previous overlays used Chinese comment blocks near end
+          for m in ['/* MapSky — CYBER', '/* MapSky — LIGHT', '/* MapSky — Liquid']:
+              i = base.find(m)
+              if i >= 0:
+                  cut = min(cut, i)
+          base = base[:cut].rstrip()
+          Path('public/style.css').write_text(base + '\n\n' + theme + '\n', encoding='utf-8')
+          print('bytes', Path('public/style.css').stat().st_size)
+          print('has LIGHT', 'LIGHT TECH' in theme)
+          PY
+          rm -f public/sp1.css public/sp2.css public/sp3.css public/sp4.css public/sp5.css public/sp6.css || true
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/style.css public/theme-tech-glass.css
+          git add -u public/
+          if git diff --staged --quiet; then
+            echo "No changes"
+          else
+            git commit -m "style: apply light tech theme (bright glass + cyan)"
+            git push
+          fi
