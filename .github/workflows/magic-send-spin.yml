@@ -1,0 +1,24 @@
+name: magic-send-spin
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/magic-send-spin.yml'
+      - 'scripts/patch-magic-send-spin.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/patch-magic-send-spin.py
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/web-shim.js public/style.css
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: spinning loader on magic-link send arrow"
+            git push
+          fi
