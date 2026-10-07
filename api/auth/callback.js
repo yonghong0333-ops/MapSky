@@ -143,13 +143,14 @@ function sendCrossDeviceOtpPage(res, email, token, otpPlain) {
     ? `mapsky://auth/magic?token=${encodeURIComponent(tokenStr)}`
     : "mapsky://";
   const code = otpPlain && /^\d{6}$/.test(String(otpPlain)) ? String(otpPlain) : "";
-  const codeHtml = code
-    ? `<div id="otpCodeReveal" style="display:none;margin:14px 0;padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">
-        <div style="font-size:12px;color:#6b7684;margin-bottom:6px">您的驗證碼</div>
-        <div style="font-size:28px;font-weight:800;letter-spacing:0.35em;color:#2f6fed">${code}</div>
+
+  const codeBlock = code
+    ? `<div style="margin:22px 0 8px;padding:20px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px">
+        <div style="font-size:13px;color:#6b7684;margin-bottom:10px">請在「申請登入的那台裝置」上的 MapSky 輸入</div>
+        <div style="font-size:32px;font-weight:800;letter-spacing:0.35em;color:#2f6fed">${code}</div>
       </div>`
-    : `<div id="otpCodeReveal" style="display:none;margin:14px 0;padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">
-        <div style="font-size:12px;color:#6b7684">驗證碼請至申請登入的 MapSky 查看，或重新寄送一次。</div>
+    : `<div style="margin:22px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;color:#6b7684;font-size:14px">
+        驗證碼請至申請登入的 MapSky 查看，或重新寄送一次。
       </div>`;
 
   const html = `<!doctype html>
@@ -158,42 +159,23 @@ function sendCrossDeviceOtpPage(res, email, token, otpPlain) {
 <title>完成登入 - MapSky</title></head>
 <body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:48px auto;padding:0 24px;text-align:center;color:#1f2937">
 <h2 style="margin-bottom:8px">完成登入</h2>
-<p id="probeStatus" style="color:#6b7280;line-height:1.7;font-size:14px">正在判斷是否為同一裝置，並嘗試開啟 MapSky App…</p>
-
-<div id="sameDeviceBox" style="margin:20px 0;padding:18px 16px;background:#f0f7ff;border:1px solid #cfe0ff;border-radius:16px;text-align:left">
-  <div style="font-weight:700;font-size:14px;margin-bottom:6px">同裝置登入</div>
-  <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 14px">若這支手機有安裝 MapSky，系統會自動嘗試跳回 App 完成登入（不必打驗證碼）。</p>
-  <a id="openAppBtn" href="${appMagicUrl}" style="display:block;text-align:center;padding:13px 16px;background:#1d4ed8;color:#fff;border-radius:999px;text-decoration:none;font-weight:700;font-size:15px">在 MapSky App 完成登入</a>
+<p id="probeStatus" style="color:#6b7280;line-height:1.7;font-size:14px">正在嘗試開啟 MapSky App…</p>
+<div id="codeSection" style="opacity:0;transition:opacity 0.3s">
+  ${codeBlock}
+  <p style="color:#6b7280;font-size:13.5px;line-height:1.65;margin:12px 0 0">若沒有自動跳回 App，請手動打開 MapSky，在登入畫面輸入上方驗證碼。</p>
 </div>
-
-<div id="otpSection" style="opacity:0.35;pointer-events:none;transition:opacity 0.25s">
-  <div style="margin:8px 0 6px;color:#9ca3af;font-size:12px">— 判斷未跳轉後顯示 —</div>
-  <p style="color:#6b7280;line-height:1.6;font-size:13.5px">請使用下方驗證碼，在此瀏覽器登入。</p>
-  ${codeHtml}
-  <form id="otpForm">
-    <input id="otpInput" maxlength="6" inputmode="numeric" autocomplete="one-time-code" style="width:100%;padding:14px;font-size:24px;letter-spacing:0.3em;text-align:center;box-sizing:border-box;border:1px solid #d1d5db;border-radius:12px"/>
-    <button type="submit" id="otpBtn" style="margin-top:12px;width:100%;padding:14px;background:#111827;color:#fff;border:0;border-radius:999px;font-weight:700">驗證並登入</button>
-  </form>
-  <p id="otpErr" style="color:#b3261e;min-height:1.5em"></p>
-</div>
-<p style="margin-top:8px"><a href="/" style="color:#6b7280;font-size:13.5px">回到 MapSky</a></p>
+<p style="margin-top:28px"><a href="/" style="color:#6b7280;font-size:13.5px">回到 MapSky</a></p>
 <script>(function(){
   var appUrl = ${JSON.stringify(appMagicUrl)};
   var statusEl = document.getElementById("probeStatus");
-  var otpSection = document.getElementById("otpSection");
-  var reveal = document.getElementById("otpCodeReveal");
-  var probed = false;
+  var codeSection = document.getElementById("codeSection");
+  var shown = false;
 
-  function enableOtp(msg) {
-    if (probed) return;
-    probed = true;
-    if (statusEl) statusEl.textContent = msg || "無法自動開啟 App。以下是驗證碼，請輸入後登入。";
-    if (otpSection) {
-      otpSection.style.opacity = "1";
-      otpSection.style.pointerEvents = "auto";
-    }
-    if (reveal) reveal.style.display = "block";
-    try { document.getElementById("otpInput").focus(); } catch (e) {}
+  function showCode(msg) {
+    if (shown) return;
+    shown = true;
+    if (statusEl) statusEl.textContent = msg || "無法自動開啟 App。請使用下方驗證碼，在申請登入的裝置完成登入。";
+    if (codeSection) codeSection.style.opacity = "1";
   }
 
   function tryOpenApp() {
@@ -208,40 +190,13 @@ function sendCrossDeviceOtpPage(res, email, token, otpPlain) {
     try { window.location.href = appUrl; } catch (e2) {}
   }
 
-  setTimeout(tryOpenApp, 200);
+  setTimeout(tryOpenApp, 150);
   setTimeout(function () {
-    if (!document.hidden) enableOtp();
-  }, 2000);
+    if (!document.hidden) showCode();
+  }, 1800);
   document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) setTimeout(function () { enableOtp(); }, 400);
+    if (!document.hidden) setTimeout(function () { showCode(); }, 400);
   });
-
-  var f=document.getElementById("otpForm"),i=document.getElementById("otpInput"),b=document.getElementById("otpBtn"),e=document.getElementById("otpErr");
-  var email=${JSON.stringify(email)};
-  i.oninput=function(){i.value=i.value.replace(/\D/g,"").slice(0,6)};
-  f.onsubmit=async function(ev){
-    ev.preventDefault();
-    var c=(i.value||"").replace(/\D/g,"").slice(0,6);
-    if(c.length!==6){e.textContent="請輸入 6 位驗證碼";return;}
-    b.disabled=true;e.textContent="";
-    try{
-      var r=await fetch("/api/auth/login?provider=email&action=verify-code",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({email:email,code:c})});
-      var d=await r.json().catch(function(){return{};});
-      if(r.ok&&d.ok){
-        if(d.xchg){
-          var app="mapsky://login-complete?xchg="+encodeURIComponent(d.xchg);
-          try{location.href=app;}catch(z){}
-          setTimeout(function(){location.href="/?login=success";},1600);
-          return;
-        }
-        location.href="/?login=success";return;
-      }
-      if(d.reason==="wrong-code") e.textContent="驗證碼不正確或已過期";
-      else if(d.reason==="too-many-attempts") e.textContent="嘗試次數過多，請重新寄一次";
-      else e.textContent="驗證失敗，請再試一次";
-    }catch(x){e.textContent="網路錯誤";}
-    finally{b.disabled=false;}
-  };
 })();</script>
 </body></html>`;
   res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
