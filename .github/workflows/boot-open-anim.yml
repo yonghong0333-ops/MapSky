@@ -1,0 +1,146 @@
+name: boot-open-anim
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/boot-open-anim.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch JS + CSS
+        run: |
+          set -e
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # --- web-shim.js: animate endLoginGateBoot ---
+          js_path = Path('public/web-shim.js')
+          js = js_path.read_text(encoding='utf-8')
+          old = '''function endLoginGateBoot() {
+    if (loginGateBootSafetyTimer) { clearTimeout(loginGateBootSafetyTimer); loginGateBootSafetyTimer = null; }
+    if (loginGateWeatherTimer) { clearInterval(loginGateWeatherTimer); loginGateWeatherTimer = null; }
+    const gate = el("loginGate");
+    const boot = el("loginGateBoot");
+    if (gate) gate.classList.remove("login-gate--booting");
+    if (boot) boot.classList.add("hidden");
+  }'''
+          new = '''function endLoginGateBoot() {
+    if (loginGateBootSafetyTimer) { clearTimeout(loginGateBootSafetyTimer); loginGateBootSafetyTimer = null; }
+    if (loginGateWeatherTimer) { clearInterval(loginGateWeatherTimer); loginGateWeatherTimer = null; }
+    const gate = el("loginGate");
+    const boot = el("loginGateBoot");
+    // Already finished / no boot layer
+    if (!gate || !gate.classList.contains("login-gate--booting")) {
+      if (boot) boot.classList.add("hidden");
+      return;
+    }
+    // Avoid double-trigger
+    if (gate.classList.contains("login-gate--opening")) return;
+    gate.classList.add("login-gate--opening");
+    if (boot) boot.classList.add("login-gate-boot--exit");
+    var done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      gate.classList.remove("login-gate--booting");
+      gate.classList.remove("login-gate--opening");
+      if (boot) {
+        boot.classList.add("hidden");
+        boot.classList.remove("login-gate-boot--exit");
+      }
+    }
+    // Prefer transitionend on gate; safety timeout fallback
+    function onEnd(e) {
+      if (e && e.target !== gate) return;
+      gate.removeEventListener("transitionend", onEnd);
+      finish();
+    }
+    gate.addEventListener("transitionend", onEnd);
+    setTimeout(finish, 700);
+  }'''
+          if old not in js:
+              raise SystemExit('endLoginGateBoot block not found')
+          js_path.write_text(js.replace(old, new, 1), encoding='utf-8')
+          print('patched web-shim.js')
+
+          # --- style.css: open animation ---
+          css_path = Path('public/style.css')
+          css = css_path.read_text(encoding='utf-8')
+          marker = '/* BOOT_OPEN_ANIM */'
+          anim = '''
+/* BOOT_OPEN_ANIM */
+/* Loading finished → reveal main app (open animation) */
+.login-gate.login-gate--booting.login-gate--opening {
+  animation: loginGateOpen 0.62s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  pointer-events: none;
+}
+@keyframes loginGateOpen {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+  55% {
+    opacity: 0.85;
+    transform: scale(1.04);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12);
+    filter: blur(6px);
+  }
+}
+.login-gate-boot.login-gate-boot--exit .login-gate-boot-orbit-wrap {
+  animation: bootOrbitExpand 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.login-gate-boot.login-gate-boot--exit .login-gate-boot-text {
+  animation: bootTextFade 0.35s ease forwards;
+}
+.login-gate-boot.login-gate-boot--exit .login-gate-boot-orbit-ring {
+  animation: bootRingExpand 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes bootOrbitExpand {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+@keyframes bootRingExpand {
+  0% { transform: scale(1); opacity: 1; border-width: 3px; }
+  100% { transform: scale(1.8); opacity: 0; border-width: 1px; }
+}
+@keyframes bootTextFade {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(8px); }
+}
+'''
+          if marker in css:
+              # replace existing block roughly
+              start = css.find(marker)
+              # find next BOOT or end - just append unique replace from marker to end of last keyframe we know
+              end_token = '@keyframes bootTextFade'
+              end = css.find(end_token, start)
+              if end > 0:
+                  end = css.find('}', css.find('{', end)) + 1
+                  css = css[:start] + anim.strip() + '\n' + css[end:]
+              else:
+                  css = css[:start] + anim + css[start+len(marker):]
+          else:
+              css = css.rstrip() + '\n' + anim
+          css_path.write_text(css, encoding='utf-8')
+          print('patched style.css', css_path.stat().st_size)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/web-shim.js public/style.css
+          if git diff --staged --quiet; then
+            echo No changes
+          else
+            git commit -m "ui: open animation when boot loading finishes"
+            git push
+          fi
