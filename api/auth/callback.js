@@ -321,66 +321,13 @@ async function handleEmailVerify(req, res) {
       console.error("magic-link storeExchangeCode failed", e.message);
     }
 
-    const webUrl = "/?login=success";
-    if (!xchg) {
-      res.writeHead(302, { Location: webUrl });
-      return res.end();
-    }
-
-    const appUrl = `mapsky://login-complete?xchg=${encodeURIComponent(xchg)}`;
-    const ua = String(req.headers["user-agent"] || "");
-    const looksMobile = /iPhone|iPad|iPod|Android/i.test(ua);
-
-    // 同裝置：表單 POST 是使用者手勢觸發的導覽，優先 302 直接進 App
-    // （桌面殼／已安裝 App 的手機通常接得住）。若環境擋自訂 scheme，
-    // 客戶端仍會落到下面這頁，用按鈕／自動嘗試當備援。
-    const inNativeApp = /MapSkyiOS/i.test(ua) || /MapSkyApp/i.test(ua);
-    // Already in App WebView: cookie set — do not 302 to mapsky:// (causes offline screen)
-    if (inNativeApp) {
-      res.writeHead(302, { Location: webUrl });
-      return res.end();
-    }
-    // System mobile browser: open App via custom scheme
-    if (looksMobile) {
-      res.writeHead(302, { Location: appUrl });
-      return res.end();
-    }
-
-    const appHtml = `<!doctype html>
-<html lang="zh-Hant"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>登入成功 - MapSky</title>
-<meta http-equiv="refresh" content="0;url=${appUrl}">
-</head>
-<body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:80px auto;padding:0 24px;text-align:center;color:#1f2937">
-<h2>登入成功 ✓</h2>
-<p style="color:#6b7280;line-height:1.7">正在跳回 MapSky App…<br>若沒有自動開啟，請按下面按鈕。</p>
-<p style="margin-top:28px;">
-  <a id="openApp" href="${appUrl}" style="display:inline-block;padding:13px 30px;background:#1d4ed8;color:#fff;border-radius:999px;text-decoration:none;font-size:15px;font-weight:700;">開啟 MapSky App</a>
-</p>
-<p style="margin-top:18px;"><a href="${webUrl}" style="color:#6b7280;text-decoration:underline;font-size:13.5px;">使用網頁版繼續</a></p>
-<script>
-(function () {
-  var url = ${JSON.stringify(appUrl)};
-  function go() {
-    try { window.location.href = url; } catch (e) {}
-    try {
-      var a = document.createElement("a");
-      a.href = url;
-      a.style.display = "none";
-      document.body.appendChild(a);
-      a.click();
-    } catch (e) {}
-  }
-  go();
-  setTimeout(go, 400);
-  // 若 1.8 秒後還在這個分頁，維持按鈕可見即可
-})();
-</script>
-</body></html>`;
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.status(200).send(appHtml);
-  }
+        const webUrl = "/?login=success";
+    // Same-device: session cookie is already on this WebView/browser.
+    // Never 302 to mapsky:// — inside MapSky App that unloads the page
+    // and triggers the native "目前無法連線" screen.
+    res.writeHead(302, { Location: webUrl });
+    return res.end();
+}
 
   // GET：先看看是不是已經被消費過了（例如掃描器已經點過、或使用者自己
   // 已經完成登入又重新整理這一頁），是的話直接顯示「已使用過」，不要讓
