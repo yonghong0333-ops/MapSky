@@ -2031,8 +2031,31 @@
     if (loginGateWeatherTimer) { clearInterval(loginGateWeatherTimer); loginGateWeatherTimer = null; }
     const gate = el("loginGate");
     const boot = el("loginGateBoot");
-    if (gate) gate.classList.remove("login-gate--booting");
-    if (boot) boot.classList.add("hidden");
+    if (!gate || !gate.classList.contains("login-gate--booting")) {
+      if (boot) boot.classList.add("hidden");
+      return;
+    }
+    if (gate.classList.contains("login-gate--opening")) return;
+    gate.classList.add("login-gate--opening");
+    if (boot) boot.classList.add("login-gate-boot--exit");
+    var done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      gate.classList.remove("login-gate--booting");
+      gate.classList.remove("login-gate--opening");
+      if (boot) {
+        boot.classList.add("hidden");
+        boot.classList.remove("login-gate-boot--exit");
+      }
+    }
+    function onEnd(e) {
+      if (e && e.target !== gate) return;
+      gate.removeEventListener("transitionend", onEnd);
+      finish();
+    }
+    gate.addEventListener("transitionend", onEnd);
+    setTimeout(finish, 700);
   }
 
   async function initAuthGate() {
