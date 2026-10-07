@@ -2610,1798 +2610,34 @@ button:hover { background: var(--accent-hover); }
 }
 .settings-back-btn:active { opacity: 0.6; }
 
-/* ================================================================
-   手機版排版（RWD）
-   桌面版是用 .app { height:100vh } + body { overflow:hidden } 做固定
-   左右並排（側欄 270px + 主畫面）的版面，側欄和主畫面各自內部捲動。
-   螢幕寬度縮小到 900px 以下時（平板直向、手機），這種固定並排會把
-   主畫面擠成一條窄縫，改成：側欄搬到最上面、主畫面在下面，整頁改成
-   由外層（html/body）自然上下捲動，比較符合手機使用習慣。
-   ================================================================ */
-@media (max-width: 900px) {
-  html, body {
-    height: auto;
-    overflow: visible;
-  }
-
-  /* 統計列固定在同一排、不換行；卡片本身用 flex:1 平分寬度，
-     文字/圖示在窄螢幕縮小一點，3 張塞得下不會被擠爆版面。 */
-  .current-stat-row {
-    flex-wrap: nowrap;
-  }
-  .current-stat-chip {
-    flex: 1 1 0;
-    min-width: 0;
-    padding: 8px 4px;
-  }
-  .current-stat-chip .extra-info-icon-img {
-    width: 22px;
-    height: 22px;
-  }
-  .current-stat-icon { font-size: 16px; }
-  .current-stat-label {
-    font-size: 10px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-  }
-  .current-stat-value { font-size: 13px; }
-
-  .app {
-    flex-direction: column;
-    height: auto;
-    min-height: 100vh;
-  }
-
-  .sidebar {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--sidebar-border);
-    padding: 16px;
-  }
-
-  /* 桌面版靠 .sidebar 固定高度撐開讓 .fav-list flex:1 捲動；
-     手機版側欄高度變成 auto，改給收藏清單一個上限高度自己捲動，
-     避免清單一多就把主畫面往下推很遠。 */
-  .fav-list {
-    flex: none;
-    max-height: 180px;
-  }
-
-  .main {
-    padding: calc(env(safe-area-inset-top, 0px) + 40px) 16px 96px;
-    overflow-y: visible;
-  }
-
-  .main-header {
-    padding-bottom: 16px;
-  }
-  .main-header h2 {
-    flex: 1;
-    text-align: left;
-    font-size: 20px;
-  }
-  #addFavBtn {
-    flex-shrink: 0;
-  }
-
-  /* 底部固定的圖示導覽列，只在手機版顯示；桌面版維持用左側欄操作。
-     樣式做成 iOS 液態玻璃（Liquid Glass）風格：半透明毛玻璃背景、
-     浮動圓角膠囊，而不是貼齊螢幕邊緣的實色長條。 */
-  .bottom-nav {
-    display: flex;
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: calc(10px + env(safe-area-inset-bottom));
-    background: linear-gradient(
-      165deg,
-      rgba(205, 208, 216, 0.7),
-      rgba(180, 183, 195, 0.55) 60%,
-      rgba(205, 208, 216, 0.65)
-    );
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: none;
-    border-radius: 24px;
-    padding: 8px 6px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-    z-index: 50; /* 要比工具/設定的滿版面板（46）還高，開著面板時底部導覽列還是能點 */
-    touch-action: none; /* 讓左右滑動切換分頁的手勢不會連動整頁捲動 */
-    cursor: pointer;
-  }
-  /* 不支援 backdrop-filter 的瀏覽器（少數舊版 in-app webview）退回不透明淺色底，
-     避免變成完全看不出邊界、貼齊畫面的實色長條 */
-  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .bottom-nav {
-      background: rgba(250, 250, 252, 0.97);
-    }
-  }
-  /* 真正的玻璃折射：由 renderer.js 偵測到瀏覽器支援後才會加上這個 class
-     （目前主要是 Chrome/Edge 等 Chromium 系）。用 SVG feDisplacementMap
-     讓導覽列「背後」的畫面透過玻璃扭曲，模擬 iOS 26 Liquid Glass 的質感；
-     沒被加上這個 class 的瀏覽器（如 Safari）就維持上面純模糊的霧面玻璃版本。 */
-  .bottom-nav.liquid-glass-refraction {
-    background: linear-gradient(
-      165deg,
-      rgba(255, 255, 255, 0.55),
-      rgba(255, 255, 255, 0.3) 60%,
-      rgba(255, 255, 255, 0.45)
-    );
-    backdrop-filter: blur(9px) saturate(190%) url(#liquidGlassNav);
-  }
-
-  .current-card {
-    padding: 18px 16px;
-  }
-  .current-card-top {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    text-align: left;
-    gap: 14px;
-  }
-  .current-detail {
-    margin-left: 0;
-    width: 100%;
-    text-align: left;
-  }
-  .current-forecast-btn {
-    align-self: stretch;
-  }
-
-  /* 未來預報卡片：桌面版 flex 平分寬度會被擠得太窄，改成橫向捲動，
-     每張卡片維持固定寬度方便手指滑動。 */
-  .forecast-row {
-    overflow-x: auto;
-    padding-bottom: 8px;
-    -webkit-overflow-scrolling: touch;
-  }
-  .forecast-card {
-    flex: 0 0 108px;
-  }
-
-  /* 縣市比較卡片改成最少兩欄，避免手機上一欄塞不滿整個寬度看起來很空 */
-  .compare-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  }
-
-  /* 警特報地圖：桌面版是「地圖＋離島小圖」左右並排，加起來寬度遠超過
-     手機螢幕，改成上下堆疊，離島小圖改橫向排列並自動換行。 */
-  .alert-map-wrap {
-    flex-direction: column;
-    align-items: center;
-  }
-  /* 手機版把離島三張卡片並排成同一列（不換行），並整體縮小寬度，
-     這樣才會像中央氣象署官網那樣是本島主圖旁邊的小縮圖，而不是
-     跟本島地圖搶視覺重量的大圖。桌面版的 190/230/270px 固定寬度
-     在窄螢幕下三個加起來根本放不進一行，會被 flex-wrap 擠回直向
-     堆疊，所以這裡要連寬度一起覆寫，不能只改 flex-direction。 */
-  .alert-map-insets {
-    flex-direction: row;
-    flex-wrap: nowrap;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    max-width: 320px;
-    margin: 0 auto;
-  }
-  .alert-inset-box,
-  .alert-inset-box--emphasis,
-  .alert-inset-box--emphasis-lg {
-    width: 32%;
-    max-width: 104px;
-    padding: 6px;
-    box-sizing: border-box;
-  }
-
-  /* 彈出視窗（縣市選擇等）固定寬度 340px 在很窄的手機上可能會超出螢幕，
-     改成不超過螢幕寬度的 92%。 */
-  .modal-box {
-    width: min(340px, 92vw);
-  }
-
-  .extra-info-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .seven-day-row {
-    grid-template-columns: 44px 26px 38px 28px 1fr 28px;
-    font-size: 12px;
-    padding: 10px 12px;
-  }
-
-  /* 手機版改用底部導覽列當主要操作方式，原本橫排的 6 個分類按鈕
-     跟底部導覽列功能重疊（尤其颱風重複出現兩次），先整排隱藏，
-     其餘 4 個（溫度趨勢圖／多城市比較／地圖選點／警特報）收進
-     「工具」彈出選單裡。 */
-  .tabs { display: none; }
-
-  /* 整個側欄（logo／已連線／城市選擇／查詢天氣／自動定位／收藏城市）
-     手機版預設收起來，變成從左邊滑出的抽屜，點主畫面左上角的
-     漢堡選單（☰）才打開，不再一直佔掉畫面最上面一大塊。 */
-  .sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 82vw;
-    max-width: 320px;
-    z-index: 55;
-    transform: translateX(-100%);
-    transition: transform 0.22s ease;
-    overflow-y: auto;
-    box-shadow: 4px 0 20px rgba(20, 26, 40, 0.18);
-  }
-  .sidebar.drawer-open {
-    transform: translateX(0);
-  }
-  .sidebar-drawer-overlay.open {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background: rgba(20, 26, 40, 0.32);
-    z-index: 50;
-  }
-}
-
-.sidebar-drawer-btn {
-  display: none;
-}
-.sidebar-drawer-overlay { display: none; }
-@media (max-width: 900px) {
-  .sidebar-drawer-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    border: 1px solid var(--card-border);
-    background: var(--card-bg);
-    font-size: 17px;
-    color: var(--text-main);
-    margin-right: 8px;
-    flex-shrink: 0;
-  }
-}
-
-.tools-menu-overlay {
-  display: none;
-}
-.tools-menu {
-  display: none;
-}
-.tools-menu-overlay.open {
-  display: block;
-  position: fixed;
-  inset: 0;
-  background: rgba(20, 26, 40, 0.32);
-  z-index: 45;
-}
-.tools-menu.open {
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  /* 留出底部導覽列的空間，讓面板開著的時候還是能直接點下面的其他分頁，
-     不用先關掉這個面板；90px 大概是導覽列高度加一點呼吸空間。 */
-  bottom: calc(100px + env(safe-area-inset-bottom));
-  background: var(--card-bg);
-  border: none;
-  border-radius: 0 0 20px 20px;
-  overflow-y: auto;
-  z-index: 46;
-  box-shadow: none;
-  padding-top: env(safe-area-inset-top);
-}
-.tools-menu-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 16px 12px;
-  border-bottom: 1px solid var(--card-border);
-  flex-shrink: 0;
-}
-.tools-menu-title {
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--text-main);
-}
-.tools-menu-close {
-  background: var(--sidebar-bg, rgba(0, 0, 0, 0.06));
-  border: none;
-  border-radius: 50%;
-  width: 32px;
-  height: 32px;
-  font-size: 15px;
-  line-height: 1;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-.tools-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-.tools-menu-item {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 18px;
-  text-align: center;
-  padding: 24px 12px;
-  color: var(--text-main);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  cursor: pointer;
-  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
-  min-height: 120px;
-  position: relative;
-}
-.tools-menu-item:active { background: var(--sidebar-hover, rgba(0,0,0,0.04)); }
-.tool-icon { font-size: 34px; line-height: 1; }
-.tool-label { font-size: 15px; font-weight: 600; }
-.tools-menu-item .alert-tab-badge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-}
-
-/* 桌面版寬螢幕時，彈出面板改成貼齊側欄下方的小卡片，不用佔滿整個螢幕
-   （滿版全螢幕是給手機用的，桌面版視窗夠大，用小面板比較自然） */
-@media (min-width: 901px) {
-  .tools-menu.open {
-    inset: auto;
-    left: 16px;
-    right: auto;
-    top: auto;
-    width: 240px;
-    bottom: 24px;
-    border: 1px solid var(--card-border);
-    border-radius: 14px;
-    overflow: hidden;
-    box-shadow: 0 8px 24px rgba(20, 26, 40, 0.18);
-  }
-}
-
-/* 「設定」現在是跟其他分頁一樣的真正 tab-panel，不再是浮出來的面板，
-   所以樣式也比照其他分頁：標題 + 白色資訊卡（帳號資訊），不用另外處理
-   遮罩背景、開關動畫這些浮動面板才需要的東西。 */
-.settings-page-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--text-main);
-  margin: 0 0 16px;
-}
-.settings-page .auth-bar {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 14px;
-  padding: 14px 16px;
-  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
-}
-.settings-page .auth-user {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-/* ---- 電腦版瀏覽器：擋下來要求下載桌面版 ---- */
-.desktop-app-gate {
-  position: fixed;
-  inset: 0;
-  z-index: 1001; /* 蓋在 login-gate(1000) 上面，電腦瀏覽器一律先看到這個 */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background-image:
-    radial-gradient(circle at 15% 18%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 22%),
-    radial-gradient(circle at 84% 12%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 20%),
-    radial-gradient(circle at 72% 78%, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 26%),
-    radial-gradient(circle at 22% 88%, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 22%),
-    linear-gradient(160deg, #3f7fe0 0%, #5b9bef 35%, #8ec3fb 65%, #cfe6fd 100%);
-}
-.desktop-app-gate.hidden { display: none; }
-.desktop-app-gate-card {
-  width: 100%;
-  max-width: 440px;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  padding: 36px 28px 28px;
-  text-align: center;
-  box-shadow: 0 12px 32px rgba(30, 45, 80, 0.14);
-}
-.desktop-app-gate-btn {
-  width: 100%;
-  margin-top: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 14px 20px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #2b6ef2, #55a6ff);
-  color: #fff;
-  font-size: 16px;
-  font-weight: 700;
-  box-shadow: 0 10px 24px rgba(43, 110, 242, 0.35);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.desktop-app-gate-btn:hover {
-  background: linear-gradient(135deg, #2b6ef2, #55a6ff);
-  transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(43, 110, 242, 0.45);
-}
-.desktop-app-gate-btn:disabled {
-  background: var(--card-border);
-  color: var(--text-muted);
-  cursor: default;
-  box-shadow: none;
-  transform: none;
-}
-.desktop-app-gate-btn:disabled:hover { background: var(--card-border); box-shadow: none; transform: none; }
-.desktop-app-gate-mac-cmd {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--card-border);
-}
-.desktop-app-gate-mac-cmd.hidden { display: none; }
-.desktop-app-gate-mac-cmd-hint {
-  margin: 0 0 8px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.desktop-app-gate-mac-cmd-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.desktop-app-gate-mac-cmd-row code {
-  flex: 1 1 220px;
-  min-width: 0;
-  white-space: normal;
-  word-break: break-all;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--card-bg);
-  border: 1px solid var(--input-border);
-  font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: var(--text-main);
-}
-.desktop-app-gate-mac-cmd-copy-btn {
-  flex-shrink: 0;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--input-border);
-  background: var(--card-bg);
-  color: var(--text-main);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-.desktop-app-gate-mac-cmd-copy-btn:hover { border-color: var(--accent); background: #eef3ff; }
-.desktop-app-gate-mac-cmd-copy-btn:disabled { opacity: 0.6; cursor: default; }
-
-/* ---- 後台管理 ---- */
-.admin-status-empty { color: var(--text-muted); font-size: 14px; }
-.admin-status-content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.admin-card {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 14px;
-  padding: 14px 16px;
-  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
-}
-.admin-card-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-muted);
-  margin: 0 0 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-.admin-card-body {
-  font-size: 14px;
-  color: var(--text-main);
-  line-height: 1.7;
-  margin: 0;
-}
-.admin-provider-row,
-.admin-cache-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0;
-  font-size: 13px;
-  border-bottom: 1px solid var(--card-border);
-}
-.admin-provider-row:last-child,
-.admin-cache-row:last-child { border-bottom: none; }
-.admin-ok { color: #1a9c5c; font-weight: 600; }
-.admin-off { color: var(--text-faint); }
-#adminBottomBtn.hidden { display: none; }
-#adminTabBtn.hidden { display: none; }
-#adminStatusContent.hidden { display: none; }
-/* 頂部導覽列現在只想露出「未來36小時預報／警特報／工具」三顆，其餘（未來7天／
-   溫度趨勢圖／多城市比較／地圖選點／颱風／後台管理／設定）都標了 hidden，靠
-   這條通用規則真的藏起來——之前只有 #adminTabBtn.hidden 這種寫死 id 的規則，
-   #toolsTabBtn 標了 hidden 卻沒對應的 CSS，所以才會一直露出來、跟被藏起來的
-   其他按鈕擠在同一排，這是之前那團亂的根本原因。這幾顆按鈕本身還是留在
-   DOM 裡（不是刪除），因為 renderer.js 的分頁切換、工具選單裡的項目、手機版
-   底部導覽列，都是靠 .tab-btn[data-tab="..."] 這個選擇器去找到對應按鈕再
-   幫它點一下，藏起來但留著元素，這些地方才點得動。 */
-.tabs .tab-btn.hidden { display: none; }
-.tools-menu-item.hidden { display: none; }
-
-.admin-card-hint {
-  font-size: 12px;
-  color: var(--text-faint);
-  margin: 0 0 10px;
-  line-height: 1.6;
-}
-.admin-list-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 0;
-  font-size: 13px;
-  border-bottom: 1px solid var(--card-border);
-}
-.admin-list-row:last-child { border-bottom: none; }
-.admin-list-empty { font-size: 13px; color: var(--text-faint); }
-.admin-list-tag {
-  font-size: 11px;
-  color: var(--text-faint);
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-.admin-revoke-btn {
-  flex-shrink: 0;
-  background: #fdecea;
-  color: #c0392b;
-  border: 1px solid #f5b7b1;
-  border-radius: 8px;
-  padding: 4px 10px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.admin-assign-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--card-border);
-}
-.admin-assign-form select,
-.admin-assign-form input {
-  flex: 1;
-  min-width: 100px;
-  padding: 8px 10px;
-  border: 1px solid var(--input-border, var(--card-border));
-  border-radius: 8px;
-  font-size: 13px;
-  background: var(--input-bg, var(--card-bg));
-  color: var(--text-main);
-}
-.admin-assign-form button {
-  flex-basis: 100%;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 9px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.admin-assign-msg {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin: 8px 0 0;
-  min-height: 1.4em;
-}
-.admin-toggle-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-main);
-  cursor: pointer;
-}
-.admin-toggle-row input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-.admin-cooldown-form {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-}
-.admin-cooldown-form input {
-  width: 70px;
-  padding: 8px 10px;
-  border: 1px solid var(--input-border, var(--card-border));
-  border-radius: 8px;
-  font-size: 13px;
-  background: var(--input-bg, var(--card-bg));
-  color: var(--text-main);
-}
-.admin-cooldown-unit { font-size: 13px; color: var(--text-muted); }
-.admin-desktop-publish-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-}
-.admin-desktop-publish-row select {
-  flex: 1;
-  min-width: 160px;
-  padding: 8px 10px;
-  border: 1px solid var(--input-border, var(--card-border));
-  border-radius: 8px;
-  font-size: 13px;
-  background: var(--input-bg, var(--card-bg));
-  color: var(--text-main);
-}
-.admin-desktop-publish-row button {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 9px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.admin-desktop-publish-row button[disabled] { opacity: 0.6; cursor: default; }
-.admin-cooldown-form button {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-#adminManageCard.hidden { display: none; }
-
-.admin-push-form {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-  margin-top: 10px;
-}
-.admin-push-form input,
-.admin-push-form textarea {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--input-border, var(--card-border));
-  border-radius: 8px;
-  font-size: 13px;
-  font-family: inherit;
-  background: var(--input-bg, var(--card-bg));
-  color: var(--text-main);
-  resize: vertical;
-}
-.admin-push-form button {
-  align-self: flex-start;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.admin-push-form button:disabled { opacity: 0.6; cursor: default; }
-
-/* 更小的手機（如 iPhone SE）再收斂一次間距與字級 */
-@media (max-width: 380px) {
-  .sidebar { padding: 12px; }
-  .main { padding: 14px 12px 32px; }
-  .current-temp { font-size: 34px; }
-  .current-card-top { gap: 10px; }
-}
-
-
-/* ---------------- 颱風警報畫面（蓋在首頁）＋ 收合後的卡片 ---------------- */
-/* 顏色由 renderer.js 依警報種類設在 --ty-a／--ty-b：海上＝橙、海上陸上＝紅（跟氣象署警戒色一致） */
-.ty-overlay.hidden,
-.ty-strip-list.hidden { display: none; }
-
-/* 只在首頁出現：切到警特報、工具、設定等其他分頁就藏起來（回首頁又會出現） */
-body:not(:has(#forecastPanel.active)) #tyOverlay { display: none; }
-.main:not(:has(#forecastPanel.active)) > .ty-strip-list { display: none; }
-
-.ty-overlay {
-  position: fixed;
-  /* 桌面版有自己畫的標題列（web-shim.js 會設定 --mapsky-titlebar-h），畫面要從它下方開始 */
-  inset: var(--mapsky-titlebar-h, 0px) 0 0 0;
-  z-index: 48; /* 比底部導覽列（50）低：警報開著時，底部導覽列還是能點 */
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  color: #fff;
-  background-color: #1d2740;
-  background-image: linear-gradient(180deg, #1d2740 0%, #131a2b 100%);
-}
-@media (min-width: 901px) {
-  .ty-overlay {
-    left: 270px; /* 電腦版：不要蓋住左邊的側邊欄 */
-    transition: left 0.25s ease; /* 跟側邊欄滑出去的動畫（web-shim.js，0.25s）同步 */
-  }
-  /* 桌面版把側邊欄收起來時（web-shim.js 會在 .app 上加 sidebar-collapsed），警報畫面要跟著撐滿；
-     不然左邊會空出 270px 一條縫，露出後面的內容。overlay 掛在 body 底下、不在 .app 裡，所以用 :has()。 */
-  body:has(.app.sidebar-collapsed) .ty-overlay { left: 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ty-overlay { transition: none; }
-}
-
-.ty-overlay-top {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: calc(env(safe-area-inset-top, 0px) + 12px) 18px 10px;
-  /* 不透明的純色，不要半透明＋模糊：iPhone 上模糊會在畫面最上緣取樣到外面的淺色，
-     把最上面拉成一條由灰漸層到深藍的帶子，看起來像畫面上緣被切掉。
-     顏色跟下面整個畫面漸層的起點一樣，捲到最上面時是接在一起的。 */
-  background: #1d2740;
-}
-.ty-overlay-top-title { font-size: 15px; font-weight: 700; letter-spacing: 0.5px; opacity: 0.9; }
-
-.ty-collapse-btn {
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 700;
-  padding: 7px 16px;
-  border-radius: 999px;
-  cursor: pointer;
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-}
-.ty-collapse-btn:hover { background: rgba(255, 255, 255, 0.24); }
-.ty-collapse-btn--wide { width: 100%; padding: 13px 16px; font-size: 16px; border-radius: 14px; background: rgba(255, 255, 255, 0.92); color: #1d2740; border: 0; }
-.ty-collapse-btn--wide:hover { background: #fff; }
-
-.ty-overlay-body { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 16px; }
-
-.ty-card {
-  border-radius: 22px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-}
-.ty-card-head {
-  padding: 20px 20px 18px;
-  background: linear-gradient(135deg, var(--ty-a, #d21a1a), var(--ty-b, #690b0b));
-}
-.ty-type { font-size: 15px; font-weight: 700; letter-spacing: 1px; opacity: 0.95; }
-.ty-name-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
-.ty-intensity {
-  font-size: 15px;
-  font-weight: 800;
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.95);
-  color: var(--ty-b, #690b0b);
-}
-.ty-name { font-size: 34px; font-weight: 800; line-height: 1.1; }
-.ty-meta { margin-top: 10px; font-size: 13px; opacity: 0.88; line-height: 1.5; }
-
-.ty-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: rgba(255, 255, 255, 0.1); }
-.ty-fact { background: #1a2238; padding: 13px 16px; min-width: 0; }
-.ty-fact--wide { grid-column: 1 / -1; }
-.ty-fact-label { font-size: 12px; opacity: 0.65; margin-bottom: 4px; }
-.ty-fact-value { font-size: 15px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
-
-.ty-areas { padding: 14px 16px 18px; background: #1a2238; }
-.ty-areas-group + .ty-areas-group { margin-top: 12px; }
-.ty-areas-title { font-size: 12px; opacity: 0.65; margin-bottom: 8px; }
-.ty-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.ty-chip { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); }
-.ty-chip--land { background: rgba(255, 70, 70, 0.28); }
-.ty-chip--sea { background: rgba(255, 170, 40, 0.28); }
-
-/* 大雨（豪雨）特報頁面：受影響區域改成可收合（<details>），放在分布圖下面。
-   用獨立的 rain-fold-* 類別，不影響颱風畫面共用的 .ty-areas。 */
-.rain-fold-card {
-  border-radius: 22px;
-  overflow: hidden;
-  background: #1a2238;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-.rain-fold-heading { padding: 16px 18px 8px; font-size: 13px; font-weight: 700; letter-spacing: 1px; opacity: 0.7; }
-.rain-fold-group { border-top: 1px solid rgba(255, 255, 255, 0.1); }
-.rain-fold-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 15px 18px;
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-  font-size: 15px;
-  font-weight: 700;
-}
-.rain-fold-title::-webkit-details-marker { display: none; }
-.rain-fold-title::marker { content: ""; }
-.rain-fold-title:active { background: rgba(255, 255, 255, 0.06); }
-.rain-fold-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25); }
-.rain-fold-name { flex: 1; min-width: 0; }
-.rain-fold-count { font-size: 13px; font-weight: 600; opacity: 0.7; white-space: nowrap; }
-.rain-fold-title::after {
-  content: "";
-  flex: none;
-  width: 8px;
-  height: 8px;
-  margin: -4px 2px 0 4px;
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  opacity: 0.7;
-  transform: rotate(45deg);
-  transition: transform 0.2s;
-}
-.rain-fold-group[open] > .rain-fold-title::after { transform: rotate(-135deg); margin-top: 4px; }
-.rain-fold-body { padding: 2px 18px 18px; }
-
-.ty-overlay-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 18px 16px calc(112px + env(safe-area-inset-bottom, 0px)); /* 留空間給底部導覽列 */
-}
-.ty-more-btn {
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: transparent;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 600;
-  padding: 11px 16px;
-  border-radius: 14px;
-  cursor: pointer;
-}
-
-/* 收合後的卡片：一條、一個颱風一張，顯示「強度颱風　警報種類　颱風名稱」 */
-.ty-strip-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-.ty-strip {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  border: 0;
-  border-radius: 14px;
-  padding: 11px 14px;
-  color: #fff;
-  text-align: left;
-  cursor: pointer;
-  background: linear-gradient(90deg, var(--ty-a, #d21a1a), var(--ty-b, #690b0b));
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-  -webkit-tap-highlight-color: transparent;
-}
-.ty-strip-text { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; font-size: 14px; line-height: 1.4; }
-.ty-strip-intensity { font-weight: 800; }
-.ty-strip-type { font-weight: 600; opacity: 0.95; }
-.ty-strip-name { font-weight: 800; }
-.ty-strip-more { flex-shrink: 0; font-size: 12px; font-weight: 600; opacity: 0.92; white-space: nowrap; }
-
-/* ---------------- 後台：模擬颱風警報 ---------------- */
-.admin-sim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
-.admin-sim-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-sub, var(--text-main)); }
-.admin-sim-field select,
-.admin-sim-field input {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--input-border, var(--card-border));
-  border-radius: 8px;
-  font-size: 13px;
-  font-family: inherit;
-  background: var(--input-bg, var(--card-bg));
-  color: var(--text-main);
-}
-.admin-sim-actions { display: flex; gap: 8px; margin-top: 12px; }
-.admin-sim-actions button {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.admin-sim-actions .admin-sim-stop { background: #6b7280; }
-
-/* 模擬中的標記：警報畫面上和收合卡片上都會出現，避免把測試誤當成真的警報 */
-.ty-sim-tag {
-  display: inline-block;
-  margin-bottom: 10px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px dashed rgba(255, 255, 255, 0.7);
-}
-.ty-strip-sim {
-  flex-shrink: 0;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px dashed rgba(255, 255, 255, 0.7);
-}
-
-/* ---------------- 警特報分頁：颱風警報卡片（精簡版）---------------- */
-.ty-al-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 17px; font-weight: 800; margin: 2px 0 10px; }
-.ty-al-type { font-size: 13px; font-weight: 700; color: #b45309; }
-.ty-al-rows { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; line-height: 1.45; }
-.ty-al-label { color: var(--text-sub, #6b7280); white-space: nowrap; }
-.ty-al-value { font-weight: 600; overflow-wrap: anywhere; }
-.ty-al-mapslot { margin-top: 12px; }
-/* 從警特報分頁點進來的全螢幕颱風畫面：原本只在首頁出現，這個模式在警特報分頁也要顯示；
-   換到其他分頁一樣會被藏起來（renderer.js 也會同步把這個模式關掉）。 */
-body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
-.ty-overlay.ty-force .ty-more-btn,
-.ty-overlay.ty-force .ty-collapse-btn--wide { display: none; } /* 已經在警特報分頁了；關閉用上面的按鈕 */
-/* 卡片下面的範圍地圖：淺色底的圓角卡片，深色畫面裡才讀得清楚 */
-.ty-overlay-map {
-  border-radius: 22px;
-  background: #ffffff;
-  color: #1f2937;
-  padding: 16px 14px 14px;
-}
-.ty-overlay-map .alert-map-section { margin: 0; padding: 0; border: 0; box-shadow: none; background: none; }
-.ty-overlay-map .alert-map-title { display: block; margin-top: 0; }
-/* 從警特報「詳細資訊」點進來的畫面，下面已經有範圍地圖了，就不再重複列「陸上／海上警戒區域」
-   那兩排標籤；地圖沒資料（被藏起來）時還是保留標籤，首頁那張（沒有地圖）也照舊顯示。 */
-.ty-overlay.ty-force:has(.ty-overlay-map .alert-map-section:not(.hidden)) .ty-areas { display: none; }
-/* 卡片、地圖下面的「大雨（豪雨）特報」按鈕 */
-.ty-rain-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 16px 18px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-  text-align: left;
-}
-.ty-rain-btn:active { background: rgba(255, 255, 255, 0.2); }
-.ty-rain-btn-sub { font-size: 13px; font-weight: 600; opacity: 0.8; white-space: nowrap; }
-.ty-rain-btn:disabled { opacity: 0.5; cursor: default; }
-/* 地圖區塊沒資料時（被藏起來）就不要留一張空白的白卡片 */
-.ty-overlay-map:not(:has(.alert-map-section:not(.hidden))) { display: none; }
-/* 地圖區塊搬進卡片後：拿掉自己的標題／外框留白，卡片本身已經有標題了 */
-.ty-al-mapslot .alert-map-section { margin: 0; padding: 0; border: 0; box-shadow: none; background: none; }
-.ty-al-mapslot .alert-map-title { display: none; }
-.ty-al-areas { margin-top: 10px; font-size: 13px; line-height: 1.6; white-space: pre-line; color: var(--text-main); }
-.ty-al-time { margin-top: 8px; font-size: 12px; color: #8a94a3; }
-.ty-al-raw-btn { margin-top: 8px; padding: 0; border: 0; background: none; color: var(--accent, #1c4fb8); font-size: 12px; font-weight: 600; cursor: pointer; }
-.ty-al-raw { margin: 6px 0 0; font-size: 12px; line-height: 1.6; color: #6b7280; overflow-wrap: anywhere; }
-.ty-al-raw.hidden { display: none; }
-
-/* ---- 首頁最下面：動態島冒險（把目前天氣顯示在 iOS 動態島／鎖定畫面）----
-   熱帶島嶼風格：會動的漸層背景＋飄浮的表情符號，中間疊一塊霧面深色卡片放文字、
-   任務清單（沒解鎖時顯示，解鎖後 renderer.js 會幫 #adventureConditions 加上
-   .hidden 直接藏起來）跟按鈕。#adventurePanel 這個 id、.adventure-locked 這個
-   class 名稱都留著沒改，renderer.js 是用這兩個抓元素、判斷有沒有解鎖的，不用動 JS。 */
-.adventure-panel {
-  position: relative;
-  overflow: hidden;
-  border-radius: 20px;
-  margin-top: 22px;
-  padding: 4px;
-  background: linear-gradient(-45deg, #6a5acd, #2ec4b6, #20b2aa, #ff6f91);
-  background-size: 400% 400%;
-  animation: adventureGradient 12s ease infinite;
-}
-.adventure-panel.hidden { display: none; }
-@keyframes adventureGradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-.adventure-bg { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-.adventure-particle {
-  position: absolute;
-  font-size: 24px;
-  opacity: 0.85;
-  animation: adventureFloat 8s ease-in-out infinite;
-  will-change: transform; /* 交給 GPU 合成，不用每格重新繪製；不再用 drop-shadow 濾鏡（動畫中的濾鏡每格都要重算，很耗電） */
-}
-.adventure-particle.p1 { left: 8%;  top: 14%; animation-duration: 9s;  animation-delay: 0s; }
-.adventure-particle.p2 { left: 24%; top: 68%; animation-duration: 11s; animation-delay: 1s; }
-.adventure-particle.p3 { left: 46%; top: 20%; animation-duration: 7s;  animation-delay: 2s; }
-.adventure-particle.p4 { left: 64%; top: 62%; animation-duration: 10s; animation-delay: 0.5s; }
-.adventure-particle.p5 { left: 82%; top: 18%; animation-duration: 12s; animation-delay: 1.5s; }
-.adventure-particle.p6 { left: 92%; top: 60%; animation-duration: 8s;  animation-delay: 2.5s; }
-@keyframes adventureFloat {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-14px) scale(1.12); }
-}
-.adventure-content {
-  position: relative;
-  z-index: 1;
-  padding: 22px 20px;
-  border-radius: 17px;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-.adventure-title {
-  margin: 0 0 8px;
-  font-size: 19px;
-  font-weight: 800;
-  color: #fff;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-.adventure-sparkle {
-  display: inline-block;
-  animation: adventureSparkle 2.4s ease-in-out infinite;
-}
-@keyframes adventureSparkle {
-  0%, 100% { opacity: 0.5; transform: scale(0.9) rotate(0deg); }
-  50% { opacity: 1; transform: scale(1.15) rotate(15deg); }
-}
-.adventure-desc {
-  margin: 0 0 14px;
-  font-size: 13px;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.9);
-  text-align: center;
-}
-.adventure-conditions {
-  list-style: none;
-  margin: 0 0 16px;
-  padding: 0;
-}
-/* 解鎖之後（不管是集滿 3 個條件、還是管理員直接開通），renderer.js 會幫
-   #adventureConditions 加上這個 .hidden：任務清單沒有意義了，不用再留著
-   提醒使用者去簽到／等特定天氣，卡片變成單純「說明 + 按鈕」。 */
-.adventure-conditions.hidden { display: none; }
-.adventure-cond {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.85);
-}
-.adventure-cond:last-child { border-bottom: none; }
-.adventure-cond.done { color: rgba(255, 255, 255, 0.65); }
-.adventure-cond.done .adv-label { text-decoration: line-through; }
-.adventure-cond .adv-check {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-  border: 1.5px solid rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 800;
-  color: #fff;
-}
-.adventure-cond.done .adv-check { background: #34c759; border-color: #34c759; color: #fff; }
-.adventure-cond .adv-label { flex: 1; }
-.adventure-cond .adv-progress { font-size: 12px; font-weight: 500; color: rgba(255, 255, 255, 0.7); white-space: nowrap; }
-.adventure-btn {
-  width: 100%;
-  border: none;
-  border-radius: 999px;
-  padding: 13px 16px;
-  font-size: 15px;
-  font-weight: 700;
-  color: #fff;
-  background: #ff3d81;
-  cursor: pointer;
-}
-.adventure-btn[disabled] {
-  background: rgba(255, 255, 255, 0.22);
-  color: rgba(255, 255, 255, 0.8);
-  cursor: not-allowed;
-}
-.adventure-btn.active { background: #12312c; color: #fff; }
-.adventure-status { margin: 10px 0 0; font-size: 12px; color: rgba(255, 255, 255, 0.85); text-align: center; min-height: 16px; }
-
-/* 按「使用」之後跳出的模式／時間選單，改成從畫面下方滑上來的底部彈窗
-   （bottom sheet），先不直接呼叫原生端，選好按「開始使用」才動作。
-   跟一般 .xxx.hidden { display:none } 的做法不一樣：這裡收合要看得到
-   往下滑出去的動畫，所以用 transform + visibility 做，display 保持
-   不變，動畫結束後才真的讓它不能互動（pointer-events / visibility）。*/
-.adventure-picker {
-  position: fixed;
-  left: 14px;
-  right: 14px;
-  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-  z-index: 99999;
-  margin: 0;
-  padding: 10px 16px 18px;
-  border-radius: 24px;
-  background: #12312c;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
-  max-height: 75vh;
-  min-height: 34vh;
-  overflow-y: auto;
-  transform: translateY(0);
-  visibility: visible;
-  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s;
-}
-.adventure-picker.hidden {
-  transform: translateY(calc(100% + 40px));
-  visibility: hidden;
-  pointer-events: none;
-  transition: transform 0.22s ease-in, visibility 0s linear 0.22s;
-}
-.adventure-picker-handle {
-  width: 36px;
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.35);
-  margin: 0 auto 10px;
-}
-.adventure-picker-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-.adventure-picker-title { font-size: 15px; font-weight: 700; color: #fff; }
-.adventure-picker-close {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-/* 底部彈窗背後的半透明遮罩，點一下等於取消（跟按右上角 ✕ 一樣，不會
-   直接開始使用）。跟 .adventure-picker 同一套顯隱動畫邏輯，淡入淡出。 */
-.adventure-picker-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 99998;
-  background: rgba(0, 0, 0, 0.45);
-  opacity: 1;
-  transition: opacity 0.28s ease;
-}
-.adventure-picker-backdrop.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-.adventure-picker-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 0;
-}
-.adventure-picker-row + .adventure-picker-row { border-top: 1px solid rgba(255, 255, 255, 0.16); }
-.adventure-picker-label { font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, 0.85); flex-shrink: 0; }
-.adventure-mode-options { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-.adventure-mode-opt {
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 6px 12px;
-  border-radius: 999px;
-  cursor: pointer;
-}
-.adventure-mode-opt.active { background: #ff3d81; border-color: #ff3d81; color: #fff; }
-.adventure-duration-stepper { display: flex; align-items: center; gap: 10px; }
-.adventure-stepper-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.adventure-stepper-btn:active { background: rgba(255, 255, 255, 0.25); }
-.adventure-stepper-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-.adventure-duration-value { min-width: 64px; text-align: center; font-size: 14px; font-weight: 700; color: #fff; }
-.adventure-usage-info { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: rgba(255, 255, 255, 0.7); text-align: center; }
-.adventure-usage-info.exhausted { color: #ff9db5; font-weight: 600; }
-.adventure-start-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.adventure-start-btn { margin-top: 12px; }
-
-/* 啟用之後取代宣傳卡的精簡狀態卡：一行的膠囊卡片，螢光色描邊，不再佔一大塊版面 */
-.adventure-enabled-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 22px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: var(--card-bg);
-  border: 1.5px solid transparent;
-  background-image: linear-gradient(var(--card-bg), var(--card-bg)),
-    linear-gradient(120deg, #6a5acd, #2ec4b6, #ff6f91);
-  background-origin: border-box;
-  background-clip: padding-box, border-box;
-  box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
-}
-.adventure-enabled-card.hidden { display: none; }
-.adventure-enabled-icon { font-size: 26px; flex-shrink: 0; }
-.adventure-enabled-text { flex: 1; min-width: 0; }
-.adventure-enabled-title { font-size: 14px; font-weight: 700; color: var(--text-main); }
-.adventure-enabled-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-.adventure-enabled-off {
-  flex-shrink: 0;
-  border: 1px solid var(--card-border);
-  border-radius: 999px;
-  padding: 7px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  background: transparent;
-  cursor: pointer;
-}
-.adventure-enabled-off:active { background: var(--card-border); }
-
-
-/* 大頭貼預覽彈窗（選好照片後、真正上傳前） */
-.avatar-preview-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 99999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(10, 14, 24, 0.55);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-}
-.avatar-preview-dialog {
-  width: min(320px, 100%);
-  padding: 22px 20px 18px;
-  border-radius: 24px;
-  background: var(--card-bg, #fff);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
-  text-align: center;
-  color: var(--text-main, #222b38);
-}
-.avatar-preview-title { margin: 0 0 14px; font-size: 16px; font-weight: 700; }
-.avatar-preview-circle {
-  width: 160px;
-  height: 160px;
-  margin: 0 auto;
-  border-radius: 50%;
-  overflow: hidden;
-  background: #c9ced6;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
-}
-.avatar-preview-circle img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.avatar-preview-hint { margin: 12px 0 16px; font-size: 12px; color: var(--text-muted, #667085); }
-.avatar-preview-actions { display: flex; gap: 10px; }
-.avatar-preview-actions button {
-  flex: 1;
-  padding: 11px 0;
-  border: 0;
-  border-radius: 999px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.avatar-preview-cancel { background: rgba(120, 130, 150, 0.18); color: inherit; }
-.avatar-preview-confirm { background: #2f7cf6; color: #fff; }
-
-/* ---- 省電：不可見／不需要的動畫一律暫停，避免手機持續發熱 ----
-   html.app-paused：App 在背景或分頁被藏起來（visibilitychange，見 renderer.js）
-   .anim-offscreen：該區塊捲出畫面外（IntersectionObserver）
-   使用者在系統開了「減少動態效果」也直接關掉這些裝飾動畫。 */
-html.app-paused *, html.app-paused *::before, html.app-paused *::after,
-.anim-offscreen, .anim-offscreen *, .anim-offscreen *::before, .anim-offscreen *::after {
-  animation-play-state: paused !important;
-}
-@media (prefers-reduced-motion: reduce) {
-  .adventure-panel, .adventure-particle, .adventure-sparkle, .alert-banner-dot {
-    animation: none !important;
-  }
-}
-
-.login-gate-verify-otp-display {
-  width: 100%; margin: 8px 0 12px; padding: 12px 16px; border-radius: 12px;
-  border: 1px solid var(--input-border); background: var(--input-bg);
-  color: var(--accent); font-size: 26px; font-weight: 800;
-  letter-spacing: 0.35em; text-align: center; box-sizing: border-box;
-}
-.login-gate-verify-otp-display.hidden { display: none; }
-
-.login-gate-status--loading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 36px;
-  margin-bottom: 14px;
-}
-.login-gate-spinner {
-  display: inline-block;
-  width: 28px;
-  height: 28px;
-  border: 3px solid rgba(47, 111, 237, 0.18);
-  border-top-color: #2f6fed;
-  border-radius: 50%;
-  animation: login-gate-spin 0.75s linear infinite;
-}
-@keyframes login-gate-spin {
-  to { transform: rotate(360deg); }
-}
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-/* Full-screen boot animation while checking session */
-.login-gate--booting .login-gate-card {
-  visibility: hidden;
-  pointer-events: none;
-  opacity: 0;
-}
-.login-gate-boot {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  pointer-events: none;
-}
-.login-gate-boot.hidden {
-  display: none;
-}
-.login-gate-boot-orbit {
-  position: relative;
-  width: 96px;
-  height: 96px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.login-gate-boot-logo {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  object-fit: contain;
-  animation: login-boot-pulse 1.6s ease-in-out infinite;
-  position: relative;
-  z-index: 1;
-}
-.login-gate-boot-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 2.5px solid transparent;
-  border-top-color: #2f6fed;
-  border-right-color: rgba(47, 111, 237, 0.35);
-  animation: login-boot-spin 1.1s linear infinite;
-}
-.login-gate-boot-ring--delay {
-  inset: 10px;
-  border-top-color: rgba(47, 111, 237, 0.55);
-  border-right-color: transparent;
-  border-bottom-color: rgba(47, 111, 237, 0.25);
-  animation-duration: 1.6s;
-  animation-direction: reverse;
-}
-.login-gate-boot-text {
-  margin-top: 22px;
-  font-size: 14px;
-  font-weight: 500;
-  color: rgba(31, 41, 55, 0.55);
-  letter-spacing: 0.02em;
-}
-@keyframes login-boot-spin {
-  to { transform: rotate(360deg); }
-}
-@keyframes login-boot-pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(0.94); opacity: 0.85; }
-}
-
-.login-gate-boot-weather {
-  position: relative;
-  width: 120px;
-  height: 120px;
-}
-.login-gate-boot-wx {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  opacity: 0;
-  transform: scale(0.88);
-  transition: opacity 0.55s ease, transform 0.55s ease;
-  filter: drop-shadow(0 8px 18px rgba(30, 60, 120, 0.18));
-}
-.login-gate-boot-wx.is-active {
-  opacity: 1;
-  transform: scale(1);
-  animation: login-boot-wx-float 2.4s ease-in-out infinite;
-}
-@keyframes login-boot-wx-float {
-  0%, 100% { transform: scale(1) translateY(0); }
-  50% { transform: scale(1.04) translateY(-4px); }
-}
-
-.login-gate-boot-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
-}
-.login-gate-boot-spinner {
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
-  border-right-color: rgba(47, 111, 237, 0.9);
-  animation: login-boot-spin 0.8s linear infinite;
-  box-shadow: 0 2px 10px rgba(30, 60, 120, 0.15);
-}
-@keyframes login-boot-spin {
-  to { transform: rotate(360deg); }
-}
-
-.login-gate-boot-orbit-wrap {
-  position: relative;
-  width: 148px;
-  height: 148px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.login-gate-boot-orbit-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.28);
-  border-top-color: #ffffff;
-  border-right-color: rgba(47, 111, 237, 0.95);
-  animation: login-boot-spin 0.9s linear infinite;
-  box-sizing: border-box;
-  pointer-events: none;
-}
-.login-gate-boot-orbit-wrap .login-gate-boot-weather {
-  width: 100px;
-  height: 100px;
-}
-
-body.auth-ok .login-gate.login-gate--booting {
-  display: flex;
-}
-
-/* 更多／收起：文字按鈕，不要藍底（避免 iOS 預設 button 樣式） */
-.login-gate-more-toggle,
-.login-gate-more-toggle.expanded,
-.login-gate-more-toggle:active,
-.login-gate-more-toggle:focus,
-.login-gate-more-toggle:hover {
-  background: transparent !important;
-  background-color: transparent !important;
-  background-image: none !important;
-  border: none !important;
-  box-shadow: none !important;
-  color: var(--text-muted) !important;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-/* 更多／收起：在額外登入方式下方、「或」上方 */
-.login-gate-more-toggle {
-  margin-top: 12px;
-  margin-bottom: 4px;
-}
-.login-gate-buttons-extra:not(.hidden) + .login-gate-more-toggle {
-  margin-top: 10px;
-}
-
-
-/* === MapSky Tech UI ===
-   科技感：深玻璃面板、青色描邊、等寬數字、微光暈 */
-:root {
-  --tech-cyan: #5ce1ff;
-  --tech-cyan-dim: rgba(92, 225, 255, 0.45);
-  --tech-line: rgba(92, 225, 255, 0.28);
-  --tech-panel: rgba(8, 18, 40, 0.42);
-  --tech-panel-2: rgba(12, 28, 58, 0.38);
-  --tech-glow: 0 0 24px rgba(92, 225, 255, 0.18);
-}
-
-/* 主天氣卡 */
-.current-card {
-  position: relative;
-  background:
-    linear-gradient(145deg, rgba(20, 48, 96, 0.72) 0%, rgba(12, 32, 72, 0.68) 45%, rgba(8, 24, 56, 0.75) 100%);
-  border: 1px solid var(--tech-line);
-  border-radius: 18px;
-  box-shadow:
-    var(--tech-glow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 12px 32px rgba(0, 20, 60, 0.28);
-  overflow: hidden;
-}
-.current-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, transparent 0%, rgba(92, 225, 255, 0.06) 50%, transparent 100%);
-  background-size: 200% 100%;
-  pointer-events: none;
-  opacity: 0.7;
-}
-.current-card::after {
-  /* 四角科技框線感 */
-  content: "";
-  position: absolute;
-  inset: 8px;
-  border: 1px solid rgba(92, 225, 255, 0.12);
-  border-radius: 12px;
-  pointer-events: none;
-  mask-image:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-image:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .current-card {
-    background: linear-gradient(145deg, #1a3a78 0%, #123060 55%, #0c2248 100%);
-  }
-}
-.current-card.liquid-glass-refraction {
-  background: linear-gradient(145deg, rgba(20, 48, 96, 0.55) 0%, rgba(12, 32, 72, 0.5) 55%, rgba(8, 24, 56, 0.6) 100%);
-}
-
-.current-temp {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 54px;
-  font-weight: 700;
-  letter-spacing: -0.04em;
-  text-shadow: 0 0 18px rgba(92, 225, 255, 0.35);
-}
-.current-desc {
-  letter-spacing: 0.04em;
-  font-weight: 600;
-}
-.current-detail {
-  font-size: 12px;
-  opacity: 0.88;
-  letter-spacing: 0.02em;
-  color: rgba(220, 240, 255, 0.9);
-}
-
-.current-stat-chip {
-  background: rgba(6, 16, 36, 0.35);
-  border: 1px solid rgba(92, 225, 255, 0.22);
-  border-radius: 12px;
-  box-shadow: inset 0 0 12px rgba(92, 225, 255, 0.06);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-.current-stat-label {
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: none;
-  opacity: 0.75;
-}
-.current-stat-value {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 14px;
-  font-weight: 700;
-  color: #e8f7ff;
-}
-
-/* 「查看完整預報」按鈕科技感 */
-.current-card a.full-forecast-link,
-.current-card .full-forecast-btn,
-.current-card button.full-forecast-link,
-#openFullForecastBtn,
-.current-card .forecast-more-btn {
-  border: 1px solid rgba(92, 225, 255, 0.35) !important;
-  background: rgba(8, 24, 56, 0.35) !important;
-  color: #dff6ff !important;
-  letter-spacing: 0.06em;
-  box-shadow: 0 0 12px rgba(92, 225, 255, 0.12);
-}
-
-/* 36 小時預報小卡 */
-.forecast-card {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.72), rgba(230, 242, 255, 0.55));
-  border: 1px solid rgba(47, 111, 237, 0.18);
-  border-radius: 14px;
-  box-shadow: 0 4px 14px rgba(30, 60, 120, 0.08);
-  position: relative;
-}
-.forecast-card .fdate {
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  color: #1e3a5f;
-}
-.forecast-card .ftemp {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  letter-spacing: -0.02em;
-}
-.forecast-card .fpop {
-  color: #2a7fd4;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
-/* 其他資訊卡 */
-.extra-info-card {
-  background: linear-gradient(165deg, rgba(255, 255, 255, 0.78), rgba(236, 246, 255, 0.62));
-  border: 1px solid rgba(47, 111, 237, 0.16);
-  border-radius: 14px;
-  box-shadow: 0 4px 12px rgba(30, 60, 120, 0.06);
-}
-.extra-info-value {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  letter-spacing: -0.01em;
-}
-.extra-info-label {
-  letter-spacing: 0.04em;
-  font-size: 11px;
-}
-
-/* 城市標題 */
-.main-header h2#cityName,
-#cityName {
-  letter-spacing: 0.06em;
-  font-weight: 700;
-}
-
-/* 區塊標題左側青色指示條 */
-.section-title {
-  position: relative;
-  padding-left: 10px;
-  letter-spacing: 0.04em;
-}
-.section-title::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.15em;
-  bottom: 0.15em;
-  width: 3px;
-  border-radius: 2px;
-  background: linear-gradient(180deg, var(--tech-cyan), #2f6fed);
-  box-shadow: 0 0 8px rgba(92, 225, 255, 0.5);
-}
-
-/* 底部導覽微科技描邊（不改結構） */
-.bottom-nav {
-  border: 1px solid rgba(92, 225, 255, 0.15);
-  box-shadow: 0 8px 28px rgba(20, 40, 90, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.2) inset;
-}
-
-.current-forecast-btn {
-  width: 100%;
-  margin-top: 4px;
-  padding: 12px 16px;
-  border-radius: 999px;
-  border: 1px solid rgba(92, 225, 255, 0.4);
-  background: rgba(6, 18, 42, 0.35);
-  color: #e6f9ff;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  cursor: pointer;
-  box-shadow: 0 0 14px rgba(92, 225, 255, 0.12);
-  -webkit-appearance: none;
-  appearance: none;
-}
-.current-forecast-btn:active {
-  background: rgba(92, 225, 255, 0.12);
-}
-
-/* MapSky — CYBER TECH theme (strong)
-   Dark glass + neon cyan/violet edges + HUD lines
+/* MapSky — LIGHT TECH theme
+   Bright frosted glass + cyan tech accents (keeps light UI)
 */
 :root {
-  --sidebar-bg: rgba(10, 16, 32, 0.55);
-  --sidebar-border: rgba(34, 211, 238, 0.35);
-  --card-bg: rgba(12, 20, 40, 0.52);
-  --card-border: rgba(34, 211, 238, 0.4);
-  --input-bg: rgba(8, 14, 28, 0.65);
-  --input-border: rgba(34, 211, 238, 0.45);
-  --text-main: #e8f4ff;
-  --text-muted: #8ba3c7;
-  --text-faint: #5a7399;
-  --accent: #22d3ee;
-  --accent-hover: #06b6d4;
-  --accent-glow: rgba(34, 211, 238, 0.55);
-  --tech-cyan: #22d3ee;
-  --tech-violet: #a78bfa;
-  --tech-magenta: #e879f9;
-  --glass-blur: blur(24px) saturate(180%);
+  --sidebar-bg: rgba(255, 255, 255, 0.55);
+  --sidebar-border: rgba(56, 189, 248, 0.35);
+  --card-bg: rgba(255, 255, 255, 0.52);
+  --card-border: rgba(56, 189, 248, 0.4);
+  --input-bg: rgba(255, 255, 255, 0.72);
+  --input-border: rgba(14, 165, 233, 0.35);
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-faint: #94a3b8;
+  --accent: #0ea5e9;
+  --accent-hover: #0284c7;
+  --accent-glow: rgba(14, 165, 233, 0.35);
+  --tech-cyan: #06b6d4;
+  --tech-violet: #8b5cf6;
+  --tech-blue: #3b82f6;
+  --glass-blur: blur(28px) saturate(190%);
   --glass-shadow:
-    0 0 0 1px rgba(34, 211, 238, 0.22),
-    0 8px 32px rgba(0, 0, 0, 0.35),
-    0 0 24px rgba(34, 211, 238, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    0 0 0 1px rgba(56, 189, 248, 0.18),
+    0 8px 28px rgba(15, 23, 42, 0.08),
+    0 0 20px rgba(14, 165, 233, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
-/* Cool tech wash over photo background */
+/* Soft cool wash — stays bright */
 body.auth-ok::before {
   content: "" !important;
   position: fixed !important;
@@ -4409,23 +2645,16 @@ body.auth-ok::before {
   pointer-events: none !important;
   z-index: 0 !important;
   background:
-    linear-gradient(180deg, rgba(4, 10, 24, 0.55) 0%, rgba(8, 16, 36, 0.35) 40%, rgba(6, 12, 28, 0.5) 100%),
-    radial-gradient(80% 50% at 50% -5%, rgba(34, 211, 238, 0.2), transparent 55%),
-    radial-gradient(50% 40% at 100% 100%, rgba(167, 139, 250, 0.15), transparent 50%),
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 3px,
-      rgba(34, 211, 238, 0.03) 3px,
-      rgba(34, 211, 238, 0.03) 4px
-    ) !important;
+    radial-gradient(90% 55% at 50% -8%, rgba(56, 189, 248, 0.2), transparent 55%),
+    radial-gradient(55% 40% at 100% 100%, rgba(139, 92, 246, 0.1), transparent 50%),
+    linear-gradient(180deg, rgba(240, 249, 255, 0.25) 0%, transparent 40%) !important;
 }
 body.auth-ok .app {
   position: relative !important;
   z-index: 1 !important;
 }
 
-/* Shared dark glass panels */
+/* Shared light glass panels */
 .sidebar,
 .browser-gate-card,
 .onboarding-card,
@@ -4446,15 +2675,21 @@ body.auth-ok .app {
 .settings-page .auth-bar,
 .adventure-enabled-card,
 .current-card {
-  background: var(--card-bg) !important;
-  border: 1px solid var(--card-border) !important;
+  background:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.72) 0%,
+      rgba(255, 255, 255, 0.42) 55%,
+      rgba(224, 242, 254, 0.35) 100%
+    ) !important;
+  border: 1px solid rgba(56, 189, 248, 0.4) !important;
   box-shadow: var(--glass-shadow) !important;
   color: var(--text-main) !important;
   backdrop-filter: var(--glass-blur) !important;
   -webkit-backdrop-filter: var(--glass-blur) !important;
 }
 
-/* Text on dark glass */
+/* Text stays dark on light glass */
 .forecast-card .fdate,
 .forecast-card .ftemp,
 .forecast-card .fdesc,
@@ -4480,28 +2715,32 @@ body.auth-ok .app {
 .forecast-card .fdesc,
 .extra-info-label,
 .current-detail,
-.sd-low,
-.text-muted {
+.sd-low {
   color: var(--text-muted) !important;
 }
 .forecast-card .fpop,
 .sd-pop {
-  color: var(--tech-cyan) !important;
-  text-shadow: 0 0 12px rgba(34, 211, 238, 0.45);
+  color: #0284c7 !important;
+  font-weight: 700 !important;
 }
 
-/* Hero weather card — HUD frame */
+/* Hero weather card — light HUD */
 .current-card {
   position: relative !important;
-  border-radius: 20px !important;
+  border-radius: 22px !important;
   background:
-    linear-gradient(145deg, rgba(20, 36, 64, 0.7) 0%, rgba(10, 18, 36, 0.55) 50%, rgba(16, 40, 56, 0.65) 100%) !important;
-  border: 1px solid rgba(34, 211, 238, 0.5) !important;
+    linear-gradient(
+      150deg,
+      rgba(255, 255, 255, 0.75) 0%,
+      rgba(240, 249, 255, 0.5) 45%,
+      rgba(224, 242, 254, 0.45) 100%
+    ) !important;
+  border: 1px solid rgba(14, 165, 233, 0.45) !important;
   box-shadow:
-    0 0 0 1px rgba(34, 211, 238, 0.2),
-    0 12px 40px rgba(0, 0, 0, 0.4),
-    0 0 40px rgba(34, 211, 238, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+    0 0 0 1px rgba(56, 189, 248, 0.15),
+    0 12px 36px rgba(14, 165, 233, 0.12),
+    0 4px 16px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
   overflow: hidden !important;
 }
 .current-card::before {
@@ -4511,104 +2750,101 @@ body.auth-ok .app {
   left: 0 !important;
   right: 0 !important;
   height: 2px !important;
-  background: linear-gradient(90deg, transparent, var(--tech-cyan), var(--tech-violet), transparent) !important;
-  opacity: 0.9 !important;
+  background: linear-gradient(90deg, transparent, #22d3ee, #8b5cf6, transparent) !important;
+  opacity: 0.85 !important;
   z-index: 2 !important;
 }
 .current-card::after {
   content: "" !important;
   position: absolute !important;
   inset: 8px !important;
-  border: 1px solid rgba(34, 211, 238, 0.12) !important;
-  border-radius: 14px !important;
+  border: 1px solid rgba(14, 165, 233, 0.12) !important;
+  border-radius: 16px !important;
   pointer-events: none !important;
   z-index: 1 !important;
 }
 .current-temp {
   font-family: "SF Mono", "Menlo", "Consolas", ui-monospace, monospace !important;
   letter-spacing: -0.02em !important;
-  text-shadow: 0 0 20px rgba(34, 211, 238, 0.35) !important;
-  color: #f0f9ff !important;
+  color: #0c4a6e !important;
+  text-shadow: 0 0 24px rgba(14, 165, 233, 0.2) !important;
 }
 .current-stat-chip {
-  background: rgba(8, 16, 32, 0.55) !important;
-  border: 1px solid rgba(34, 211, 238, 0.35) !important;
+  background: rgba(255, 255, 255, 0.55) !important;
+  border: 1px solid rgba(56, 189, 248, 0.35) !important;
   border-radius: 12px !important;
   box-shadow:
-    0 0 12px rgba(34, 211, 238, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+    0 2px 10px rgba(14, 165, 233, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
   color: var(--text-main) !important;
 }
 .current-stat-label { color: var(--text-muted) !important; }
 .current-stat-value {
-  color: #fff !important;
+  color: #0f172a !important;
   font-family: "SF Mono", "Menlo", ui-monospace, monospace !important;
+  font-weight: 700 !important;
 }
 .current-forecast-btn {
-  background: rgba(34, 211, 238, 0.12) !important;
-  border: 1px solid rgba(34, 211, 238, 0.4) !important;
-  color: var(--tech-cyan) !important;
-  box-shadow: 0 0 16px rgba(34, 211, 238, 0.15) !important;
+  background: rgba(14, 165, 233, 0.1) !important;
+  border: 1px solid rgba(14, 165, 233, 0.35) !important;
+  color: #0369a1 !important;
+  box-shadow: 0 2px 12px rgba(14, 165, 233, 0.1) !important;
 }
 
-/* Bottom nav — neon capsule */
+/* Bottom nav — bright glass capsule */
 @media (max-width: 900px) {
   .bottom-nav {
-    background: rgba(8, 14, 28, 0.72) !important;
-    backdrop-filter: blur(28px) saturate(180%) !important;
-    -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
-    border: 1px solid rgba(34, 211, 238, 0.4) !important;
+    background: rgba(255, 255, 255, 0.55) !important;
+    backdrop-filter: blur(32px) saturate(200%) !important;
+    -webkit-backdrop-filter: blur(32px) saturate(200%) !important;
+    border: 1px solid rgba(56, 189, 248, 0.4) !important;
     box-shadow:
-      0 0 0 1px rgba(34, 211, 238, 0.15),
-      0 8px 32px rgba(0, 0, 0, 0.45),
-      0 0 28px rgba(34, 211, 238, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+      0 0 0 1px rgba(56, 189, 248, 0.12),
+      0 10px 32px rgba(14, 165, 233, 0.12),
+      0 4px 16px rgba(15, 23, 42, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
   }
-  .bottom-nav-btn { color: rgba(200, 220, 240, 0.45) !important; }
-  .bottom-nav-btn.active { color: var(--tech-cyan) !important; }
+  .bottom-nav-btn { color: rgba(15, 23, 42, 0.4) !important; }
+  .bottom-nav-btn.active { color: #0284c7 !important; }
   .bottom-nav-btn.active .bottom-nav-icon {
-    background: linear-gradient(145deg, rgba(34, 211, 238, 0.25), rgba(167, 139, 250, 0.2)) !important;
+    background: linear-gradient(145deg, rgba(224, 242, 254, 0.95), rgba(186, 230, 253, 0.7)) !important;
     box-shadow:
-      0 0 16px rgba(34, 211, 238, 0.35),
-      inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+      0 0 14px rgba(14, 165, 233, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
   }
   .bottom-nav-btn .home-icon-inactive,
   .bottom-nav-btn .tools-icon-inactive,
   .bottom-nav-btn .warning-icon-inactive,
   .bottom-nav-btn .admin-icon-inactive {
-    opacity: 0.55 !important;
-    filter: brightness(2) !important;
+    opacity: 0.45 !important;
+    filter: none !important;
   }
 }
 
 /* Tools grid */
 .tools-menu-item {
-  border-radius: 16px !important;
-  background:
-    linear-gradient(160deg, rgba(18, 32, 56, 0.7), rgba(10, 18, 36, 0.55)) !important;
-  border: 1px solid rgba(34, 211, 238, 0.3) !important;
+  border-radius: 18px !important;
   transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease !important;
 }
 .tools-menu-item:active {
   transform: scale(0.97) !important;
-  border-color: var(--tech-cyan) !important;
-  box-shadow: 0 0 24px rgba(34, 211, 238, 0.3) !important;
+  border-color: rgba(14, 165, 233, 0.55) !important;
+  box-shadow: 0 0 20px rgba(14, 165, 233, 0.2) !important;
 }
-.tool-label { color: #e8f4ff !important; font-weight: 600 !important; }
+.tool-label { color: #0f172a !important; font-weight: 600 !important; }
 
 /* Settings */
 .settings-list-item,
 .settings-page .auth-bar {
-  background: rgba(12, 20, 40, 0.55) !important;
-  border: 1px solid rgba(34, 211, 238, 0.28) !important;
   border-radius: 14px !important;
+  border: 1px solid rgba(56, 189, 248, 0.3) !important;
   color: var(--text-main) !important;
 }
 
-/* Section title with neon bar */
+/* Section title */
 .section-title {
-  color: #e8f4ff !important;
-  letter-spacing: 0.04em !important;
+  color: #0f172a !important;
+  letter-spacing: 0.02em !important;
 }
 .section-title::before {
   content: "" !important;
@@ -4617,25 +2853,24 @@ body.auth-ok .app {
   height: 0.9em !important;
   margin-right: 8px !important;
   border-radius: 1px !important;
-  background: linear-gradient(180deg, var(--tech-cyan), var(--tech-violet)) !important;
-  box-shadow: 0 0 8px var(--tech-cyan) !important;
+  background: linear-gradient(180deg, #22d3ee, #3b82f6) !important;
+  box-shadow: 0 0 6px rgba(14, 165, 233, 0.45) !important;
   vertical-align: -0.12em !important;
 }
 
-/* Buttons — neon gradient */
+/* Buttons */
 .btn-primary,
 .login-gate-magic-submit,
 button.primary,
 .adventure-enabled-card .adventure-use-btn,
 a.btn-primary {
-  background: linear-gradient(135deg, #0891b2 0%, #6366f1 50%, #c026d3 100%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 55%, #06b6d4 120%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
   box-shadow:
-    0 0 20px rgba(34, 211, 238, 0.35),
-    0 6px 20px rgba(99, 102, 241, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+    0 0 16px rgba(14, 165, 233, 0.3),
+    0 6px 18px rgba(99, 102, 241, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
   color: #fff !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
 }
 
 /* Inputs */
@@ -4644,69 +2879,68 @@ input[type="text"],
 input[type="search"],
 .login-gate input,
 .profile-edit-card input {
-  background: rgba(8, 14, 28, 0.7) !important;
-  border: 1px solid rgba(34, 211, 238, 0.35) !important;
-  color: #e8f4ff !important;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+  background: rgba(255, 255, 255, 0.75) !important;
+  border: 1px solid rgba(14, 165, 233, 0.3) !important;
+  color: #0f172a !important;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04) !important;
 }
 input:focus {
-  border-color: var(--tech-cyan) !important;
+  border-color: #0ea5e9 !important;
   box-shadow:
-    0 0 0 3px rgba(34, 211, 238, 0.2),
-    0 0 16px rgba(34, 211, 238, 0.2) !important;
+    0 0 0 3px rgba(14, 165, 233, 0.18),
+    0 0 12px rgba(14, 165, 233, 0.12) !important;
 }
-input::placeholder { color: var(--text-faint) !important; }
+input::placeholder { color: #94a3b8 !important; }
 
 /* Login card */
 .login-gate-card {
   background:
-    linear-gradient(165deg, rgba(16, 28, 52, 0.85), rgba(8, 14, 28, 0.75)) !important;
-  border: 1px solid rgba(34, 211, 238, 0.4) !important;
+    linear-gradient(165deg, rgba(255, 255, 255, 0.8), rgba(240, 249, 255, 0.55)) !important;
+  border: 1px solid rgba(56, 189, 248, 0.4) !important;
   box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.45),
-    0 0 40px rgba(34, 211, 238, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+    0 20px 50px rgba(14, 165, 233, 0.12),
+    0 8px 24px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
 }
 
 /* Tabs */
 .tab-btn {
-  background: rgba(12, 20, 40, 0.45) !important;
-  border: 1px solid rgba(34, 211, 238, 0.2) !important;
+  background: rgba(255, 255, 255, 0.45) !important;
+  border: 1px solid rgba(56, 189, 248, 0.25) !important;
   color: var(--text-muted) !important;
 }
 .tab-btn.active,
 .tab-btn[aria-selected="true"] {
-  background: linear-gradient(145deg, rgba(34, 211, 238, 0.2), rgba(167, 139, 250, 0.15)) !important;
-  border-color: rgba(34, 211, 238, 0.55) !important;
-  color: var(--tech-cyan) !important;
-  box-shadow: 0 0 16px rgba(34, 211, 238, 0.2) !important;
+  background: linear-gradient(145deg, rgba(224, 242, 254, 0.95), rgba(186, 230, 253, 0.6)) !important;
+  border-color: rgba(14, 165, 233, 0.5) !important;
+  color: #0369a1 !important;
+  box-shadow: 0 2px 12px rgba(14, 165, 233, 0.15) !important;
 }
 
-/* Seven-day list */
+/* Seven-day */
 .seven-day-list {
-  background: rgba(10, 18, 36, 0.55) !important;
-  border: 1px solid rgba(34, 211, 238, 0.28) !important;
+  border: 1px solid rgba(56, 189, 248, 0.3) !important;
 }
 .seven-day-row {
-  border-bottom-color: rgba(34, 211, 238, 0.12) !important;
+  border-bottom-color: rgba(56, 189, 248, 0.12) !important;
   color: var(--text-main) !important;
 }
-.sd-bar { background: rgba(34, 211, 238, 0.12) !important; }
+.sd-bar { background: rgba(14, 165, 233, 0.12) !important; }
 .sd-bar-fill {
-  background: linear-gradient(90deg, #22d3ee, #a78bfa) !important;
-  box-shadow: 0 0 8px rgba(34, 211, 238, 0.4) !important;
+  background: linear-gradient(90deg, #22d3ee, #3b82f6) !important;
+  box-shadow: 0 0 6px rgba(14, 165, 233, 0.35) !important;
 }
 
-/* Adventure card */
+/* Adventure */
 .adventure-enabled-card {
   background:
-    linear-gradient(145deg, rgba(16, 40, 48, 0.75), rgba(12, 24, 48, 0.65)) !important;
-  border: 1px solid rgba(34, 211, 238, 0.4) !important;
+    linear-gradient(145deg, rgba(255, 255, 255, 0.7), rgba(224, 242, 254, 0.5)) !important;
+  border: 1px solid rgba(56, 189, 248, 0.4) !important;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #22d3ee, #6366f1) !important;
+  background: linear-gradient(180deg, #22d3ee, #3b82f6) !important;
   border-radius: 8px !important;
 }
 
