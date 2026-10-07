@@ -1,0 +1,68 @@
+name: restore-style-tech
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/restore-style-tech.yml'
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore style.css and apply tech theme
+        run: |
+          set -e
+          # Restore last known-good full stylesheet
+          git show 7df462d9b1a37e73912ad3d682433a5032ba2a4c:public/style.css > public/style.css
+          # Upgrade design tokens to liquid glass + tech
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('public/style.css')
+          src = p.read_text(encoding='utf-8')
+          repls = [
+              ('--sidebar-bg: rgba(255, 255, 255, 0.55);', '--sidebar-bg: rgba(255, 255, 255, 0.38);'),
+              ('--sidebar-border: rgba(255, 255, 255, 0.4);', '--sidebar-border: rgba(255, 255, 255, 0.55);'),
+              ('--card-bg: rgba(255, 255, 255, 0.6);', '--card-bg: rgba(255, 255, 255, 0.36);'),
+              ('--card-border: rgba(255, 255, 255, 0.45);', '--card-border: rgba(255, 255, 255, 0.52);'),
+              ('--input-bg: rgba(255, 255, 255, 0.8);', '--input-bg: rgba(255, 255, 255, 0.5);'),
+              ('--input-border: rgba(207, 214, 224, 0.85);', '--input-border: rgba(125, 190, 255, 0.4);'),
+              ('--text-main: #222b38;', '--text-main: #0f172a;'),
+              ('--text-muted: #6b7684;', '--text-muted: #475569;'),
+              ('--text-faint: #93a0af;', '--text-faint: #94a3b8;'),
+              ('--accent: #2f6fed;', '--accent: #3b82f6;'),
+              ('--accent-hover: #2158c9;', '--accent-hover: #2563eb;'),
+              ('--glass-blur: blur(20px) saturate(180%);', '--glass-blur: blur(28px) saturate(200%);\n  --tech-cyan: #22d3ee;\n  --tech-violet: #818cf8;\n  --accent-glow: rgba(59, 130, 246, 0.42);\n  --glass-shadow: 0 8px 32px rgba(15, 23, 42, 0.1), 0 2px 8px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.65);'),
+          ]
+          for a, b in repls:
+              src = src.replace(a, b, 1)
+          theme = Path('public/theme-tech-glass.css')
+          if theme.exists():
+              t = theme.read_text(encoding='utf-8')
+              # strip leading :root from theme to avoid duplicate; keep overlay rules
+              idx = t.find('.sidebar,')
+              if idx < 0:
+                  idx = t.find('/* =')
+              overlay = t[idx:] if idx > 0 else t
+              if 'Liquid Glass + Tech' not in src and 'liquid-glass tech overlay' not in src.lower():
+                  src = src.rstrip() + '\n\n' + overlay
+          p.write_text(src, encoding='utf-8')
+          print('style.css bytes', p.stat().st_size)
+          PY
+          # Remove temporary split parts if present
+          rm -f public/sp1.css public/sp2.css public/sp3.css public/sp4.css public/sp5.css public/sp6.css public/style-part1.css public/style-part2.css public/style-part3.css || true
+      - name: Commit restored stylesheet
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/style.css public/theme-tech-glass.css
+          git add -u public/
+          if git diff --staged --quiet; then
+            echo "No changes"
+          else
+            git commit -m "style: restore full CSS + liquid glass tech theme"
+            git push
+          fi
