@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - '.github/workflows/logout-spinner.yml'
-      - 'scripts/patch-logout-spinner.py'
 jobs:
   patch:
     runs-on: ubuntu-latest
@@ -12,7 +11,44 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - run: python3 scripts/patch-logout-spinner.py
+      - name: Patch logout
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('public/web-shim.js')
+          js = p.read_text(encoding='utf-8')
+          if '正在登出' in js:
+              print('already')
+          else:
+              old = '''logoutBtn.addEventListener("click", async () => {
+            await fetch("/api/auth/session?action=logout", { method: "POST" });
+            window.location.href = "/";
+          });'''
+              new = '''logoutBtn.addEventListener("click", async () => {
+            try {
+              document.body.classList.remove("auth-ok");
+              const gate = el("loginGate");
+              if (gate) {
+                gate.classList.remove("hidden");
+                gate.classList.add("login-gate--booting");
+              }
+              const boot = el("loginGateBoot");
+              if (boot) boot.classList.remove("hidden");
+              setLoginGateBootText("正在登出…");
+            } catch (e) {}
+            try {
+              await fetch("/api/auth/session?action=logout", {
+                method: "POST",
+                credentials: "same-origin",
+              });
+            } catch (e) {}
+            window.location.replace("/");
+          });'''
+              if old not in js:
+                  raise SystemExit('logout handler not found')
+              p.write_text(js.replace(old, new, 1), encoding='utf-8')
+              print('patched')
+          PY
       - name: Commit
         run: |
           git config user.name "mapsky-bot"
