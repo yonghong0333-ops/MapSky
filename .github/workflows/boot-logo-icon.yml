@@ -11,70 +11,60 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Use app icon in boot spinner
+      - name: Patch boot icon
         run: |
           python3 << 'PY'
           from pathlib import Path
           import re
 
-          # index.html — single logo instead of weather cycle
           idx = Path('public/index.html')
           h = idx.read_text(encoding='utf-8')
-          old = '''      <div class="login-gate-boot-orbit-wrap" aria-hidden="true">
-        <span class="login-gate-boot-orbit-ring"></span>
-        <div class="login-gate-boot-weather">
-        <img class="login-gate-boot-wx is-active" src="icons/sunny.png" alt="" data-wx="sunny" />
-        <img class="login-gate-boot-wx" src="icons/partly-cloudy.png" alt="" data-wx="partly" />
-        <img class="login-gate-boot-wx" src="icons/overcast.png" alt="" data-wx="overcast" />
-        <img class="login-gate-boot-wx" src="icons/drizzle.png" alt="" data-wx="drizzle" />
-        <img class="login-gate-boot-wx" src="icons/rain.png" alt="" data-wx="rain" />
-        <img class="login-gate-boot-wx" src="icons/thunderstorm.png" alt="" data-wx="storm" />
-      </div>
-      </div>'''
-          new = '''      <div class="login-gate-boot-orbit-wrap" aria-hidden="true">
-        <span class="login-gate-boot-orbit-ring"></span>
-        <div class="login-gate-boot-weather">
-          <img class="login-gate-boot-wx is-active login-gate-boot-logo" src="icons/icon-192.png" alt="MapSky" />
-        </div>
-      </div>'''
           if 'login-gate-boot-logo" src="icons/icon-192.png"' in h:
               print('index already')
-          elif old not in h:
-              raise SystemExit('boot markup not found')
           else:
-              h = h.replace(old, new, 1)
+              pat = re.compile(
+                  r'<div class="login-gate-boot-weather">[\s\S]*?</div>\s*</div>\s*<p class="login-gate-boot-text"',
+                  re.M,
+              )
+              m = pat.search(h)
+              if not m:
+                  raise SystemExit('weather block not found')
+              repl = (
+                  '<div class="login-gate-boot-weather">\n'
+                  '          <img class="login-gate-boot-wx is-active login-gate-boot-logo" '
+                  'src="icons/icon-192.png" alt="MapSky" />\n'
+                  '        </div>\n      </div>\n'
+                  '      <p class="login-gate-boot-text"'
+              )
+              h = h[:m.start()] + repl + h[m.end():]
               idx.write_text(h, encoding='utf-8')
-              print('index patched')
+              print('index ok')
 
-          # callback intermediate spinner — use same icon
           cb = Path('api/auth/callback.js')
           c = cb.read_text(encoding='utf-8')
-          if '/icons/icon-192.png' in c and 'class="sun"' not in c.split('正在登入')[0][-500:] if '正在登入' in c else True:
-              pass
-          # Replace CSS sun div with img in intermediate page
-          if 'class="sun"' in c:
-              c = c.replace(
+          if '/icons/icon-192.png' in c:
+              print('callback already has icon')
+          else:
+              c2 = c.replace(
                   '<div class="orbit" aria-hidden="true"><span class="ring"></span><div class="sun"></div></div>',
-                  '<div class="orbit" aria-hidden="true"><span class="ring"></span><img class="logo" src="/icons/icon-192.png" alt="MapSky" width="52" height="52"/></div>',
-                  1,
+                  '<div class="orbit" aria-hidden="true"><span class="ring"></span>'
+                  '<img class="logo" src="/icons/icon-192.png" alt="MapSky" width="52" height="52"/></div>',
               )
-              # add logo style
-              if '.logo{' not in c:
+              if c2 == c:
+                  print('callback orbit not found')
+              else:
+                  c = c2
                   c = c.replace(
                       '.sun{width:48px;height:48px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffe566,#f5a623);box-shadow:0 0 20px rgba(255,200,50,0.55)}\n  .sun:after{content:"";position:absolute;inset:-10px;background:repeating-conic-gradient(from 0deg,#f5a623 0 8deg,transparent 8deg 30deg);border-radius:50%;opacity:0.85;z-index:-1}',
-                      '.logo{width:52px;height:52px;border-radius:14px;object-fit:contain;position:relative;z-index:1;box-shadow:0 4px 14px rgba(30,60,120,0.2)}',
-                      1,
+                      '.logo{width:52px;height:52px;border-radius:14px;object-fit:contain;position:relative;z-index:1;'
+                      'box-shadow:0 4px 14px rgba(30,60,120,0.2)}',
                   )
-              cb.write_text(c, encoding='utf-8')
-              print('callback patched')
-          else:
-              print('callback no sun css')
+                  cb.write_text(c, encoding='utf-8')
+                  print('callback ok')
 
-          # CSS: logo size inside weather frame
           css_path = Path('public/style.css')
           css = css_path.read_text(encoding='utf-8')
-          marker = '/* BOOT_LOGO_ICON */'
-          if marker not in css:
+          if 'BOOT_LOGO_ICON' not in css:
               css = css.rstrip() + '''
 
 /* BOOT_LOGO_ICON */
@@ -96,7 +86,7 @@ jobs:
 }
 '''
               css_path.write_text(css, encoding='utf-8')
-              print('css patched')
+              print('css ok')
           else:
               print('css already')
           PY
