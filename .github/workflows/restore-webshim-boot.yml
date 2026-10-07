@@ -1,0 +1,32 @@
+name: restore-webshim-boot
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/restore-webshim-boot.yml'
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore web-shim from known good + patch boot open
+        run: |
+          set -e
+          # Known good before PLACEHOLDER corruption
+          git show afdc616bde634f72e5c1b15561c9411cbcee716f:public/web-shim.js > public/web-shim.js
+          wc -c public/web-shim.js
+          python3 scripts/patch-boot-open.py
+          wc -c public/web-shim.js public/style.css
+          grep -n "login-gate--opening" public/web-shim.js | head
+          grep -n "BOOT_OPEN_ANIM" public/style.css | head
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/web-shim.js public/style.css
+          git commit -m "fix: restore web-shim.js + boot open animation"
+          git push
