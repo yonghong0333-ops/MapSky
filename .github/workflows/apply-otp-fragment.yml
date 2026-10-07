@@ -1,0 +1,44 @@
+name: apply-otp-fragment
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/apply-otp-fragment.yml'
+      - 'scripts/sendCrossDeviceOtpPage.fragment.js'
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace function in callback.js
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          cb = Path('api/auth/callback.js')
+          frag = Path('scripts/sendCrossDeviceOtpPage.fragment.js').read_text(encoding='utf-8').strip() + '\n'
+          c = cb.read_text(encoding='utf-8')
+          start = c.find('function sendCrossDeviceOtpPage')
+          if start < 0:
+              raise SystemExit('function not found')
+          end = c.find('return res.send(html);\n}', start)
+          if end < 0:
+              raise SystemExit('end marker not found')
+          end = end + len('return res.send(html);\n}')
+          out = c[:start] + frag + c[end:]
+          cb.write_text(out, encoding='utf-8')
+          print('ok', len(out))
+          assert '驗證並登入' not in out
+          assert '同裝置登入' not in out
+          assert 'tryOpenApp' in out
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add api/auth/callback.js
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "auth: simplify magic-link callback (OTP only, auto-open app)"
+            git push
+          fi
