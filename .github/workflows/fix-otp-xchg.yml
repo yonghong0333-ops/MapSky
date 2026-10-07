@@ -1,0 +1,18 @@
+name: OTP opens App
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/otp/fix_otp_app_xchg.py
+      - name: Commit
+        run: |
+          git config user.name "MapSky Bot"
+          git config user.email "bot@mapsky.local"
+          git add api/auth/login.js api/auth/callback.js
+          git commit -m "fix(auth): after OTP success open MapSky App via xchg" || echo "no changes"
+          git push origin HEAD:main
