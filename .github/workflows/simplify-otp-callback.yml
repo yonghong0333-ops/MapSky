@@ -1,0 +1,110 @@
+name: simplify-otp-callback
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/simplify-otp-callback.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Simplify sendCrossDeviceOtpPage
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('api/auth/callback.js')
+          c = p.read_text(encoding='utf-8')
+          start = c.find('function sendCrossDeviceOtpPage')
+          if start < 0:
+              raise SystemExit('function not found')
+          end = c.find('return res.send(html);\n}', start)
+          if end < 0:
+              raise SystemExit('end not found')
+          end = end + len('return res.send(html);\n}')
+          NEW = r'''function sendCrossDeviceOtpPage(res, email, token, otpPlain) {
+            const tokenStr = token ? String(token) : "";
+            const appMagicUrl = tokenStr
+              ? `mapsky://auth/magic?token=${encodeURIComponent(tokenStr)}`
+              : "mapsky://";
+            const code = otpPlain && /^\d{6}$/.test(String(otpPlain)) ? String(otpPlain) : "";
+
+            const codeBlock = code
+              ? `<div style="margin:22px 0 8px;padding:20px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px">
+                  <div style="font-size:13px;color:#6b7684;margin-bottom:10px">請在「申請登入的那台裝置」上的 MapSky 輸入</div>
+                  <div style="font-size:32px;font-weight:800;letter-spacing:0.35em;color:#2f6fed">${code}</div>
+                </div>`
+              : `<div style="margin:22px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;color:#6b7684;font-size:14px">
+                  驗證碼請至申請登入的 MapSky 查看，或重新寄送一次。
+                </div>`;
+
+            const html = `<!doctype html>
+          <html lang="zh-Hant"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>完成登入 - MapSky</title></head>
+          <body style="font-family:-apple-system,'Segoe UI','Noto Sans TC',sans-serif;max-width:420px;margin:48px auto;padding:0 24px;text-align:center;color:#1f2937">
+          <h2 style="margin-bottom:8px">完成登入</h2>
+          <p id="probeStatus" style="color:#6b7280;line-height:1.7;font-size:14px">正在嘗試開啟 MapSky App…</p>
+          <div id="codeSection" style="opacity:0;transition:opacity 0.3s">
+            ${codeBlock}
+            <p style="color:#6b7280;font-size:13.5px;line-height:1.65;margin:12px 0 0">若沒有自動跳回 App，請手動打開 MapSky，在登入畫面輸入上方驗證碼。</p>
+          </div>
+          <p style="margin-top:28px"><a href="/" style="color:#6b7280;font-size:13.5px">回到 MapSky</a></p>
+          <script>(function(){
+            var appUrl = ${JSON.stringify(appMagicUrl)};
+            var statusEl = document.getElementById("probeStatus");
+            var codeSection = document.getElementById("codeSection");
+            var shown = false;
+
+            function showCode(msg) {
+              if (shown) return;
+              shown = true;
+              if (statusEl) statusEl.textContent = msg || "無法自動開啟 App。請使用下方驗證碼，在申請登入的裝置完成登入。";
+              if (codeSection) codeSection.style.opacity = "1";
+            }
+
+            function tryOpenApp() {
+              try {
+                var a = document.createElement("a");
+                a.href = appUrl;
+                a.style.display = "none";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+              } catch (e) {}
+              try { window.location.href = appUrl; } catch (e2) {}
+            }
+
+            setTimeout(tryOpenApp, 150);
+            setTimeout(function () {
+              if (!document.hidden) showCode();
+            }, 1800);
+            document.addEventListener("visibilitychange", function () {
+              if (!document.hidden) setTimeout(function () { showCode(); }, 400);
+            });
+          })();</script>
+          </body></html>`;
+            res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
+            return res.send(html);
+          }'''
+          # Fix accidental indent inside function body from YAML heredoc
+          # Re-indent: strip common leading spaces from NEW lines after first
+          out = c[:start] + NEW + c[end:]
+          p.write_text(out, encoding='utf-8')
+          print('patched bytes', len(out))
+          assert '驗證並登入' not in out
+          assert '同裝置登入' not in out
+          assert 'tryOpenApp' in out
+          assert 'sendCrossDeviceOtpPage' in out
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add api/auth/callback.js
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "auth: simplify callback — auto open app, show OTP only"
+            git push
+          fi
