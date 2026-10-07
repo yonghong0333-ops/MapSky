@@ -1,0 +1,25 @@
+name: boot-orbit-dots-fast
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/boot-orbit-dots-fast.yml'
+      - 'scripts/otp/fix_boot_orbit_dots_fast.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch orbit spinner
+        run: python3 scripts/otp/fix_boot_orbit_dots_fast.py
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/index.html public/style.css
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: wider dotted boot orbit, whip-fast on the way down"
+            git push
+          fi
