@@ -1,0 +1,24 @@
+name: revert-boot-icon
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/revert-boot-icon.yml'
+      - 'scripts/revert-boot-icon.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/revert-boot-icon.py
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/index.html public/style.css
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: restore weather icons in login boot spinner"
+            git push
+          fi
