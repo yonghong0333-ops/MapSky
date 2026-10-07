@@ -1,0 +1,56 @@
+name: fix-style-restore
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-style-restore.yml'
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore full base + light tech only
+        run: |
+          set -e
+          # Full known-good base (must not truncate)
+          git show 7df462d9b1a37e73912ad3d682433a5032ba2a4c:public/style.css > /tmp/base.css
+          # Light tech theme from current repo
+          cp public/theme-tech-glass.css /tmp/theme.css
+          python3 - <<'PY'
+          from pathlib import Path
+          base = Path('/tmp/base.css').read_text(encoding='utf-8')
+          theme = Path('/tmp/theme.css').read_text(encoding='utf-8')
+          # Only strip overlays we previously appended (unique markers)
+          unique_markers = [
+              '/* MapSky \u2014 CYBER TECH theme',
+              '/* MapSky \u2014 LIGHT TECH theme',
+              '/* MapSky \u2014 Liquid Glass + Tech theme overrides',
+              '/* MapSky — CYBER TECH theme',
+              '/* MapSky — LIGHT TECH theme',
+              '/* MapSky — Liquid Glass + Tech theme overrides',
+              '/* ============================================================\n   Liquid Glass + Tech overlay',
+          ]
+          cut = len(base)
+          for m in unique_markers:
+              i = base.find(m)
+              if i >= 0:
+                  cut = min(cut, i)
+          base = base[:cut].rstrip()
+          out = base + '\n\n' + theme.strip() + '\n'
+          Path('public/style.css').write_text(out, encoding='utf-8')
+          print('base', len(base), 'theme', len(theme), 'out', len(out))
+          assert len(out) > 120000, 'style.css still too small'
+          assert '.bottom-nav' in out and 'LIGHT TECH' in out
+          PY
+          wc -c public/style.css
+      - name: Commit fix
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/style.css
+          git commit -m "fix: restore full style.css (was truncated) + light tech theme"
+          git push
