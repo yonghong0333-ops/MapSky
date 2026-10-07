@@ -55,6 +55,8 @@ async function handleSendMagicLink(req, res) {
   // 6 位數、含前導 0，信件與輸入框都當字串比對
   const otpCode = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
   await client.set(`magiclink:otp:${email}`, hashOtp(email, otpCode), { EX: OTP_TTL_SECONDS });
+  // 明文僅供「點連結後判斷無法跳轉」時在頁面顯示，不進信件
+  await client.set(`magiclink:otp-plain:${email}`, otpCode, { EX: OTP_TTL_SECONDS });
   await client.del(`magiclink:otp-tries:${email}`);
 
   // 裝置綁定：前端送來的 deviceId 寫進 token，並設 HttpOnly cookie。
@@ -71,7 +73,7 @@ async function handleSendMagicLink(req, res) {
     await sendMagicLinkEmail(email, verifyUrl, otpCode);
   } catch (e) {
     console.error("sendMagicLinkEmail failed", e.message);
-    try { await client.del(`magiclink:otp:${email}`); } catch (_) {}
+    try { await client.del(`magiclink:otp:${email}`); await client.del(`magiclink:otp-plain:${email}`); } catch (_) {}
     return res.status(502).json({ ok: false, reason: "send-failed", message: e.message });
   }
 
@@ -120,6 +122,7 @@ async function handleVerifyOtp(req, res) {
     return res.status(401).json({ ok: false, reason: "wrong-code" });
   }
   await client.del(otpKey);
+  await client.del(`magiclink:otp-plain:${email}`);
   await client.del(triesKey);
   const magicLinkProfile = { id: email, name: email, avatarUrl: null, email };
   const resolved = await resolveLoginIdentity("email", magicLinkProfile);

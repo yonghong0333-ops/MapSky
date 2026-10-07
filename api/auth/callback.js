@@ -125,11 +125,33 @@ ${tipsBlock}
   return res.send(html);
 }
 
-function sendCrossDeviceOtpPage(res, email, token) {
+
+async function loadOtpPlain(email) {
+  try {
+    const client = await getRedisClient();
+    if (!client || !email) return "";
+    const v = await client.get(`magiclink:otp-plain:${String(email).trim().toLowerCase()}`);
+    return v && /^\d{6}$/.test(String(v)) ? String(v) : "";
+  } catch (e) {
+    return "";
+  }
+}
+
+function sendCrossDeviceOtpPage(res, email, token, otpPlain) {
   const tokenStr = token ? String(token) : "";
   const appMagicUrl = tokenStr
     ? `mapsky://auth/magic?token=${encodeURIComponent(tokenStr)}`
     : "mapsky://";
+  const code = otpPlain && /^\d{6}$/.test(String(otpPlain)) ? String(otpPlain) : "";
+  const codeHtml = code
+    ? `<div id="otpCodeReveal" style="display:none;margin:14px 0;padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">
+        <div style="font-size:12px;color:#6b7684;margin-bottom:6px">您的驗證碼</div>
+        <div style="font-size:28px;font-weight:800;letter-spacing:0.35em;color:#2f6fed">${code}</div>
+      </div>`
+    : `<div id="otpCodeReveal" style="display:none;margin:14px 0;padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">
+        <div style="font-size:12px;color:#6b7684">驗證碼請至申請登入的 MapSky 查看，或重新寄送一次。</div>
+      </div>`;
+
   const html = `<!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -145,8 +167,9 @@ function sendCrossDeviceOtpPage(res, email, token) {
 </div>
 
 <div id="otpSection" style="opacity:0.35;pointer-events:none;transition:opacity 0.25s">
-  <div style="margin:8px 0 6px;color:#9ca3af;font-size:12px">— 其他裝置／未跳轉時 —</div>
-  <p style="color:#6b7280;line-height:1.6;font-size:13.5px">請輸入信件中的 6 位數驗證碼，在此瀏覽器登入。</p>
+  <div style="margin:8px 0 6px;color:#9ca3af;font-size:12px">— 判斷未跳轉後顯示 —</div>
+  <p style="color:#6b7280;line-height:1.6;font-size:13.5px">請使用下方驗證碼，在此瀏覽器登入。</p>
+  ${codeHtml}
   <form id="otpForm">
     <input id="otpInput" maxlength="6" inputmode="numeric" autocomplete="one-time-code" style="width:100%;padding:14px;font-size:24px;letter-spacing:0.3em;text-align:center;box-sizing:border-box;border:1px solid #d1d5db;border-radius:12px"/>
     <button type="submit" id="otpBtn" style="margin-top:12px;width:100%;padding:14px;background:#111827;color:#fff;border:0;border-radius:999px;font-weight:700">驗證並登入</button>
@@ -158,20 +181,21 @@ function sendCrossDeviceOtpPage(res, email, token) {
   var appUrl = ${JSON.stringify(appMagicUrl)};
   var statusEl = document.getElementById("probeStatus");
   var otpSection = document.getElementById("otpSection");
+  var reveal = document.getElementById("otpCodeReveal");
   var probed = false;
 
   function enableOtp(msg) {
     if (probed) return;
     probed = true;
-    if (statusEl) statusEl.textContent = msg || "無法自動開啟 App（可能是其他裝置，或系統擋下跳轉）。請輸入驗證碼，或再點上方按鈕。";
+    if (statusEl) statusEl.textContent = msg || "無法自動開啟 App。以下是驗證碼，請輸入後登入。";
     if (otpSection) {
       otpSection.style.opacity = "1";
       otpSection.style.pointerEvents = "auto";
     }
+    if (reveal) reveal.style.display = "block";
     try { document.getElementById("otpInput").focus(); } catch (e) {}
   }
 
-  // 此裝置自行嘗試同裝置路徑：用自訂 scheme 開 App（有 cookie 的 WebView）
   function tryOpenApp() {
     try {
       var a = document.createElement("a");
@@ -184,15 +208,10 @@ function sendCrossDeviceOtpPage(res, email, token) {
     try { window.location.href = appUrl; } catch (e2) {}
   }
 
-  // 頁面一載入就嘗試（郵件內建瀏覽器有時仍允許使用者點連結後的首次導向）
   setTimeout(tryOpenApp, 200);
-
-  // 若約 2 秒後還留在此頁 → 視為不同裝置或未裝 App → 開放驗證碼
   setTimeout(function () {
     if (!document.hidden) enableOtp();
   }, 2000);
-
-  // 使用者從 App 切回來仍停在這頁 → 也開放驗證碼
   document.addEventListener("visibilitychange", function () {
     if (!document.hidden) setTimeout(function () { enableOtp(); }, 400);
   });
@@ -203,7 +222,7 @@ function sendCrossDeviceOtpPage(res, email, token) {
   f.onsubmit=async function(ev){
     ev.preventDefault();
     var c=(i.value||"").replace(/\D/g,"").slice(0,6);
-    if(c.length!==6){e.textContent="請輸入信件中的 6 位驗證碼";return;}
+    if(c.length!==6){e.textContent="請輸入 6 位驗證碼";return;}
     b.disabled=true;e.textContent="";
     try{
       var r=await fetch("/api/auth/login?provider=email&action=verify-code",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({email:email,code:c})});
@@ -218,8 +237,7 @@ function sendCrossDeviceOtpPage(res, email, token) {
         location.href="/?login=success";return;
       }
       if(d.reason==="wrong-code") e.textContent="驗證碼不正確或已過期";
-      else if(d.reason==="too-many-attempts") e.textContent="嘗試次數過多，請重新寄一次驗證碼";
-      else if(d.reason==="otp-unavailable") e.textContent="驗證服務暫時無法使用，請稍後再試";
+      else if(d.reason==="too-many-attempts") e.textContent="嘗試次數過多，請重新寄一次";
       else e.textContent="驗證失敗，請再試一次";
     }catch(x){e.textContent="網路錯誤";}
     finally{b.disabled=false;}
@@ -293,7 +311,7 @@ async function handleEmailVerify(req, res) {
 
   if (req.method === "POST") {
     if (isCrossDevice) {
-      return sendCrossDeviceOtpPage(res, payload.email, token);
+      return sendCrossDeviceOtpPage(res, payload.email, token, await loadOtpPlain(payload.email));
     }
     // 單次有效：真正消費的這一步才標記用過，防止信件被轉寄或連結外流後
     // 重複使用。沒接 Redis 的環境（本機開發）就跳過這層，只靠 15 分鐘的
@@ -412,7 +430,7 @@ async function handleEmailVerify(req, res) {
   }
 
   if (isCrossDevice) {
-    return sendCrossDeviceOtpPage(res, payload.email, token);
+    return sendCrossDeviceOtpPage(res, payload.email, token, await loadOtpPlain(payload.email));
   }
 
   const verifyAction = `/api/auth/callback?provider=email&token=${encodeURIComponent(String(token))}`;
