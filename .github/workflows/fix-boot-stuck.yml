@@ -1,0 +1,46 @@
+name: fix-boot-stuck
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-boot-stuck.yml'
+      - 'scripts/patch-end-boot-fix.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/patch-end-boot-fix.py
+      - name: CSS failsafe
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('public/style.css')
+          css = p.read_text(encoding='utf-8')
+          marker = '/* BOOT_HIDE_WHEN_NOT_BOOTING */'
+          if marker not in css:
+              p.write_text(css.rstrip() + '''
+
+/* BOOT_HIDE_WHEN_NOT_BOOTING */
+.login-gate:not(.login-gate--booting) > .login-gate-boot {
+  display: none !important;
+}
+.login-gate-boot.hidden {
+  display: none !important;
+}
+''', encoding='utf-8')
+              print('css ok')
+          else:
+              print('css already')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/web-shim.js public/style.css
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "fix: hide boot spinner when login form is shown"
+            git push
+          fi
