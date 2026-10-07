@@ -1,0 +1,83 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --sidebar-bg: rgba(255, 255, 255, 0.38);
+  --sidebar-border: rgba(255, 255, 255, 0.55);
+  --card-bg: rgba(255, 255, 255, 0.36);
+  --card-border: rgba(255, 255, 255, 0.52);
+  --input-bg: rgba(255, 255, 255, 0.5);
+  --input-border: rgba(125, 190, 255, 0.4);
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-faint: #94a3b8;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --glass-blur: blur(28px) saturate(200%);
+  --tech-cyan: #22d3ee;
+  --tech-violet: #818cf8;
+  --accent-glow: rgba(59, 130, 246, 0.42);
+  --glass-shadow: 0 8px 32px rgba(15, 23, 42, 0.1), 0 2px 8px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.sidebar,
+.browser-gate-card,
+.onboarding-card,
+.login-gate-card,
+.modal-box,
+.profile-edit-card,
+.desktop-app-gate-card,
+.admin-card,
+.forecast-card,
+.compare-card,
+.seven-day-list,
+.extra-info-card,
+.tab-btn,
+.alerts-refresh-btn,
+.app-update-bar,
+.tools-menu-item,
+.settings-list-item,
+.settings-page .auth-bar,
+.adventure-enabled-card {
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --sidebar-bg: #f3f5f9;
+    --card-bg: #ffffff;
+    --input-bg: #ffffff;
+  }
+}
+
+body {
+  font-family: "Microsoft JhengHei", "Segoe UI", sans-serif;
+  background: url("backgrounds/app-bg.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: var(--text-main);
+  overflow: hidden;
+  transition: background-color 1.4s ease;
+}
+
+body.weather-sunny-day,
+body.weather-sunny-night,
+body.weather-cloudy-day,
+body.weather-cloudy-night,
+body.weather-overcast,
+body.weather-rain,
+body.weather-thunder,
+body.weather-fog,
+body.weather-snow {
+  background-image: url("backgrounds/app-bg.jpg");
+}
+
+.app {
+  display: flex;
+  height: 100vh;
+}
+
+body:not(.auth-ok) .app {
+  display: none;
+}
