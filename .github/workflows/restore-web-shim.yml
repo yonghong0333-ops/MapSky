@@ -1,0 +1,49 @@
+name: restore-web-shim
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/restore-web-shim.yml'
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+      - name: Restore and patch
+        run: |
+          set -e
+          # restore from commit before PLACEHOLDER
+          git show f9fe3b0635d78e5415cffbe616806e3496a828b5:public/web-shim.js > public/web-shim.js
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('public/web-shim.js')
+          js = p.read_text(encoding='utf-8')
+          if js.strip() == 'PLACEHOLDER' or len(js) < 1000:
+              raise SystemExit('restore failed')
+          old = 'script.src = "renderer.js";\n    document.body.appendChild(script);'
+          new = '''script.src = "renderer.js";
+    script.onload = function () {
+      var g = document.createElement("script");
+      g.src = "gyro-shine.js";
+      document.body.appendChild(g);
+    };
+    document.body.appendChild(script);'''
+          if old in js:
+              js = js.replace(old, new, 1)
+              print('patched load')
+          else:
+              print('load snippet missing, file still restored')
+          p.write_text(js, encoding='utf-8')
+          print('size', p.stat().st_size)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/web-shim.js
+          git commit -m "fix: restore web-shim.js + load gyro-shine.js" || echo no
+          git push
