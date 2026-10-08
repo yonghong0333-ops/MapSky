@@ -1,0 +1,31 @@
+name: chart-script-tag
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/chart-script-tag.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sed inject
+        run: |
+          set -e
+          if grep -q chart-polish.js public/index.html; then
+            echo already present
+          else
+            sed -i 's|<script src="web-shim.js"></script>|<script src="web-shim.js"></script>\n<script src="chart-polish.js"></script>|' public/index.html
+            grep -n chart-polish.js public/index.html
+          fi
+      - name: Commit
+        run: |
+          git config user.name mapsky-bot
+          git config user.email bot@mapsky.local
+          git add public/index.html
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: add chart-polish.js script tag"
+            git push
+          fi
