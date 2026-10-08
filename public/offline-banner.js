@@ -124,6 +124,7 @@
       "78%{transform:translate3d(0,-2px,0)}" +
       "100%{transform:translate3d(0,0,0);opacity:1}" +
       "}" +
+      ".main-header.is-offline-fold,.main-header.is-offline-fold .offline-island-detail{animation:none !important;}" +
       "@media (prefers-reduced-motion:reduce){" +
       ".main-header." + HEADER_DETAIL + ",.main-header." + HEADER_DETAIL + " .offline-island-detail{animation:none !important;}" +
       "}";
@@ -196,19 +197,63 @@
     if (!h || !detail) return;
     var sub = detail.querySelector(".od-sub");
     if (sub) sub.textContent = "顯示 " + ageHint();
-    h.classList.add(HEADER_DETAIL);
+    h.classList.remove("is-offline-fold");
+    if (!h.classList.contains(HEADER_DETAIL)) {
+      h.classList.add(HEADER_DETAIL);
+    } else {
+      h.classList.remove(HEADER_DETAIL);
+      void h.offsetHeight;
+      h.classList.add(HEADER_DETAIL);
+    }
     if (detailHideTimer) clearTimeout(detailHideTimer);
     detailHideTimer = setTimeout(function () {
-      h.classList.remove(HEADER_DETAIL);
+      hideDetail(h, true);
     }, 3200);
   }
 
-  function hideDetail(h) {
+  function hideDetail(h, animated) {
     if (detailHideTimer) {
       clearTimeout(detailHideTimer);
       detailHideTimer = null;
     }
-    if (h) h.classList.remove(HEADER_DETAIL);
+    if (!h) return;
+    var detail = h.querySelector(".offline-island-detail");
+    var open = h.classList.contains(HEADER_DETAIL);
+    if (!animated || !detail || !open || h.classList.contains("is-offline-fold")) {
+      h.classList.remove(HEADER_DETAIL);
+      h.classList.remove("is-offline-fold");
+      return;
+    }
+    h.classList.add("is-offline-fold");
+    var h0 = Math.max(detail.scrollHeight, detail.offsetHeight, 28);
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || !detail.animate) {
+      h.classList.remove(HEADER_DETAIL);
+      h.classList.remove("is-offline-fold");
+      return;
+    }
+    var fold = detail.animate([
+      { maxHeight: h0 + "px", opacity: 1, transform: "translate3d(0,0,0)", marginTop: "8px", paddingTop: "8px" },
+      { maxHeight: (h0 + 6) + "px", opacity: 1, transform: "translate3d(0,7px,0)", marginTop: "10px", paddingTop: "8px", offset: 0.22 },
+      { maxHeight: "0px", opacity: 0, transform: "translate3d(0,-10px,0)", marginTop: "0px", paddingTop: "0px", offset: 0.72 },
+      { maxHeight: "0px", opacity: 0, transform: "translate3d(0,0,0)", marginTop: "0px", paddingTop: "0px" }
+    ], { duration: 520, easing: "cubic-bezier(.22,1.15,.36,1)", fill: "forwards" });
+    h.animate([
+      { transform: "translate3d(0,0,0)" },
+      { transform: "translate3d(0,6px,0)", offset: 0.22 },
+      { transform: "translate3d(0,-4px,0)", offset: 0.62 },
+      { transform: "translate3d(0,0,0)" }
+    ], { duration: 520, easing: "cubic-bezier(.22,1.2,.36,1)" });
+    var done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      try { fold.cancel(); } catch (e) {}
+      h.classList.remove(HEADER_DETAIL);
+      h.classList.remove("is-offline-fold");
+    }
+    fold.onfinish = finish;
+    setTimeout(finish, 700);
   }
 
   function bindLongPress(btn, h, detail) {
