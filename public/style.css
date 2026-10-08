@@ -4731,11 +4731,7 @@ input::placeholder { color: #94a3b8 !important; }
   box-shadow: 0 0 6px rgba(14, 165, 233, 0.35) !important;
 }
 
-/* ============================================================
-   Dynamic Island Adventure — light tech redesign
-   ============================================================ */
-
-/* Outer frame: soft cyan→violet glow border (replaces loud rainbow) */
+/* Dynamic Island Adventure */
 .adventure-panel {
   position: relative !important;
   overflow: hidden !important;
@@ -4754,8 +4750,6 @@ input::placeholder { color: #94a3b8 !important; }
     0 8px 28px rgba(14, 165, 233, 0.18),
     0 0 0 1px rgba(56, 189, 248, 0.2) !important;
 }
-
-/* Inner content: bright frosted glass */
 .adventure-content {
   position: relative !important;
   z-index: 1 !important;
@@ -4772,14 +4766,7 @@ input::placeholder { color: #94a3b8 !important; }
   -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
 }
-
-/* Soft particles */
-.adventure-particle {
-  opacity: 0.35 !important;
-  filter: none !important;
-}
-
-/* Title */
+.adventure-particle { opacity: 0.35 !important; filter: none !important; }
 .adventure-title {
   margin: 0 0 8px !important;
   font-size: 18px !important;
@@ -4788,11 +4775,7 @@ input::placeholder { color: #94a3b8 !important; }
   text-align: center !important;
   letter-spacing: 0.02em !important;
 }
-.adventure-sparkle {
-  filter: none !important;
-}
-
-/* Description */
+.adventure-sparkle { filter: none !important; }
 .adventure-desc {
   margin: 0 0 16px !important;
   font-size: 13px !important;
@@ -4800,19 +4783,9 @@ input::placeholder { color: #94a3b8 !important; }
   color: #475569 !important;
   text-align: center !important;
 }
-
-/* Conditions list */
-.adventure-conditions {
-  margin: 0 0 16px !important;
-}
-.adventure-cond {
-  color: #334155 !important;
-}
-.adventure-cond .adv-label {
-  color: #334155 !important;
-}
-
-/* === PRIMARY CTA: 「使用」 button === */
+.adventure-conditions { margin: 0 0 16px !important; }
+.adventure-cond { color: #334155 !important; }
+.adventure-cond .adv-label { color: #334155 !important; }
 .adventure-btn {
   width: 100% !important;
   border: none !important;
@@ -4839,12 +4812,7 @@ input::placeholder { color: #94a3b8 !important; }
   left: -40% !important;
   width: 40% !important;
   height: 100% !important;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.35),
-    transparent
-  ) !important;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent) !important;
   transform: skewX(-20deg) !important;
   animation: adventureBtnShine 3.2s ease-in-out infinite !important;
   pointer-events: none !important;
@@ -4858,11 +4826,7 @@ input::placeholder { color: #94a3b8 !important; }
   filter: brightness(0.96) !important;
 }
 .adventure-btn[disabled] {
-  background: linear-gradient(
-    135deg,
-    rgba(148, 163, 184, 0.45),
-    rgba(148, 163, 184, 0.35)
-  ) !important;
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.45), rgba(148, 163, 184, 0.35)) !important;
   color: rgba(71, 85, 105, 0.85) !important;
   box-shadow: none !important;
   cursor: not-allowed !important;
@@ -4872,39 +4836,22 @@ input::placeholder { color: #94a3b8 !important; }
   background: linear-gradient(135deg, #0284c7, #4f46e5) !important;
   color: #fff !important;
 }
-
-/* Status under button */
 .adventure-status {
   margin: 10px 0 0 !important;
   font-size: 12px !important;
   color: #64748b !important;
   text-align: center !important;
 }
-
-/* Bottom sheet picker — light glass */
 .adventure-picker {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.95) 0%,
-      rgba(240, 249, 255, 0.92) 100%
-    ) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 249, 255, 0.92) 100%) !important;
   border: 1px solid rgba(56, 189, 248, 0.35) !important;
-  box-shadow:
-    0 -8px 40px rgba(14, 165, 233, 0.12),
-    0 16px 40px rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 -8px 40px rgba(14, 165, 233, 0.12), 0 16px 40px rgba(15, 23, 42, 0.12) !important;
   backdrop-filter: blur(24px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
 }
-.adventure-picker-handle {
-  background: rgba(14, 165, 233, 0.35) !important;
-}
-.adventure-picker-row + .adventure-picker-row {
-  border-top-color: rgba(56, 189, 248, 0.15) !important;
-}
-.adventure-picker-label {
-  color: #0f172a !important;
-}
+.adventure-picker-handle { background: rgba(14, 165, 233, 0.35) !important; }
+.adventure-picker-row + .adventure-picker-row { border-top-color: rgba(56, 189, 248, 0.15) !important; }
+.adventure-picker-label { color: #0f172a !important; }
 .adventure-mode-opt {
   border: 1px solid rgba(14, 165, 233, 0.3) !important;
   background: rgba(255, 255, 255, 0.7) !important;
@@ -4921,39 +4868,21 @@ input::placeholder { color: #94a3b8 !important; }
   background: rgba(255, 255, 255, 0.8) !important;
   color: #0369a1 !important;
 }
-.adventure-duration-value {
-  color: #0f172a !important;
-}
-.adventure-usage-info {
-  color: #64748b !important;
-}
-.adventure-usage-info.exhausted {
-  color: #e11d48 !important;
-}
+.adventure-duration-value { color: #0f172a !important; }
+.adventure-usage-info { color: #64748b !important; }
+.adventure-usage-info.exhausted { color: #e11d48 !important; }
 .adventure-start-btn,
 .adventure-btn.adventure-start-btn {
   background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #06b6d4 100%) !important;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.35) inset,
-    0 6px 20px rgba(14, 165, 233, 0.35) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35) inset, 0 6px 20px rgba(14, 165, 233, 0.35) !important;
 }
-
-/* Enabled status card */
 .adventure-enabled-card {
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.8), rgba(224, 242, 254, 0.55)) !important;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.8), rgba(224, 242, 254, 0.55)) !important;
   border: 1px solid rgba(56, 189, 248, 0.4) !important;
-  box-shadow:
-    0 4px 16px rgba(14, 165, 233, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
 }
-.adventure-enabled-title {
-  color: #0c4a6e !important;
-  font-weight: 700 !important;
-}
-.adventure-enabled-sub {
-  color: #64748b !important;
-}
+.adventure-enabled-title { color: #0c4a6e !important; font-weight: 700 !important; }
+.adventure-enabled-sub { color: #64748b !important; }
 .adventure-enabled-off {
   border: 1px solid rgba(14, 165, 233, 0.35) !important;
   background: rgba(255, 255, 255, 0.7) !important;
@@ -4968,451 +4897,66 @@ input::placeholder { color: #94a3b8 !important; }
   border-radius: 8px !important;
 }
 
-/* BOOT_OPEN_ANIM */
-.login-gate.login-gate--booting.login-gate--opening {
-  animation: loginGateOpen 0.62s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  pointer-events: none;
-}
-@keyframes loginGateOpen {
-  0% { opacity: 1; transform: scale(1); filter: blur(0); }
-  55% { opacity: 0.85; transform: scale(1.04); filter: blur(0); }
-  100% { opacity: 0; transform: scale(1.12); filter: blur(6px); }
-}
-.login-gate-boot.login-gate-boot--exit .login-gate-boot-orbit-wrap {
-  animation: bootOrbitExpand 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-.login-gate-boot.login-gate-boot--exit .login-gate-boot-text {
-  animation: bootTextFade 0.35s ease forwards;
-}
-.login-gate-boot.login-gate-boot--exit .login-gate-boot-orbit-dots {
-  animation: bootRingExpand 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-@keyframes bootOrbitExpand {
-  0% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(1.55); opacity: 0; }
-}
-@keyframes bootRingExpand {
-  0% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(1.8); opacity: 0; }
-}
-@keyframes bootTextFade {
-  0% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(8px); }
-}
-
-/* MAGIC_SEND_SPIN */
-.login-gate-magic-submit.is-sending {
-  background: var(--accent) !important;
-  opacity: 1 !important;
-  pointer-events: none;
-}
-.login-gate-magic-submit.is-sending .login-gate-magic-submit-icon,
-.login-gate-magic-submit.is-sending .login-gate-magic-spin {
-  animation: magicSendSpin 0.75s linear infinite;
-}
-@keyframes magicSendSpin {
-  to { transform: rotate(360deg); }
-}
-
-
-/* ---- 工具頁分類 ---- */
-.tools-page {
-  padding-bottom: 24px;
-}
-.tools-section {
-  margin-bottom: 22px;
-}
-.tools-section-title {
-  margin: 0 0 4px;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text-main, #0f172a);
-  letter-spacing: 0.02em;
-  padding-left: 10px;
-  position: relative;
-}
-.tools-section-title::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.2em;
-  bottom: 0.2em;
-  width: 3px;
-  border-radius: 2px;
-  background: linear-gradient(180deg, #38bdf8, #2f6fed);
-}
-.tools-section-desc {
-  margin: 0 0 12px;
-  padding-left: 10px;
-  font-size: 12px;
-  color: var(--text-muted, #64748b);
-  line-height: 1.4;
-}
-.tools-section .tools-grid {
-  gap: 12px;
-}
-.tools-menu-item .tool-hint {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-muted, #64748b);
-  line-height: 1.3;
-  opacity: 0.9;
-}
-.tools-menu-item {
-  min-height: 112px;
-  padding: 18px 12px 16px;
-  gap: 6px;
-}
-.tools-menu-item .tool-icon {
-  font-size: 30px;
-  margin-bottom: 2px;
-}
-.tools-menu-item .tool-label {
-  font-size: 14px;
-  font-weight: 700;
-}
-
-
-/* 工具分類收合 */
-.tools-section-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  padding: 10px 4px 10px 0;
-  margin: 0;
-  border: none;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
-  -webkit-tap-highlight-color: transparent;
-}
-.tools-section-toggle-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.tools-section-toggle .tools-section-title {
-  margin: 0;
-  padding-left: 10px;
-}
-.tools-section-toggle .tools-section-desc {
-  margin: 0;
-  padding-left: 10px;
-}
-.tools-section-chevron {
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  border-right: 2px solid var(--text-muted, #64748b);
-  border-bottom: 2px solid var(--text-muted, #64748b);
-  transform: rotate(45deg);
-  transition: transform 0.2s ease;
-  margin-right: 8px;
-  margin-top: -4px;
-}
-.tools-section.is-collapsed .tools-section-chevron {
-  transform: rotate(-45deg);
-  margin-top: 2px;
-}
-.tools-section-body {
-  overflow: hidden;
-  transition: max-height 0.25s ease, opacity 0.2s ease;
-  max-height: 480px;
-  opacity: 1;
-}
-.tools-section.is-collapsed .tools-section-body {
-  max-height: 0;
-  opacity: 0;
-  pointer-events: none;
-}
-.tools-section.is-collapsed {
-  margin-bottom: 8px;
-}
-
-
-/* tools-page enhanced glass */
-.tools-page .tools-section {
-  margin-bottom: 14px;
-  border-radius: 18px;
+/* HEADER_LIQUID_GLASS — city name bar (高雄市) */
+.main-header {
+  position: relative !important;
+  margin: 4px 0 14px !important;
+  padding: 12px 16px !important;
+  border-radius: 18px !important;
   background:
-    linear-gradient(165deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.18) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  box-shadow:
-    0 8px 28px rgba(30, 60, 120, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.65),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  overflow: hidden;
-  padding: 4px 6px 6px;
-}
-.tools-page .tools-section-toggle {
-  padding: 14px 12px 12px 8px;
-  border-radius: 14px;
-}
-.tools-page .tools-section-toggle:active {
-  background: rgba(255, 255, 255, 0.2);
-}
-.tools-page .tools-section-title {
-  color: rgba(15, 23, 42, 0.92);
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-.tools-page .tools-section-desc {
-  color: rgba(51, 65, 85, 0.72);
-}
-.tools-page .tools-section-body {
-  padding: 0 6px 8px;
-}
-.tools-page .tools-section .tools-grid {
-  gap: 10px;
-}
-.tools-page .tools-menu-item {
-  background:
-    linear-gradient(160deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.28) 100%) !important;
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(255, 255, 255, 0.28) 45%,
+      rgba(224, 242, 254, 0.32) 100%
+    ) !important;
   border: 1px solid rgba(255, 255, 255, 0.55) !important;
   box-shadow:
-    0 6px 18px rgba(30, 60, 120, 0.1),
+    0 0 0 1px rgba(56, 189, 248, 0.12),
+    0 8px 28px rgba(14, 165, 233, 0.1),
+    0 2px 10px rgba(15, 23, 42, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.75) !important;
-  backdrop-filter: blur(16px) saturate(170%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(170%) !important;
+  backdrop-filter: blur(28px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
 }
-.tools-page .tools-menu-item:active {
-  background: rgba(255, 255, 255, 0.45) !important;
-  box-shadow:
-    0 2px 10px rgba(30, 60, 120, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+.main-header::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  border-radius: inherit !important;
+  pointer-events: none !important;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    transparent 40%,
+    rgba(56, 189, 248, 0.08) 100%
+  ) !important;
+  z-index: 0 !important;
 }
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .tools-page .tools-section {
-    background: rgba(255, 255, 255, 0.72);
-  }
-  .tools-page .tools-menu-item {
-    background: rgba(255, 255, 255, 0.82) !important;
-  }
+.main-header > * {
+  position: relative !important;
+  z-index: 1 !important;
 }
-
-
-/* tools-glass-bounce: 點擊回彈 + 白色光效 */
-.tools-page .tools-section {
-  position: relative;
-  transition: transform 0.28s cubic-bezier(0.34, 1.45, 0.64, 1), box-shadow 0.25s ease;
+#cityName,
+.main-header h2 {
+  margin: 0 !important;
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em !important;
+  color: #0c4a6e !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) !important;
 }
-.tools-page .tools-section-toggle {
-  position: relative;
-  overflow: hidden;
-  transition: transform 0.28s cubic-bezier(0.34, 1.45, 0.64, 1);
-}
-.tools-page .tools-section-toggle::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%),
-    rgba(255, 255, 255, 0.65) 0%,
-    rgba(255, 255, 255, 0.2) 35%,
-    transparent 70%);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.35s ease;
-}
-.tools-page .tools-section-toggle.is-pressing {
-  transform: scale(0.97);
-}
-.tools-page .tools-section-toggle.is-pressing::after {
-  opacity: 1;
-}
-.tools-page .tools-section-toggle.is-bounce {
-  animation: tools-glass-bounce 0.45s cubic-bezier(0.34, 1.45, 0.64, 1);
-}
-.tools-page .tools-section-toggle.is-flash::after {
-  animation: tools-glass-flash 0.55s ease-out;
-}
-
-.tools-page .tools-menu-item {
-  position: relative;
-  overflow: hidden;
-  transition:
-    transform 0.32s cubic-bezier(0.34, 1.45, 0.64, 1),
-    box-shadow 0.25s ease,
-    border-color 0.2s ease !important;
-}
-.tools-page .tools-menu-item::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%),
-    rgba(255, 255, 255, 0.75) 0%,
-    rgba(255, 255, 255, 0.28) 40%,
-    transparent 72%);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 1;
-}
-.tools-page .tools-menu-item > * {
-  position: relative;
-  z-index: 2;
-}
-.tools-page .tools-menu-item.is-pressing {
-  transform: scale(0.94) !important;
-  box-shadow:
-    0 2px 8px rgba(30, 60, 120, 0.12),
-    inset 0 0 20px rgba(255, 255, 255, 0.45) !important;
-}
-.tools-page .tools-menu-item.is-pressing::after {
-  opacity: 1;
-}
-.tools-page .tools-menu-item.is-bounce {
-  animation: tools-glass-bounce 0.48s cubic-bezier(0.34, 1.45, 0.64, 1);
-}
-.tools-page .tools-menu-item.is-flash::after {
-  animation: tools-glass-flash 0.55s ease-out;
-}
-
-@keyframes tools-glass-bounce {
-  0%   { transform: scale(0.94); }
-  55%  { transform: scale(1.04); }
-  75%  { transform: scale(0.99); }
-  100% { transform: scale(1); }
-}
-@keyframes tools-glass-flash {
-  0%   { opacity: 0.9; }
-  40%  { opacity: 0.55; }
-  100% { opacity: 0; }
-}
-
-
-/* home-glass-bounce: 首頁卡片點擊回彈 + 白色光效 */
-.current-card,
-.current-stat-chip,
-.current-forecast-btn,
-.forecast-card,
-.extra-info-card,
 .fav-star-btn {
-  position: relative;
-  overflow: hidden;
-  transition:
-    transform 0.32s cubic-bezier(0.34, 1.45, 0.64, 1),
-    box-shadow 0.25s ease;
-  -webkit-tap-highlight-color: transparent;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
 }
-.current-card::after,
-.current-stat-chip::after,
-.current-forecast-btn::after,
-.forecast-card::after,
-.extra-info-card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%),
-    rgba(255, 255, 255, 0.7) 0%,
-    rgba(255, 255, 255, 0.25) 40%,
-    transparent 72%);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 3;
-}
-.current-card.is-pressing,
-.current-stat-chip.is-pressing,
-.current-forecast-btn.is-pressing,
-.forecast-card.is-pressing,
-.extra-info-card.is-pressing,
-.fav-star-btn.is-pressing {
-  transform: scale(0.97);
-}
-.current-card.is-pressing::after,
-.current-stat-chip.is-pressing::after,
-.current-forecast-btn.is-pressing::after,
-.forecast-card.is-pressing::after,
-.extra-info-card.is-pressing::after {
-  opacity: 1;
-}
-.current-card.is-bounce,
-.current-stat-chip.is-bounce,
-.current-forecast-btn.is-bounce,
-.forecast-card.is-bounce,
-.extra-info-card.is-bounce,
-.fav-star-btn.is-bounce {
-  animation: tools-glass-bounce 0.48s cubic-bezier(0.34, 1.45, 0.64, 1);
-}
-.current-card.is-flash::after,
-.current-stat-chip.is-flash::after,
-.current-forecast-btn.is-flash::after,
-.forecast-card.is-flash::after,
-.extra-info-card.is-flash::after {
-  animation: tools-glass-flash 0.55s ease-out;
-}
-
-
-/* gyro-glass-shine: 高光線隨陀螺儀移動 */
-.current-card {
-  --shine-x: 50%;
-  --shine-y: 18%;
-  --shine-angle: -18deg;
-  isolation: isolate;
-}
-.current-card .gyro-shine-layer,
-.current-card > .gyro-shine-line {
-  pointer-events: none;
-}
-/* 頂部玻璃高光線（隨 --shine-x 移動） */
-.current-card::before {
-  content: "";
-  position: absolute;
-  left: -20%;
-  right: -20%;
-  top: 0;
-  height: 42%;
-  border-radius: inherit;
-  background: linear-gradient(
-    var(--shine-angle, -18deg),
-    transparent 0%,
-    transparent calc(var(--shine-x) - 18%),
-    rgba(255, 255, 255, 0.08) calc(var(--shine-x) - 8%),
-    rgba(255, 255, 255, 0.55) var(--shine-x),
-    rgba(255, 255, 255, 0.12) calc(var(--shine-x) + 8%),
-    transparent calc(var(--shine-x) + 18%),
-    transparent 100%
-  );
-  opacity: 0.85;
-  pointer-events: none;
-  z-index: 2;
-  mix-blend-mode: soft-light;
-  transition: none;
-}
-/* 一條更銳利的高光線 */
-.current-card .gyro-shine-line {
-  position: absolute;
-  top: 10px;
-  left: 12px;
-  right: 12px;
-  height: 2px;
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    transparent calc(var(--shine-x) - 22%),
-    rgba(255, 255, 255, 0.25) calc(var(--shine-x) - 10%),
-    rgba(255, 255, 255, 0.95) var(--shine-x),
-    rgba(255, 255, 255, 0.3) calc(var(--shine-x) + 10%),
-    transparent calc(var(--shine-x) + 22%),
-    transparent 100%
-  );
-  box-shadow: 0 0 12px rgba(255, 255, 255, 0.45);
-  pointer-events: none;
-  z-index: 4;
-  opacity: 0.9;
-}
-/* 整卡輕微傾角（很克制，避免暈） */
-.current-card.has-gyro-tilt {
-  transform: perspective(900px)
-    rotateX(var(--tilt-x, 0deg))
-    rotateY(var(--tilt-y, 0deg));
-  transform-style: preserve-3d;
+.fav-star-btn:active {
+  transform: scale(0.96) !important;
+  background: rgba(255, 255, 255, 0.6) !important;
 }
