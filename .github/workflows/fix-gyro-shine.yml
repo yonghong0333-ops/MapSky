@@ -1,0 +1,18 @@
+name: Gyro glass shine
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/otp/fix_gyro_shine.py
+      - name: Commit
+        run: |
+          git config user.name "MapSky Bot"
+          git config user.email "bot@mapsky.local"
+          git add public/style.css public/index.html public/renderer.js
+          git commit -m "feat(ui): current-card glass shine follows gyroscope" || echo "no changes"
+          git push origin HEAD:main
