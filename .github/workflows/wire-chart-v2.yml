@@ -1,0 +1,82 @@
+name: wire-chart-v2
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/wire-chart-v2.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch files
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          # Get current web-shim blob sha from API
+          SHA=$(curl -sH "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/yonghong0333-ops/MapSky/contents/public/web-shim.js?ref=main" | python3 -c "import sys,json; print(json.load(sys.stdin)['sha'])")
+          echo "current sha $SHA"
+          curl -sL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" \
+            "https://api.github.com/repos/yonghong0333-ops/MapSky/contents/public/web-shim.js?ref=main" \
+            -o public/web-shim.js
+          wc -c public/web-shim.js
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('public/web-shim.js')
+          js = p.read_text(encoding='utf-8')
+          assert 'weatherAPI' in js, 'bad shim'
+          if 'chart-polish.js' not in js:
+              old = 'script.src = "renderer.js";\n    document.body.appendChild(script);'
+              new = (
+                  'script.src = "renderer.js";\n'
+                  '    script.onload = function () {\n'
+                  '      var c = document.createElement("script");\n'
+                  '      c.src = "chart-polish.js";\n'
+                  '      document.body.appendChild(c);\n'
+                  '    };\n'
+                  '    document.body.appendChild(script);'
+              )
+              if old not in js:
+                  # fallback: just append loader at end
+                  js = js.rstrip() + '\n\n(function(){var s=document.createElement("script");s.src="chart-polish.js";document.body.appendChild(s);})();\n'
+                  print('appended fallback loader')
+              else:
+                  js = js.replace(old, new, 1)
+                  print('replaced load snippet')
+              p.write_text(js, encoding='utf-8')
+          print('shim', p.stat().st_size)
+
+          c = Path('public/theme-tech-glass.css')
+          css = c.read_text(encoding='utf-8')
+          if 'TEMP_CHART_POLISH' not in css:
+              css += '''
+
+/* TEMP_CHART_POLISH */
+#chartPanel { padding: 4px 0 12px !important; }
+#tempChart {
+  width: 100% !important;
+  height: 220px !important;
+  display: block !important;
+  border-radius: 18px !important;
+  background: linear-gradient(160deg, rgba(255,255,255,0.72), rgba(224,242,254,0.35)) !important;
+  border: 1px solid rgba(56, 189, 248, 0.4) !important;
+  box-shadow: 0 8px 24px rgba(14, 165, 233, 0.08), inset 0 1px 0 rgba(255,255,255,0.75) !important;
+}
+'''
+              c.write_text(css, encoding='utf-8')
+              print('css patched')
+          PY
+      - name: Commit
+        run: |
+          git config user.name mapsky-bot
+          git config user.email bot@mapsky.local
+          git add public/web-shim.js public/theme-tech-glass.css
+          git status
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: load polished temperature chart"
+            git push
+          fi
