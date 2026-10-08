@@ -1390,10 +1390,10 @@ function renderWeather(location) {
   sendToDynamicIsland(); // 動態島已經開著的話，資料更新（每次選城市、每 5 分鐘）就跟著更新
   syncWeatherWidget(); // 鎖定畫面小工具：同一份天氣也推一份過去，小工具才不會一直顯示「請先開啟 App」
   advNoteWeather(wxNow); // 動態島冒險：解鎖條件「遇到晴時多雲／遇到下雨」的偵測點
-  el("currentTemp").textContent = `${minNow}–${maxNow}°C`;
+  el("currentTemp").textContent = `${maxNow}°C`;
   el("currentDesc").textContent = wxNow;
   el("currentDetail").textContent =
-    `舒適度 ${ciNow}\n降雨機率 ${popNow}%\n資料來源：中央氣象署`;
+    `舒適度 ${ciNow}\n溫度 ${minNow}–${maxNow}°C\n資料來源：中央氣象署`;
   el("statPop").textContent = `${popNow}%`;
 
   el("currentViewForecastBtn").classList.remove("hidden");
