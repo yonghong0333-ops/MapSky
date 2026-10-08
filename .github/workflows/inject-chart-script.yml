@@ -1,0 +1,39 @@
+name: inject-chart-script
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/inject-chart-script.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inject script tag
+        run: |
+          set -e
+          if grep -q 'chart-polish.js' public/index.html; then
+            echo already
+          else
+            python3 -c "
+from pathlib import Path
+p=Path('public/index.html')
+t=p.read_text(encoding='utf-8')
+old='<script src=\"web-shim.js\"></script>'
+new='<script src=\"web-shim.js\"></script>\n<script src=\"chart-polish.js\"></script>'
+assert old in t
+p.write_text(t.replace(old,new,1), encoding='utf-8')
+print('ok', p.stat().st_size)
+"
+          fi
+      - name: Commit
+        run: |
+          git config user.name mapsky-bot
+          git config user.email bot@mapsky.local
+          git add public/index.html
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: load chart-polish.js from index"
+            git push
+          fi
