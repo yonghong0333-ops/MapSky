@@ -1,8 +1,9 @@
-/* offline-banner.js — 離線：頂部提示飛入縣市與星星中間的網路圖示；長按看詳情 */
+/* offline-banner.js — 離線：飛入縣市與星星中間；星星靠右；長按在玻璃島上展開詳情 */
 (function () {
   var BANNER_ID = "mapskyOfflineBanner";
   var STYLE_ID = "mapsky-offline-banner-css";
   var HEADER_OFFLINE = "is-offline-island";
+  var HEADER_DETAIL = "is-offline-detail";
   var mergeTimer = null;
   var isOffline = false;
   var longPressTimer = null;
@@ -45,8 +46,15 @@
       "#" + BANNER_ID + " .ob-text{flex:1;min-width:0;}" +
       "#" + BANNER_ID + " .ob-sub{display:block;margin-top:2px;font-size:11px;font-weight:600;color:#c2410c;opacity:.9;}" +
       ".main-header{" +
+      "display:flex !important;align-items:center !important;flex-wrap:nowrap !important;" +
       "position:relative !important;" +
-      "transition:background .45s ease,border-color .45s ease,box-shadow .45s ease !important;" +
+      "transition:background .45s ease,border-color .45s ease,box-shadow .45s ease,padding .35s ease !important;" +
+      "}" +
+      ".main-header #cityName,.main-header h2{" +
+      "flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" +
+      "}" +
+      ".main-header .fav-star-btn{" +
+      "margin-left:auto !important;flex-shrink:0;" +
       "}" +
       ".main-header." + HEADER_OFFLINE + "{" +
       "background:linear-gradient(160deg,rgba(255,247,237,0.94),rgba(255,237,213,0.75) 50%,rgba(254,215,170,0.52)) !important;" +
@@ -56,7 +64,6 @@
       ".main-header." + HEADER_OFFLINE + " #cityName," +
       ".main-header." + HEADER_OFFLINE + " h2{" +
       "color:#9a3412 !important;" +
-      "transition:color .35s ease !important;" +
       "}" +
       ".main-header." + HEADER_OFFLINE + " .fav-star-btn{" +
       "background:rgba(255,255,255,0.55) !important;" +
@@ -66,38 +73,37 @@
       "display:none;align-items:center;justify-content:center;" +
       "width:0;height:32px;margin:0;padding:0;border:none;border-radius:10px;" +
       "background:rgba(255,255,255,0.55);color:#c2410c;" +
-      "opacity:0;transform:scale(0.5);" +
+      "opacity:0;transform:scale(0.5);flex-shrink:0;" +
       "cursor:pointer;-webkit-user-select:none;user-select:none;" +
       "touch-action:manipulation;" +
       "transition:width .4s cubic-bezier(.16,1.2,.3,1),opacity .35s ease,transform .4s cubic-bezier(.16,1.3,.3,1),margin .35s ease,background .2s ease;" +
       "}" +
       ".main-header." + HEADER_OFFLINE + " .offline-net-btn{" +
-      "display:inline-flex;width:32px;margin:0 6px;opacity:1;transform:scale(1);" +
+      "display:inline-flex;width:32px;margin-left:8px;opacity:1;transform:scale(1);" +
       "border:1px solid rgba(251,146,60,0.35);" +
       "box-shadow:inset 0 1px 0 rgba(255,255,255,0.7);" +
       "}" +
       ".main-header .offline-net-btn:active{" +
-      "background:rgba(254,215,170,0.85);" +
-      "transform:scale(0.92);" +
+      "background:rgba(254,215,170,0.85);transform:scale(0.92);" +
       "}" +
       ".main-header .offline-net-btn svg{display:block;width:17px;height:17px;pointer-events:none;}" +
-      ".main-header .offline-detail-tip{" +
-      "position:absolute;left:50%;top:calc(100% + 8px);transform:translateX(-50%) translateY(-6px) scale(0.92);" +
-      "z-index:50;min-width:160px;max-width:min(280px,86vw);padding:10px 12px;border-radius:14px;" +
-      "background:linear-gradient(160deg,rgba(255,247,237,0.97),rgba(255,237,213,0.9));" +
-      "border:1px solid rgba(251,146,60,0.5);" +
-      "box-shadow:0 10px 28px rgba(234,88,12,0.18),inset 0 1px 0 rgba(255,255,255,0.85);" +
-      "backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);" +
-      "color:#9a3412;font-size:12px;font-weight:700;line-height:1.4;text-align:center;" +
-      "opacity:0;pointer-events:none;" +
-      "transition:opacity .25s ease,transform .3s cubic-bezier(.16,1.2,.3,1);" +
-      "white-space:normal;" +
+      ".main-header .offline-island-detail{" +
+      "display:none;width:100%;flex-basis:100%;order:10;" +
+      "margin-top:0;padding-top:0;max-height:0;opacity:0;overflow:hidden;" +
+      "font-size:11px;font-weight:700;color:#c2410c;line-height:1.35;" +
+      "transition:max-height .4s cubic-bezier(.16,1.15,.3,1),opacity .3s ease,margin .35s ease,padding .35s ease;" +
       "}" +
-      ".main-header .offline-detail-tip.is-show{" +
-      "opacity:1;transform:translateX(-50%) translateY(0) scale(1);pointer-events:auto;" +
+      ".main-header." + HEADER_DETAIL + "{" +
+      "flex-wrap:wrap !important;" +
+      "padding-bottom:10px !important;" +
       "}" +
-      ".main-header .offline-detail-tip .od-title{font-size:13px;margin-bottom:2px;}" +
-      ".main-header .offline-detail-tip .od-sub{font-size:11px;font-weight:600;color:#c2410c;opacity:.95;}" +
+      ".main-header." + HEADER_DETAIL + " .offline-island-detail{" +
+      "display:block;max-height:48px;opacity:1;" +
+      "margin-top:8px;padding-top:8px;" +
+      "border-top:1px solid rgba(251,146,60,0.28);" +
+      "}" +
+      ".main-header .offline-island-detail .od-title{font-size:12px;}" +
+      ".main-header .offline-island-detail .od-sub{font-size:11px;font-weight:600;opacity:.95;margin-top:1px;}" +
       ".main-header.is-island-pulse{animation:islandPulse .5s cubic-bezier(.16,1.4,.3,1) both;}" +
       "@keyframes islandPulse{0%{transform:scale(1)}35%{transform:scale(1.03)}70%{transform:scale(0.99)}100%{transform:scale(1)}}";
     document.head.appendChild(s);
@@ -125,66 +131,66 @@
     }
   }
 
-  function ensureNetBtn() {
+  function ensureLayout() {
     var h = headerEl();
     if (!h) return null;
-    var btn = h.querySelector(".offline-net-btn");
-    if (btn) return btn;
-
-    btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "offline-net-btn";
-    btn.setAttribute("aria-label", "網路狀態，長按查看詳情");
-    btn.innerHTML = WIFI_ICON;
 
     var star = h.querySelector(".fav-star-btn");
     if (star) {
+      star.style.marginLeft = "auto";
+      star.style.flexShrink = "0";
+    }
+
+    var btn = h.querySelector(".offline-net-btn");
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "offline-net-btn";
+      btn.setAttribute("aria-label", "網路狀態，長按查看詳情");
+      btn.innerHTML = WIFI_ICON;
+      if (star) h.insertBefore(btn, star);
+      else h.appendChild(btn);
+    } else if (star && btn.nextSibling !== star) {
       h.insertBefore(btn, star);
-    } else {
-      h.appendChild(btn);
     }
 
-    var tip = h.querySelector(".offline-detail-tip");
-    if (!tip) {
-      tip = document.createElement("div");
-      tip.className = "offline-detail-tip";
-      tip.innerHTML =
+    var detail = h.querySelector(".offline-island-detail");
+    if (!detail) {
+      detail = document.createElement("div");
+      detail.className = "offline-island-detail";
+      detail.innerHTML =
         '<div class="od-title">網路連線不穩定</div>' +
-        '<div class="od-sub">將顯示上次備份資料</div>';
-      h.appendChild(tip);
+        '<div class="od-sub">顯示上次備份資料</div>';
+      h.appendChild(detail);
     }
 
-    bindLongPress(btn, tip);
+    bindLongPress(btn, h, detail);
 
-    var cs = window.getComputedStyle(h);
-    if (cs.display !== "flex") {
-      h.style.display = "flex";
-      h.style.alignItems = "center";
-      h.style.flexWrap = "nowrap";
-    }
+    h.style.display = "flex";
+    h.style.alignItems = "center";
     return btn;
   }
 
-  function showDetail(tip) {
-    if (!tip) return;
-    var sub = tip.querySelector(".od-sub");
+  function showDetailOnIsland(h, detail) {
+    if (!h || !detail) return;
+    var sub = detail.querySelector(".od-sub");
     if (sub) sub.textContent = "顯示 " + ageHint();
-    tip.classList.add("is-show");
+    h.classList.add(HEADER_DETAIL);
     if (detailHideTimer) clearTimeout(detailHideTimer);
     detailHideTimer = setTimeout(function () {
-      tip.classList.remove("is-show");
+      h.classList.remove(HEADER_DETAIL);
     }, 3200);
   }
 
-  function hideDetail(tip) {
+  function hideDetail(h) {
     if (detailHideTimer) {
       clearTimeout(detailHideTimer);
       detailHideTimer = null;
     }
-    if (tip) tip.classList.remove("is-show");
+    if (h) h.classList.remove(HEADER_DETAIL);
   }
 
-  function bindLongPress(btn, tip) {
+  function bindLongPress(btn, h, detail) {
     if (btn.dataset.bound === "1") return;
     btn.dataset.bound = "1";
     var startX = 0;
@@ -204,7 +210,7 @@
       startY = t ? t.clientY : e.clientY || 0;
       longPressTimer = setTimeout(function () {
         longPressTimer = null;
-        showDetail(tip);
+        showDetailOnIsland(h, detail);
         try {
           if (navigator.vibrate) navigator.vibrate(12);
         } catch (err) {}
@@ -256,7 +262,7 @@
 
   function flyIntoNetBtn() {
     var b = document.getElementById(BANNER_ID);
-    var btn = ensureNetBtn();
+    var btn = ensureLayout();
     var h = headerEl();
     if (!b || !btn || !h) {
       activateIsland();
@@ -272,7 +278,7 @@
         var cR = city.getBoundingClientRect();
         var sR = star.getBoundingClientRect();
         tRect = {
-          left: (cR.right + sR.left) / 2 - 16,
+          left: cR.right + 8,
           top: (cR.top + sR.top) / 2,
           width: 32,
           height: 32
@@ -305,7 +311,7 @@
   function activateIsland() {
     var h = headerEl();
     if (!h) return;
-    ensureNetBtn();
+    ensureLayout();
     h.classList.add(HEADER_OFFLINE);
     h.classList.remove("is-island-pulse");
     void h.offsetHeight;
@@ -350,16 +356,16 @@
     var h = headerEl();
     if (h) {
       h.classList.remove(HEADER_OFFLINE);
+      h.classList.remove(HEADER_DETAIL);
       h.classList.remove("is-island-pulse");
-      var tip = h.querySelector(".offline-detail-tip");
-      hideDetail(tip);
+      hideDetail(h);
     }
   }
 
   function boot() {
     injectCss();
     ensureBanner();
-    setTimeout(ensureNetBtn, 400);
+    setTimeout(ensureLayout, 400);
     window.addEventListener("offline", onOffline);
     window.addEventListener("online", onOnline);
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
