@@ -514,6 +514,57 @@ function saveCityWeatherCache() {
   catch { /* 存不進去（例如容量爆了）就算了，不影響其他功能 */ }
 }
 const cityWeatherCache = loadCityWeatherCache();
+
+const OFFLINE_WEATHER_BUNDLE_KEY = "mapsky_offline_weather_bundle_v1";
+function isProbablyOffline() {
+  try {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  } catch (e) {}
+  return false;
+}
+function persistOfflineWeatherBundle() {
+  try {
+    const bundle = {
+      savedAt: Date.now(),
+      cities: cityWeatherCache,
+      weekly: typeof weeklyForecastCache !== "undefined" ? weeklyForecastCache : null,
+      sun: typeof sunTimesCache !== "undefined" ? sunTimesCache : null,
+      moon: typeof moonTimesCache !== "undefined" ? moonTimesCache : null,
+      moonDate: typeof moonTimesCacheDate !== "undefined" ? moonTimesCacheDate : "",
+      wind: typeof windObsCache !== "undefined" ? windObsCache : null,
+      uv: typeof uvIndexCache !== "undefined" ? uvIndexCache : null,
+      uvAt: typeof uvIndexCacheAt !== "undefined" ? uvIndexCacheAt : 0,
+    };
+    localStorage.setItem(OFFLINE_WEATHER_BUNDLE_KEY, JSON.stringify(bundle));
+  } catch (e) {}
+}
+function restoreOfflineWeatherBundle() {
+  try {
+    const raw = localStorage.getItem(OFFLINE_WEATHER_BUNDLE_KEY);
+    if (!raw) return null;
+    const bundle = JSON.parse(raw);
+    if (!bundle || typeof bundle !== "object") return null;
+    if (bundle.cities && typeof bundle.cities === "object") {
+      Object.keys(bundle.cities).forEach((k) => {
+        if (!cityWeatherCache[k]) cityWeatherCache[k] = bundle.cities[k];
+      });
+    }
+    return bundle;
+  } catch (e) {
+    return null;
+  }
+}
+const __offlineBundleBoot = restoreOfflineWeatherBundle();
+function formatOfflineAge(ms) {
+  if (!ms || !Number.isFinite(ms)) return "";
+  const mins = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (mins < 1) return "剛剛";
+  if (mins < 60) return mins + " 分鐘前";
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return hours + " 小時前";
+  const days = Math.round(hours / 24);
+  return days + " 天前";
+}
 function notifyWeatherDataReady() {
   try {
     if (typeof window.__mapskyOnWeatherDataReady === "function") {
@@ -549,14 +600,30 @@ async function selectCity(label) {
     // 使用者可能在資料回來前已經切換到別的縣市，這裡要避免覆蓋錯畫面
     cityWeatherCache[label] = location;
     saveCityWeatherCache();
+    persistOfflineWeatherBundle();
     if (currentCity && currentCity.label === label) {
       renderWeather(location);
-      setStatus("更新完成");
+      setStatus(isProbablyOffline() ? "離線模式・顯示已備份資料" : "更新完成");
     }
   } catch (e) {
     if (currentCity && currentCity.label === label) {
-      // 有舊資料可以顯示的話，刷新失敗就默默保留舊畫面就好，不用跳錯誤嚇使用者
-      setStatus(cached ? "更新完成（顯示上次資料）" : `取得天氣資料失敗：${e.message}`);
+      const offline = isProbablyOffline();
+      if (cached) {
+        const age = __offlineBundleBoot && __offlineBundleBoot.savedAt
+          ? formatOfflineAge(__offlineBundleBoot.savedAt)
+          : "";
+        setStatus(
+          offline
+            ? ("離線模式・顯示上次備份" + (age ? "（" + age + "）" : ""))
+            : "更新完成（顯示上次資料）"
+        );
+      } else {
+        setStatus(
+          offline
+            ? "目前沒有網路，且尚無此縣市的備份資料"
+            : `取得天氣資料失敗：${e.message}`
+        );
+      }
     }
   }
 
@@ -579,7 +646,7 @@ async function selectCity(label) {
 // ---------------- 日出／日落 ----------------
 // 同一批資料涵蓋全臺所有縣市，同一次網頁工作階段內快取起來，
 // 切換城市只要重新查表就好，不用每次都重打 API。
-let sunTimesCache = null;
+let sunTimesCache = (__offlineBundleBoot && __offlineBundleBoot.sun) || null;
 async function loadSunTimes(label) {
   const valueEl = el("sunTimesValue");
   if (!valueEl) return;
@@ -588,6 +655,7 @@ async function loadSunTimes(label) {
       const result = await window.weatherAPI.getSunTimes();
       if (!result || !result.ok) return; // 保持「暫無資料」，不用特別報錯打擾使用者
       sunTimesCache = result.counties || {};
+      persistOfflineWeatherBundle();
     }
     const days = sunTimesCache[label]; // [今天, 明天]
     const today = days && days[0];
@@ -642,8 +710,8 @@ async function loadSunTimes(label) {
 
 // ---------------- 月出／月落 ----------------
 // 有些日子月亮不會升起或落下（極少數情形），對應欄位是空字串，顯示成「--」。
-let moonTimesCache = null;
-let moonTimesCacheDate = ""; // 快取對應的日期，跨日就要重抓
+let moonTimesCache = (__offlineBundleBoot && __offlineBundleBoot.moon) || null;
+let moonTimesCacheDate = (__offlineBundleBoot && __offlineBundleBoot.moonDate) || ""; // 快取對應的日期，跨日就要重抓
 async function loadMoonTimes(label) {
   const valueEl = el("moonTimesValue");
   if (!valueEl) return;
@@ -656,6 +724,7 @@ async function loadMoonTimes(label) {
       if (!result || !result.ok) return;
       moonTimesCache = result.counties || {};
       moonTimesCacheDate = todayKey;
+      persistOfflineWeatherBundle();
     }
     const days = moonTimesCache[label]; // [今天, 明天]
     const today = days && days[0];
@@ -724,7 +793,7 @@ setInterval(() => {
 // ---------------- 未來 7 天預報 ----------------
 // 同一批資料涵蓋全臺所有縣市，跟日出/日落、月出/月落同樣邏輯：整批快取起來，
 // 切換城市只要重新查表就好，不用每次都重打 API。
-let weeklyForecastCache = null;
+let weeklyForecastCache = (__offlineBundleBoot && __offlineBundleBoot.weekly) || null;
 async function loadWeeklyForecast(label) {
   const listEl = el("weeklyForecastList");
   if (!listEl) return;
@@ -733,6 +802,7 @@ async function loadWeeklyForecast(label) {
       const result = await window.weatherAPI.getWeeklyForecast();
       if (!result || !result.ok) return; // 保持「載入中」文字，不用特別報錯打擾使用者
       weeklyForecastCache = result.counties || {};
+      persistOfflineWeatherBundle();
     }
     const periods = weeklyForecastCache[label];
     if (!periods || !periods.length) return;
@@ -1252,7 +1322,7 @@ setInterval(() => {
 // ---------------- 即時風速（蒲氏風級）----------------
 // 跟日出／月出資料同樣邏輯：整批全臺縣市資料一次撈回來，快取在同一次網頁
 // 工作階段內，切換城市只要重新查表，不用每次都重打 API。
-let windObsCache = null;
+let windObsCache = (__offlineBundleBoot && __offlineBundleBoot.wind) || null;
 async function loadWindObservation(label) {
   const valueEl = el("statWind");
   const humidityEl = el("humidityValue");
@@ -1263,6 +1333,7 @@ async function loadWindObservation(label) {
       const result = await window.weatherAPI.getWindObservation();
       if (!result || !result.ok) return; // 拿不到就維持「暫無資料」，不影響其他功能
       windObsCache = result.counties || {};
+      persistOfflineWeatherBundle();
     }
     const wind = windObsCache[label];
     if (!wind) return;
@@ -1287,8 +1358,8 @@ async function loadWindObservation(label) {
 // ---------------- 紫外線指數 ----------------
 // 即時紫外線（氣象署 O-A0003-001，每 10 分鐘更新）：整批全臺縣市資料一次撈回來，
 // 但只快取 10 分鐘，過了會重新撈，不會整個網頁工作階段都停在同一個數字。
-let uvIndexCache = null;
-let uvIndexCacheAt = 0;
+let uvIndexCache = (__offlineBundleBoot && __offlineBundleBoot.uv) || null;
+let uvIndexCacheAt = (__offlineBundleBoot && __offlineBundleBoot.uvAt) || 0;
 const UV_INDEX_REFRESH_MS = 10 * 60 * 1000;
 async function loadUvIndex(label) {
   const valueEl = el("uvIndexValue");
@@ -1299,6 +1370,7 @@ async function loadUvIndex(label) {
       if (!result || !result.ok) return; // 拿不到就維持「暫無資料」，不影響其他功能
       uvIndexCache = result.counties || {};
       uvIndexCacheAt = Date.now();
+      persistOfflineWeatherBundle();
     }
     const uv = uvIndexCache[label];
     if (!uv || uv.uvIndex === undefined || uv.uvIndex === null) return;
@@ -4702,3 +4774,19 @@ if (dynamicIslandOffBtn) {
     setTimeout(attach, 3000); // 這些區塊有些是登入後才建立，晚一點再補掛一次
   }
 })();
+
+
+// 有網路時自動把目前記憶體裡的天氣資料再備份一次；斷線時提示使用上次資料
+window.addEventListener("online", () => {
+  try { persistOfflineWeatherBundle(); } catch (e) {}
+  if (currentCity && currentCity.label) {
+    setStatus("網路已恢復，正在更新…");
+    selectCity(currentCity.label);
+  }
+});
+window.addEventListener("offline", () => {
+  const age = __offlineBundleBoot && __offlineBundleBoot.savedAt
+    ? formatOfflineAge(__offlineBundleBoot.savedAt)
+    : "";
+  setStatus("目前沒有網路" + (age ? "・顯示 " + age + " 的備份" : "・若有備份仍可查看"));
+});
