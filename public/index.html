@@ -1346,14 +1346,20 @@
         </div>
       </section>
 
-      <section id="toolsPanel" class="tab-panel">
+            <section id="toolsPanel" class="tab-panel">
         <div class="settings-page tools-page">
           <h2 class="settings-page-title">🧰 工具</h2>
 
-          <div class="tools-section">
-            <h3 class="tools-section-title">預報與趨勢</h3>
-            <p class="tools-section-desc">查看未來天氣與溫度變化</p>
-            <div class="tools-grid">
+          <div class="tools-section" data-tools-section="forecast">
+            <button type="button" class="tools-section-toggle" aria-expanded="true">
+              <span class="tools-section-toggle-text">
+                <span class="tools-section-title">預報與趨勢</span>
+                <span class="tools-section-desc">查看未來天氣與溫度變化</span>
+              </span>
+              <span class="tools-section-chevron" aria-hidden="true"></span>
+            </button>
+            <div class="tools-section-body">
+              <div class="tools-grid">
               <button class="tools-menu-item" data-tab="weekly" type="button">
                 <span class="tool-icon" aria-hidden="true">📅</span>
                 <span class="tool-label">未來 7 天</span>
@@ -1364,13 +1370,19 @@
                 <span class="tool-label">溫度趨勢圖</span>
                 <span class="tool-hint">高低溫曲線</span>
               </button>
+              </div>
             </div>
           </div>
-
-          <div class="tools-section">
-            <h3 class="tools-section-title">探索與比較</h3>
-            <p class="tools-section-desc">在地圖上選點、比較不同城市</p>
-            <div class="tools-grid">
+          <div class="tools-section" data-tools-section="explore">
+            <button type="button" class="tools-section-toggle" aria-expanded="true">
+              <span class="tools-section-toggle-text">
+                <span class="tools-section-title">探索與比較</span>
+                <span class="tools-section-desc">在地圖上選點、比較不同城市</span>
+              </span>
+              <span class="tools-section-chevron" aria-hidden="true"></span>
+            </button>
+            <div class="tools-section-body">
+              <div class="tools-grid">
               <button class="tools-menu-item" data-tab="compare" type="button">
                 <span class="tool-icon" aria-hidden="true">🏙️</span>
                 <span class="tool-label">多城市比較</span>
@@ -1381,13 +1393,19 @@
                 <span class="tool-label">地圖選點</span>
                 <span class="tool-hint">點地圖查天氣</span>
               </button>
+              </div>
             </div>
           </div>
-
-          <div class="tools-section">
-            <h3 class="tools-section-title">災害與即時</h3>
-            <p class="tools-section-desc">颱風動態與閃電即時資訊</p>
-            <div class="tools-grid">
+          <div class="tools-section" data-tools-section="hazard">
+            <button type="button" class="tools-section-toggle" aria-expanded="true">
+              <span class="tools-section-toggle-text">
+                <span class="tools-section-title">災害與即時</span>
+                <span class="tools-section-desc">颱風動態與閃電即時資訊</span>
+              </span>
+              <span class="tools-section-chevron" aria-hidden="true"></span>
+            </button>
+            <div class="tools-section-body">
+              <div class="tools-grid">
               <button class="tools-menu-item" data-tab="typhoon" type="button">
                 <span class="tool-icon" aria-hidden="true">🌀</span>
                 <span class="tool-label">颱風</span>
@@ -1404,6 +1422,7 @@
                 <span class="tool-hint">生效中警報</span>
                 <span id="toolsAlertBadge" class="alert-tab-badge hidden">0</span>
               </button>
+              </div>
             </div>
           </div>
         </div>

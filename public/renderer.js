@@ -3828,6 +3828,33 @@ document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
 
 // 工具分頁裡的每個項目，點下去就直接切去對應的分頁（這些分頁本來就存在，
 // 工具分頁只是一個統整入口，不是彈出選單了）。
+
+// 工具頁分類收合（記住使用者偏好）
+(function initToolsSectionCollapse() {
+  const KEY = "mapsky_tools_sections_collapsed";
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { saved = {}; }
+
+  document.querySelectorAll(".tools-section[data-tools-section]").forEach((sec) => {
+    const id = sec.getAttribute("data-tools-section");
+    const btn = sec.querySelector(".tools-section-toggle");
+    if (!btn) return;
+    if (saved[id]) {
+      sec.classList.add("is-collapsed");
+      btn.setAttribute("aria-expanded", "false");
+    }
+    btn.addEventListener("click", () => {
+      const collapsed = sec.classList.toggle("is-collapsed");
+      btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      try {
+        const cur = JSON.parse(localStorage.getItem(KEY) || "{}") || {};
+        cur[id] = collapsed;
+        localStorage.setItem(KEY, JSON.stringify(cur));
+      } catch (e) {}
+    });
+  });
+})();
+
 document.querySelectorAll(".tools-menu-item[data-tab]").forEach((item) => {
   item.addEventListener("click", () => {
     document.querySelector(`.tab-btn[data-tab="${item.dataset.tab}"]`).click();

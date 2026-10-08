@@ -5071,3 +5071,65 @@ input::placeholder { color: #94a3b8 !important; }
   font-size: 14px;
   font-weight: 700;
 }
+
+
+/* 工具分類收合 */
+.tools-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 4px 10px 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.tools-section-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tools-section-toggle .tools-section-title {
+  margin: 0;
+  padding-left: 10px;
+}
+.tools-section-toggle .tools-section-desc {
+  margin: 0;
+  padding-left: 10px;
+}
+.tools-section-chevron {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--text-muted, #64748b);
+  border-bottom: 2px solid var(--text-muted, #64748b);
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+  margin-right: 8px;
+  margin-top: -4px;
+}
+.tools-section.is-collapsed .tools-section-chevron {
+  transform: rotate(-45deg);
+  margin-top: 2px;
+}
+.tools-section-body {
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+  max-height: 480px;
+  opacity: 1;
+}
+.tools-section.is-collapsed .tools-section-body {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.tools-section.is-collapsed {
+  margin-bottom: 8px;
+}
