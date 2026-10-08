@@ -1,8 +1,9 @@
-/* sun-moon-detail.js — 日出日落／月出月落詳細頁（工具） */
+/* sun-moon-detail.js — 日出日落／月出月落詳細頁（工具 + 首頁捷徑） */
 (function () {
   var cacheSun = null;
   var cacheMoon = null;
   var cacheDate = "";
+  var openedFrom = "tools"; // tools | home
 
   function el(id) { return document.getElementById(id); }
 
@@ -16,7 +17,6 @@
   }
 
   function injectUI() {
-    // hidden tab button
     if (!document.querySelector('.tab-btn[data-tab="sunmoon"]')) {
       var btn = document.createElement("button");
       btn.className = "tab-btn hidden";
@@ -28,14 +28,13 @@
       else document.body.appendChild(btn);
     }
 
-    // panel
     if (!el("sunMoonPanel")) {
       var panel = document.createElement("section");
       panel.id = "sunMoonPanel";
       panel.className = "tab-panel";
       panel.innerHTML =
         '<div class="sunmoon-page">' +
-        '  <button type="button" class="sunmoon-back" id="sunMoonBack">← 返回工具</button>' +
+        '  <button type="button" class="sunmoon-back" id="sunMoonBack">← 返回</button>' +
         '  <h2 class="sunmoon-title" id="sunMoonTitle">日出日落</h2>' +
         '  <p class="sunmoon-sub" id="sunMoonSub">載入中…</p>' +
         '  <div class="sunmoon-grid" id="sunMoonGrid"></div>' +
@@ -44,7 +43,6 @@
       main.appendChild(panel);
     }
 
-    // tools menu item
     if (!document.querySelector('.tools-menu-item[data-tab="sunmoon"]')) {
       var item = document.createElement("button");
       item.className = "tools-menu-item";
@@ -54,32 +52,60 @@
         '<span class="tool-icon" aria-hidden="true">🌅</span>' +
         '<span class="tool-label">日出日落</span>' +
         '<span class="tool-hint">月出月落詳情</span>';
-
       var forecastGrid = document.querySelector(
         '.tools-section[data-tools-section="forecast"] .tools-grid'
       );
-      if (forecastGrid) {
-        forecastGrid.appendChild(item);
-      } else {
+      if (forecastGrid) forecastGrid.appendChild(item);
+      else {
         var toolsPage = document.querySelector(".tools-page");
         if (toolsPage) toolsPage.appendChild(item);
       }
-
-      item.addEventListener("click", function () {
-        openPanel();
-      });
     }
 
     var back = el("sunMoonBack");
     if (back && !back.dataset.bound) {
       back.dataset.bound = "1";
       back.addEventListener("click", function () {
-        var toolsBtn = document.querySelector('.tab-btn[data-tab="tools"]');
-        if (toolsBtn) toolsBtn.click();
+        if (openedFrom === "home") {
+          var homeBtn = document.querySelector('.tab-btn[data-tab="forecast"]');
+          if (homeBtn) homeBtn.click();
+        } else {
+          var toolsBtn = document.querySelector('.tab-btn[data-tab="tools"]');
+          if (toolsBtn) toolsBtn.click();
+        }
       });
     }
 
+    bindHomeCards();
     injectCss();
+  }
+
+  function bindHomeCards() {
+    // 首頁「其他資訊」的日出／月出卡片 → 點了直接進詳情
+    var sunVal = el("sunTimesValue");
+    var moonVal = el("moonTimesValue");
+    var candidates = [];
+    if (sunVal) candidates.push(sunVal.closest(".extra-info-card"));
+    if (moonVal) candidates.push(moonVal.closest(".extra-info-card"));
+
+    candidates.forEach(function (card) {
+      if (!card || card.dataset.sunmoonBound === "1") return;
+      card.dataset.sunmoonBound = "1";
+      card.style.cursor = "pointer";
+      card.setAttribute("role", "button");
+      card.setAttribute("tabindex", "0");
+      card.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        openPanel("home");
+      });
+      card.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openPanel("home");
+        }
+      });
+    });
   }
 
   function injectCss() {
@@ -112,7 +138,10 @@
       ".sunmoon-label{font-size:12px;color:#64748b;margin-bottom:2px;}" +
       ".sunmoon-time{font-size:20px;font-weight:800;color:#0f172a;font-variant-numeric:tabular-nums;}" +
       ".sunmoon-remain{font-size:12px;color:#0284c7;margin-top:4px;font-weight:600;min-height:16px;}" +
-      ".sunmoon-empty{text-align:center;color:#94a3b8;padding:24px 0;}";
+      ".sunmoon-empty{text-align:center;color:#94a3b8;padding:24px 0;}" +
+      /* 首頁卡片可點提示 */ +
+      ".extra-info-card[data-sunmoon-bound=\"1\"]{cursor:pointer;transition:transform .12s ease,box-shadow .15s ease;}" +
+      ".extra-info-card[data-sunmoon-bound=\"1\"]:active{transform:scale(0.97);}";
     document.head.appendChild(s);
   }
 
@@ -139,8 +168,7 @@
     var now = new Date();
     var nowMins = now.getHours() * 60 + now.getMinutes();
     var target = mins + (dayOffset || 0) * 24 * 60;
-    var cur = nowMins;
-    var diff = target - cur;
+    var diff = target - nowMins;
     if (diff < 0) return "已過";
     return formatRemaining(diff);
   }
@@ -223,14 +251,12 @@
 
     var html = "";
     html += dayBlock("今天", "今日", todaySun, todayMoon, 0);
-    if (tmrSun || tmrMoon) {
-      html += dayBlock("明天", "次日", tmrSun, tmrMoon, 1);
-    }
+    if (tmrSun || tmrMoon) html += dayBlock("明天", "次日", tmrSun, tmrMoon, 1);
     grid.innerHTML = html;
   }
 
-  function openPanel() {
-    // activate panel like other tabs
+  function openPanel(from) {
+    openedFrom = from || "tools";
     document.querySelectorAll(".tab-btn").forEach(function (b) {
       b.classList.remove("active");
     });
@@ -255,7 +281,10 @@
 
   function boot() {
     injectUI();
-    // re-bind tools item if tools page re-rendered
+    // 延遲再綁一次（首頁卡片可能較晚渲染）
+    setTimeout(bindHomeCards, 800);
+    setTimeout(bindHomeCards, 2000);
+
     document.addEventListener(
       "click",
       function (e) {
@@ -263,7 +292,7 @@
         if (t) {
           e.preventDefault();
           e.stopPropagation();
-          openPanel();
+          openPanel("tools");
         }
       },
       true
