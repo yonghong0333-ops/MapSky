@@ -25,19 +25,14 @@ jobs:
               if a not in js:
                   raise SystemExit('temp line missing')
               js = js.replace(a, b, 1)
-              # Only the currentDetail line under comfort (first occurrence after currentTemp block)
-              c = '舒適度 ${ciNow}\\n降雨機率 ${popNow}%\\n資料來源：中央氣象署'
-              d = '舒適度 ${ciNow}\\n溫度 ${minNow}–${maxNow}°C\\n資料來源：中央氣象署'
-              # In the actual file the template has backslash-n as two chars
-              c2 = '舒適度 ${ciNow}\n降雨機率 ${popNow}%\n資料來源：中央氣象署'
-              d2 = '舒適度 ${ciNow}\n溫度 ${minNow}–${maxNow}°C\n資料來源：中央氣象署'
-              if c2 in js:
-                  js = js.replace(c2, d2, 1)
-                  print('detail replaced')
-              else:
-                  print('detail not found', '降雨機率 ${popNow}%' in js)
+              # JS source has literal backslash-n inside template string
+              c2 = '舒適度 ${ciNow}' + chr(92) + 'n降雨機率 ${popNow}%' + chr(92) + 'n資料來源：中央氣象署'
+              d2 = '舒適度 ${ciNow}' + chr(92) + 'n溫度 ${minNow}–${maxNow}°C' + chr(92) + 'n資料來源：中央氣象署'
+              if c2 not in js:
+                  raise SystemExit('detail missing')
+              js = js.replace(c2, d2, 1)
               p.write_text(js, encoding='utf-8')
-              print('ok', b in p.read_text(encoding='utf-8'))
+              print('patched ok')
           PY
       - name: Commit
         run: |
