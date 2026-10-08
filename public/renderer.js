@@ -3867,7 +3867,25 @@ document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
       }
     });
   }
-  document.querySelectorAll(".tools-page .tools-section-toggle, .tools-page .tools-menu-item").forEach(bindPress);
+  const homeSel = [
+    ".tools-page .tools-section-toggle",
+    ".tools-page .tools-menu-item",
+    ".current-card",
+    ".current-stat-chip",
+    ".current-forecast-btn",
+    ".forecast-card",
+    ".extra-info-card",
+    ".fav-star-btn",
+  ].join(", ");
+
+  function bindAll() {
+    document.querySelectorAll(homeSel).forEach(bindPress);
+  }
+  bindAll();
+  // 預報小卡可能之後才渲染，定期補綁一次即可
+  const mo = new MutationObserver(() => bindAll());
+  const root = document.getElementById("forecastPanel") || document.body;
+  try { mo.observe(root, { childList: true, subtree: true }); } catch (e) {}
 })();
 
 (function initToolsSectionCollapse() {

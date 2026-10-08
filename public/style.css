@@ -5285,3 +5285,66 @@ input::placeholder { color: #94a3b8 !important; }
   40%  { opacity: 0.55; }
   100% { opacity: 0; }
 }
+
+
+/* home-glass-bounce: 首頁卡片點擊回彈 + 白色光效 */
+.current-card,
+.current-stat-chip,
+.current-forecast-btn,
+.forecast-card,
+.extra-info-card,
+.fav-star-btn {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.32s cubic-bezier(0.34, 1.45, 0.64, 1),
+    box-shadow 0.25s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.current-card::after,
+.current-stat-chip::after,
+.current-forecast-btn::after,
+.forecast-card::after,
+.extra-info-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%),
+    rgba(255, 255, 255, 0.7) 0%,
+    rgba(255, 255, 255, 0.25) 40%,
+    transparent 72%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.current-card.is-pressing,
+.current-stat-chip.is-pressing,
+.current-forecast-btn.is-pressing,
+.forecast-card.is-pressing,
+.extra-info-card.is-pressing,
+.fav-star-btn.is-pressing {
+  transform: scale(0.97);
+}
+.current-card.is-pressing::after,
+.current-stat-chip.is-pressing::after,
+.current-forecast-btn.is-pressing::after,
+.forecast-card.is-pressing::after,
+.extra-info-card.is-pressing::after {
+  opacity: 1;
+}
+.current-card.is-bounce,
+.current-stat-chip.is-bounce,
+.current-forecast-btn.is-bounce,
+.forecast-card.is-bounce,
+.extra-info-card.is-bounce,
+.fav-star-btn.is-bounce {
+  animation: tools-glass-bounce 0.48s cubic-bezier(0.34, 1.45, 0.64, 1);
+}
+.current-card.is-flash::after,
+.current-stat-chip.is-flash::after,
+.current-forecast-btn.is-flash::after,
+.forecast-card.is-flash::after,
+.extra-info-card.is-flash::after {
+  animation: tools-glass-flash 0.55s ease-out;
+}
