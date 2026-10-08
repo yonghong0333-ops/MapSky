@@ -4,6 +4,14 @@
   var STYLE_ID = "mapsky-offline-banner-css";
   var hideTimer = null;
 
+  var WIFI_ICON =
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M5 12.55a11 11 0 0 1 14.08 0"/>' +
+    '<path d="M1.42 9a16 16 0 0 1 21.16 0"/>' +
+    '<path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>' +
+    '<line x1="12" y1="20" x2="12.01" y2="20"/>' +
+    "</svg>";
+
   function injectCss() {
     if (document.getElementById(STYLE_ID)) return;
     var s = document.createElement("style");
@@ -25,7 +33,8 @@
       "#" + BANNER_ID + ".is-visible{" +
       "transform:translateY(0) scale(1);opacity:1;pointer-events:auto;" +
       "}" +
-      "#" + BANNER_ID + " .ob-icon{font-size:18px;flex-shrink:0;line-height:1;}" +
+      "#" + BANNER_ID + " .ob-icon{flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#c2410c;}" +
+      "#" + BANNER_ID + " .ob-icon svg{display:block;}" +
       "#" + BANNER_ID + " .ob-text{flex:1;min-width:0;}" +
       "#" + BANNER_ID + " .ob-sub{display:block;margin-top:2px;font-size:11px;font-weight:600;color:#c2410c;opacity:.9;}" +
       "#" + BANNER_ID + " .ob-close{" +
@@ -46,7 +55,7 @@
     b.setAttribute("role", "status");
     b.setAttribute("aria-live", "polite");
     b.innerHTML =
-      '<span class="ob-icon" aria-hidden="true">📡</span>' +
+      '<span class="ob-icon">' + WIFI_ICON + "</span>" +
       '<span class="ob-text">' +
       '<span class="ob-main">網路連線不穩定</span>' +
       '<span class="ob-sub">將顯示上次備份的天氣資料</span>' +
@@ -63,7 +72,6 @@
     var b = ensureBanner();
     var sub = b.querySelector(".ob-sub");
     if (sub && subText) sub.textContent = subText;
-    // force reflow so slide-down always plays
     b.classList.remove("is-visible");
     void b.offsetHeight;
     b.classList.add("is-visible");
@@ -73,7 +81,7 @@
     }
   }
 
-  function hideBanner(immediate) {
+  function hideBanner() {
     var b = document.getElementById(BANNER_ID);
     if (!b) return;
     if (hideTimer) {
@@ -81,7 +89,6 @@
       hideTimer = null;
     }
     b.classList.remove("is-visible");
-    if (immediate) return;
   }
 
   function ageHint() {
@@ -114,7 +121,6 @@
     ensureBanner();
     window.addEventListener("offline", onOffline);
     window.addEventListener("online", onOnline);
-    // already offline on load
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
       setTimeout(onOffline, 400);
     }
