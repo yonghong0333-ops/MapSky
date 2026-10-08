@@ -87,6 +87,15 @@
       "background:rgba(254,215,170,0.85);transform:scale(0.92);" +
       "}" +
       ".main-header .offline-net-btn svg{display:block;width:17px;height:17px;pointer-events:none;}" +
+      ".main-header.is-net-leaving{overflow:visible !important;}" +
+      ".main-header.is-net-leaving .offline-net-btn{" +
+      "position:relative;z-index:3;pointer-events:none;" +
+      "animation:netSlideOut .38s cubic-bezier(.4,0,1,1) forwards !important;" +
+      "}" +
+      "@keyframes netSlideOut{" +
+      "0%{opacity:1;transform:translate3d(0,0,0) scale(1)}" +
+      "100%{opacity:0;transform:translate3d(36px,0,0) scale(.92)}" +
+      "}" +
       ".main-header .offline-island-detail{" +
       "display:none;width:100%;flex-basis:100%;order:10;" +
       "margin-top:0;padding-top:0;max-height:0;opacity:0;overflow:hidden;" +
@@ -415,12 +424,29 @@
       b.style.transform = "";
     }
     var h = headerEl();
-    if (h) {
+    if (!h) return;
+    hideDetail(h, true);
+    h.classList.remove("is-island-pulse");
+    if (!h.classList.contains(HEADER_OFFLINE)) return;
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || h.classList.contains("is-net-leaving")) {
+      h.classList.remove("is-net-leaving");
       h.classList.remove(HEADER_OFFLINE);
-      h.classList.remove(HEADER_DETAIL);
-      h.classList.remove("is-island-pulse");
-      hideDetail(h);
+      return;
     }
+    h.classList.add("is-net-leaving");
+    var btn = h.querySelector(".offline-net-btn");
+    var done = false;
+    function finish(ev) {
+      if (ev && ev.animationName && ev.animationName !== "netSlideOut") return;
+      if (done) return;
+      done = true;
+      if (btn) btn.removeEventListener("animationend", finish);
+      h.classList.remove("is-net-leaving");
+      h.classList.remove(HEADER_OFFLINE);
+    }
+    if (btn) btn.addEventListener("animationend", finish);
+    setTimeout(finish, 480);
   }
 
 
