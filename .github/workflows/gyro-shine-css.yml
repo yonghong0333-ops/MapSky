@@ -1,0 +1,108 @@
+name: gyro-shine-css
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/gyro-shine-css.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Append gyro CSS
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('public/theme-tech-glass.css')
+          css = p.read_text(encoding='utf-8')
+          if 'GYRO_SHINE_WIRE' in css:
+              print('already')
+          else:
+              block = r'''
+
+/* GYRO_SHINE_WIRE — top glass highlight follows device orientation */
+.current-card.has-gyro-tilt {
+  --shine-x: 50%;
+  --shine-y: 18%;
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --shine-angle: -12deg;
+  transform-style: preserve-3d !important;
+  transform: perspective(900px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) !important;
+  transition: transform 0.05s linear !important;
+  will-change: transform !important;
+}
+.current-card.has-gyro-tilt.is-pressing {
+  transform: perspective(900px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) scale(0.97) !important;
+}
+.current-card.has-gyro-tilt.is-bounce {
+  animation: none !important;
+  transform: perspective(900px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) !important;
+}
+
+/* Moving specular streak along the top edge */
+.current-card .gyro-shine-line {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 3px !important;
+  z-index: 5 !important;
+  pointer-events: none !important;
+  border-radius: 22px 22px 0 0 !important;
+  overflow: hidden !important;
+}
+.current-card .gyro-shine-line::before {
+  content: "" !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 55% !important;
+  height: 100% !important;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(34, 211, 238, 0.15) 15%,
+    #22d3ee 40%,
+    #a78bfa 55%,
+    rgba(255, 255, 255, 0.95) 70%,
+    transparent 100%
+  ) !important;
+  transform: translateX(calc(var(--shine-x) - 50%)) rotate(var(--shine-angle)) !important;
+  transform-origin: center center !important;
+  filter: blur(0.3px) !important;
+  opacity: 0.95 !important;
+}
+
+/* Soft moving highlight wash over the card face */
+.current-card.has-gyro-tilt::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  height: auto !important;
+  border-radius: inherit !important;
+  background: radial-gradient(
+    120% 80% at var(--shine-x) var(--shine-y),
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.12) 28%,
+    transparent 55%
+  ) !important;
+  opacity: 1 !important;
+  z-index: 2 !important;
+  pointer-events: none !important;
+}
+'''
+              p.write_text(css.rstrip() + '\n' + block, encoding='utf-8')
+              print('patched', p.stat().st_size)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/theme-tech-glass.css
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: weather card shine follows gyroscope"
+            git push
+          fi
