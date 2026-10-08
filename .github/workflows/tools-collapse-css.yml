@@ -1,0 +1,134 @@
+name: tools-collapse-css
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/tools-collapse-css.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Append CSS
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('public/theme-tech-glass.css')
+          css = p.read_text(encoding='utf-8')
+          if 'TOOLS_COLLAPSE' in css:
+              print('already')
+          else:
+              block = r'''
+
+/* TOOLS_COLLAPSE — collapsible liquid glass sections */
+.tools-section {
+  margin: 0 0 14px !important;
+  border-radius: 20px !important;
+  overflow: hidden !important;
+  background:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.42) 0%,
+      rgba(255, 255, 255, 0.22) 55%,
+      rgba(224, 242, 254, 0.28) 100%
+    ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  box-shadow:
+    0 0 0 1px rgba(56, 189, 248, 0.1),
+    0 6px 20px rgba(14, 165, 233, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65) !important;
+  backdrop-filter: blur(24px) saturate(170%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(170%) !important;
+}
+.tools-section-toggle {
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 14px 16px !important;
+  border: none !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  text-align: left !important;
+  color: inherit !important;
+}
+.tools-section-toggle:active {
+  background: rgba(255, 255, 255, 0.25) !important;
+}
+.tools-section-toggle-text {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  min-width: 0 !important;
+}
+.tools-section-title {
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  color: #0c4a6e !important;
+  letter-spacing: 0.02em !important;
+}
+.tools-section-desc {
+  font-size: 12px !important;
+  color: #64748b !important;
+  line-height: 1.35 !important;
+}
+.tools-section-chevron {
+  flex-shrink: 0 !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  position: relative !important;
+  transition: transform 0.25s ease !important;
+}
+.tools-section-chevron::before {
+  content: "" !important;
+  position: absolute !important;
+  left: 50% !important;
+  top: 46% !important;
+  width: 8px !important;
+  height: 8px !important;
+  border-right: 2px solid #0284c7 !important;
+  border-bottom: 2px solid #0284c7 !important;
+  transform: translate(-50%, -50%) rotate(45deg) !important;
+}
+.tools-section.is-collapsed .tools-section-chevron {
+  transform: rotate(-90deg) !important;
+}
+.tools-section-body {
+  padding: 0 12px 14px !important;
+  max-height: 480px !important;
+  opacity: 1 !important;
+  overflow: hidden !important;
+  transition: max-height 0.28s ease, opacity 0.2s ease, padding 0.2s ease !important;
+}
+.tools-section.is-collapsed .tools-section-body {
+  max-height: 0 !important;
+  opacity: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  pointer-events: none !important;
+}
+.tools-section .tools-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 10px !important;
+}
+'''
+              p.write_text(css.rstrip() + block, encoding='utf-8')
+              print('patched', p.stat().st_size)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/theme-tech-glass.css
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: collapsible tools sections with liquid glass"
+            git push
+          fi
