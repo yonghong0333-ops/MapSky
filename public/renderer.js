@@ -3830,6 +3830,46 @@ document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
 // 工具分頁只是一個統整入口，不是彈出選單了）。
 
 // 工具頁分類收合（記住使用者偏好）
+
+// 工具玻璃卡：按下縮小 + 白色光暈，鬆開回彈
+(function initToolsGlassPress() {
+  function bindPress(el) {
+    if (!el || el.dataset.glassPressBound) return;
+    el.dataset.glassPressBound = "1";
+    const setRipple = (e) => {
+      const rect = el.getBoundingClientRect();
+      const t = (e.touches && e.touches[0]) || e;
+      const x = ((t.clientX - rect.left) / rect.width) * 100;
+      const y = ((t.clientY - rect.top) / rect.height) * 100;
+      el.style.setProperty("--ripple-x", x + "%");
+      el.style.setProperty("--ripple-y", y + "%");
+    };
+    const down = (e) => {
+      setRipple(e);
+      el.classList.remove("is-bounce", "is-flash");
+      el.classList.add("is-pressing");
+    };
+    const up = () => {
+      if (!el.classList.contains("is-pressing")) return;
+      el.classList.remove("is-pressing");
+      void el.offsetWidth;
+      el.classList.add("is-bounce", "is-flash");
+      window.setTimeout(() => {
+        el.classList.remove("is-bounce", "is-flash");
+      }, 520);
+    };
+    el.addEventListener("pointerdown", down);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+    el.addEventListener("pointerleave", () => {
+      if (el.classList.contains("is-pressing")) {
+        el.classList.remove("is-pressing");
+      }
+    });
+  }
+  document.querySelectorAll(".tools-page .tools-section-toggle, .tools-page .tools-menu-item").forEach(bindPress);
+})();
+
 (function initToolsSectionCollapse() {
   const KEY = "mapsky_tools_sections_collapsed";
   let saved = {};
