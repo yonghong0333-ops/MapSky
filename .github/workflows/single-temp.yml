@@ -1,0 +1,24 @@
+name: single-temp
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/single-temp.yml'
+      - 'scripts/patch-single-temp.py'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/patch-single-temp.py
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/renderer.js
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: single current temp; range under comfort"
+            git push
+          fi
