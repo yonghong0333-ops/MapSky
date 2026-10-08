@@ -450,74 +450,10 @@
   }
 
 
-  function bindScrollBounce() {
-    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    var startY = 0;
-    var tracking = false;
-    var pulled = 0;
-    var node = null;
-    var anim = null;
-
-    function atTop() {
-      var se = document.scrollingElement || document.documentElement;
-      return (window.scrollY || (se && se.scrollTop) || 0) <= 1;
-    }
-
-    document.addEventListener("touchstart", function (e) {
-      if (!e.touches || e.touches.length !== 1) return;
-      if (anim) {
-        anim.cancel();
-        anim = null;
-      }
-      node = document.querySelector(".main");
-      if (!node) return;
-      startY = e.touches[0].clientY;
-      tracking = atTop();
-      pulled = 0;
-    }, { passive: true });
-
-    document.addEventListener("touchmove", function (e) {
-      if (!tracking || !node || !e.touches) return;
-      var dy = e.touches[0].clientY - startY;
-      if (!atTop() || dy <= 6) {
-        if (pulled) node.style.transform = "";
-        pulled = 0;
-        if (dy < 0) tracking = false;
-        return;
-      }
-      pulled = Math.min(42, Math.pow(dy, 0.82) * 0.55);
-      node.style.transform = "translate3d(0," + pulled.toFixed(1) + "px,0)";
-    }, { passive: true });
-
-    function release() {
-      if (!node || pulled < 6) {
-        if (node) node.style.transform = "";
-        tracking = false;
-        pulled = 0;
-        return;
-      }
-      var from = pulled;
-      node.style.transform = "";
-      anim = node.animate([
-        { transform: "translate3d(0," + from.toFixed(1) + "px,0)" },
-        { transform: "translate3d(0,-12px,0)", offset: 0.38 },
-        { transform: "translate3d(0,5px,0)", offset: 0.62 },
-        { transform: "translate3d(0,-2px,0)", offset: 0.82 },
-        { transform: "translate3d(0,0,0)" }
-      ], { duration: 640, easing: "cubic-bezier(.22,1,.36,1)" });
-      tracking = false;
-      pulled = 0;
-    }
-
-    document.addEventListener("touchend", release, { passive: true });
-    document.addEventListener("touchcancel", release, { passive: true });
-  }
-
   function boot() {
     injectCss();
     ensureBanner();
     setTimeout(ensureLayout, 400);
-    bindScrollBounce();
     window.addEventListener("offline", onOffline);
     window.addEventListener("online", onOnline);
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
