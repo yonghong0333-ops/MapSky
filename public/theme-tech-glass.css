@@ -361,28 +361,8 @@ input[type="search"],
   70% { transform: scale(0.98); }
   100% { transform: scale(1); }
 }
-.tools-menu-item.is-flash::after,
-.forecast-card.is-flash::after {
-  content: "" !important;
-  position: absolute !important;
-  inset: 0 !important;
-  border-radius: inherit !important;
-  pointer-events: none !important;
-  background: radial-gradient(
-    circle at var(--ripple-x, 50%) var(--ripple-y, 50%),
-    rgba(255, 255, 255, 0.55) 0%,
-    rgba(255, 255, 255, 0.15) 35%,
-    transparent 60%
-  ) !important;
-  animation: glassFlash 0.45s ease-out both !important;
-  z-index: 2 !important;
-}
-@keyframes glassFlash {
-  0% { opacity: 0.85; }
-  100% { opacity: 0; }
-}
 
-/* GYRO_SHINE_WIRE — top highlight follows gyroscope */
+/* GYRO_SHINE_WIRE */
 .current-card.has-gyro-tilt {
   --shine-x: 50%;
   --shine-y: 18%;
@@ -394,10 +374,6 @@ input[type="search"],
   transition: transform 0.05s linear !important;
   will-change: transform !important;
 }
-.current-card.has-gyro-tilt.is-pressing {
-  transform: perspective(900px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) scale(0.97) !important;
-}
-
 .current-card .gyro-shine-line {
   position: absolute !important;
   top: 0 !important;
@@ -426,11 +402,8 @@ input[type="search"],
     transparent 100%
   ) !important;
   transform: translateX(calc(var(--shine-x) - 40%)) !important;
-  filter: blur(0.2px) !important;
   opacity: 0.95 !important;
 }
-
-/* Moving soft highlight on card face */
 .current-card.has-gyro-tilt::before {
   content: "" !important;
   position: absolute !important;
@@ -443,7 +416,18 @@ input[type="search"],
     rgba(255, 255, 255, 0.12) 30%,
     transparent 58%
   ) !important;
-  opacity: 1 !important;
   z-index: 2 !important;
   pointer-events: none !important;
+}
+
+/* TEMP_CHART_POLISH */
+#chartPanel { padding: 4px 0 12px !important; }
+#tempChart {
+  width: 100% !important;
+  height: 220px !important;
+  display: block !important;
+  border-radius: 18px !important;
+  background: linear-gradient(160deg, rgba(255,255,255,0.72), rgba(224,242,254,0.35)) !important;
+  border: 1px solid rgba(56, 189, 248, 0.4) !important;
+  box-shadow: 0 8px 24px rgba(14, 165, 233, 0.08), inset 0 1px 0 rgba(255,255,255,0.75) !important;
 }
