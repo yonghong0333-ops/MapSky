@@ -484,3 +484,13 @@ input[type="search"],
     transform: translateY(0);
   }
 }
+
+/* ADVENTURE_PICKER_TITLE_COLOR */
+.adventure-picker-title {
+  color: #0f172a !important;
+  font-weight: 800 !important;
+}
+.adventure-picker-close {
+  background: rgba(15, 23, 42, 0.08) !important;
+  color: #0f172a !important;
+}
