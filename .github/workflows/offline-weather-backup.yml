@@ -1,0 +1,184 @@
+name: offline-weather-backup
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/offline-weather-backup.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply offline weather backup patch
+        run: |
+          set -e
+          python3 << 'PY'
+          from pathlib import Path
+          path = Path("public/renderer.js")
+          text = path.read_text(encoding="utf-8")
+          if "OFFLINE_WEATHER_BUNDLE_KEY" in text:
+              print("already patched")
+              raise SystemExit(0)
+
+          old_cache = '''// \u6bcf\u500b\u7e23\u5e02\u6700\u5f8c\u4e00\u6b21\u6210\u529f\u53d6\u5f97\u7684\u5929\u6c23\u8cc7\u6599\u3002\u9664\u4e86\u653e\u8a18\u61b6\u9ad4\uff0c\u4e5f\u9806\u4fbf\u5b58\u4e00\u4efd\u5230\n// localStorage\uff1aPWA \u88ab\u6ed1\u6389\u95dc\u6389\u3001\u91cd\u958b\u5f8c\u6574\u500b\u7db2\u9801\u6703\u91cd\u65b0\u8f09\u5165\u3001\u8a18\u61b6\u9ad4\u6703\u88ab\u6e05\u7a7a\uff0c\n// \u4f46 localStorage \u9084\u5728\uff0c\u958b\u555f\u6642\u53ef\u4ee5\u5148\u8b80\u51fa\u4f86\u588a\u5e95\uff0c\u907f\u514d\u6bcf\u6b21\u91cd\u958b\u90fd\u8981\u7a7a\u7b49\u4f3a\u670d\u5668\u3002\nconst CITY_WEATHER_CACHE_KEY = "weatherpro_city_weather_cache";\nfunction loadCityWeatherCache() {\n  try { return JSON.parse(localStorage.getItem(CITY_WEATHER_CACHE_KEY)) || {}; }\n  catch { return {}; }\n}\nfunction saveCityWeatherCache() {\n  try { localStorage.setItem(CITY_WEATHER_CACHE_KEY, JSON.stringify(cityWeatherCache)); }\n  catch { /* \u5b58\u4e0d\u9032\u53bb\uff08\u4f8b\u5982\u5bb9\u91cf\u7206\u4e86\uff09\u5c31\u7b97\u4e86\uff0c\u4e0d\u5f71\u97ff\u5176\u4ed6\u529f\u80fd */ }\n}\nconst cityWeatherCache = loadCityWeatherCache();'''
+
+          print("cache marker present", "CITY_WEATHER_CACHE_KEY" in text)
+          # Use simpler anchors
+          if "const CITY_WEATHER_CACHE_KEY = \"weatherpro_city_weather_cache\";" not in text:
+              raise SystemExit("cache key missing")
+
+          insert_after = "const cityWeatherCache = loadCityWeatherCache();\n"
+          helper = '''
+const OFFLINE_WEATHER_BUNDLE_KEY = "mapsky_offline_weather_bundle_v1";
+function isProbablyOffline() {
+  try {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  } catch (e) {}
+  return false;
+}
+function persistOfflineWeatherBundle() {
+  try {
+    const bundle = {
+      savedAt: Date.now(),
+      cities: cityWeatherCache,
+      weekly: typeof weeklyForecastCache !== "undefined" ? weeklyForecastCache : null,
+      sun: typeof sunTimesCache !== "undefined" ? sunTimesCache : null,
+      moon: typeof moonTimesCache !== "undefined" ? moonTimesCache : null,
+      moonDate: typeof moonTimesCacheDate !== "undefined" ? moonTimesCacheDate : "",
+      wind: typeof windObsCache !== "undefined" ? windObsCache : null,
+      uv: typeof uvIndexCache !== "undefined" ? uvIndexCache : null,
+      uvAt: typeof uvIndexCacheAt !== "undefined" ? uvIndexCacheAt : 0,
+    };
+    localStorage.setItem(OFFLINE_WEATHER_BUNDLE_KEY, JSON.stringify(bundle));
+  } catch (e) {}
+}
+function restoreOfflineWeatherBundle() {
+  try {
+    const raw = localStorage.getItem(OFFLINE_WEATHER_BUNDLE_KEY);
+    if (!raw) return null;
+    const bundle = JSON.parse(raw);
+    if (!bundle || typeof bundle !== "object") return null;
+    if (bundle.cities && typeof bundle.cities === "object") {
+      Object.keys(bundle.cities).forEach((k) => {
+        if (!cityWeatherCache[k]) cityWeatherCache[k] = bundle.cities[k];
+      });
+    }
+    return bundle;
+  } catch (e) {
+    return null;
+  }
+}
+const __offlineBundleBoot = restoreOfflineWeatherBundle();
+function formatOfflineAge(ms) {
+  if (!ms || !Number.isFinite(ms)) return "";
+  const mins = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (mins < 1) return "\u525b\u525b";
+  if (mins < 60) return mins + " \u5206\u9418\u524d";
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return hours + " \u5c0f\u6642\u524d";
+  const days = Math.round(hours / 24);
+  return days + " \u5929\u524d";
+}
+'''
+          if insert_after not in text:
+              raise SystemExit("insert point missing")
+          text = text.replace(insert_after, insert_after + helper, 1)
+
+          # selectCity status
+          old = '''    cityWeatherCache[label] = location;\n    saveCityWeatherCache();\n    if (currentCity && currentCity.label === label) {\n      renderWeather(location);\n      setStatus("\u66f4\u65b0\u5b8c\u6210");\n    }\n  } catch (e) {\n    if (currentCity && currentCity.label === label) {\n      // \u6709\u820a\u8cc7\u6599\u53ef\u4ee5\u986f\u793a\u7684\u8a71\uff0c\u5237\u65b0\u5931\u6557\u5c31\u9ed8\u9ed8\u4fdd\u7559\u820a\u756b\u9762\u5c31\u597d\uff0c\u4e0d\u7528\u8df3\u932f\u8aa4\u5687\u4f7f\u7528\u8005\n      setStatus(cached ? "\u66f4\u65b0\u5b8c\u6210\uff08\u986f\u793a\u4e0a\u6b21\u8cc7\u6599\uff09" : `\u53d6\u5f97\u5929\u6c23\u8cc7\u6599\u5931\u6557\uff1a${e.message}`);\n    }\n  }'''
+          new = '''    cityWeatherCache[label] = location;\n    saveCityWeatherCache();\n    persistOfflineWeatherBundle();\n    if (currentCity && currentCity.label === label) {\n      renderWeather(location);\n      setStatus(isProbablyOffline() ? "\u96e2\u7dda\u6a21\u5f0f\u30fb\u986f\u793a\u5df2\u5099\u4efd\u8cc7\u6599" : "\u66f4\u65b0\u5b8c\u6210");\n    }\n  } catch (e) {\n    if (currentCity && currentCity.label === label) {\n      const offline = isProbablyOffline();\n      if (cached) {\n        const age = __offlineBundleBoot && __offlineBundleBoot.savedAt\n          ? formatOfflineAge(__offlineBundleBoot.savedAt)\n          : "";\n        setStatus(\n          offline\n            ? ("\u96e2\u7dda\u6a21\u5f0f\u30fb\u986f\u793a\u4e0a\u6b21\u5099\u4efd" + (age ? "\uff08" + age + "\uff09" : ""))\n            : "\u66f4\u65b0\u5b8c\u6210\uff08\u986f\u793a\u4e0a\u6b21\u8cc7\u6599\uff09"\n        );\n      } else {\n        setStatus(\n          offline\n            ? "\u76ee\u524d\u6c92\u6709\u7db2\u8def\uff0c\u4e14\u5c1a\u7121\u6b64\u7e23\u5e02\u7684\u5099\u4efd\u8cc7\u6599"\n            : `\u53d6\u5f97\u5929\u6c23\u8cc7\u6599\u5931\u6557\uff1a${e.message}`\n        );\n      }\n    }\n  }'''
+          if old not in text:
+              raise SystemExit("selectCity block missing")
+          text = text.replace(old, new, 1)
+
+          text = text.replace(
+              "let sunTimesCache = null;",
+              "let sunTimesCache = (__offlineBundleBoot && __offlineBundleBoot.sun) || null;",
+              1,
+          )
+          text = text.replace(
+              "sunTimesCache = result.counties || {};\n    }",
+              "sunTimesCache = result.counties || {};\n      persistOfflineWeatherBundle();\n    }",
+              1,
+          )
+
+          text = text.replace(
+              "let moonTimesCache = null;\nlet moonTimesCacheDate = \"\"; // \u5feb\u53d6\u5c0d\u61c9\u7684\u65e5\u671f\uff0c\u8de8\u65e5\u5c31\u8981\u91cd\u6293",
+              "let moonTimesCache = (__offlineBundleBoot && __offlineBundleBoot.moon) || null;\nlet moonTimesCacheDate = (__offlineBundleBoot && __offlineBundleBoot.moonDate) || \"\"; // \u5feb\u53d6\u5c0d\u61c9\u7684\u65e5\u671f\uff0c\u8de8\u65e5\u5c31\u8981\u91cd\u6293",
+              1,
+          )
+          text = text.replace(
+              "moonTimesCacheDate = todayKey;\n    }",
+              "moonTimesCacheDate = todayKey;\n      persistOfflineWeatherBundle();\n    }",
+              1,
+          )
+
+          text = text.replace(
+              "let weeklyForecastCache = null;",
+              "let weeklyForecastCache = (__offlineBundleBoot && __offlineBundleBoot.weekly) || null;",
+              1,
+          )
+          text = text.replace(
+              "weeklyForecastCache = result.counties || {};\n    }",
+              "weeklyForecastCache = result.counties || {};\n      persistOfflineWeatherBundle();\n    }",
+              1,
+          )
+
+          text = text.replace(
+              "let windObsCache = null;",
+              "let windObsCache = (__offlineBundleBoot && __offlineBundleBoot.wind) || null;",
+              1,
+          )
+          text = text.replace(
+              "windObsCache = result.counties || {};\n    }",
+              "windObsCache = result.counties || {};\n      persistOfflineWeatherBundle();\n    }",
+              1,
+          )
+
+          text = text.replace(
+              "let uvIndexCache = null;\nlet uvIndexCacheAt = 0;",
+              "let uvIndexCache = (__offlineBundleBoot && __offlineBundleBoot.uv) || null;\nlet uvIndexCacheAt = (__offlineBundleBoot && __offlineBundleBoot.uvAt) || 0;",
+              1,
+          )
+          text = text.replace(
+              "uvIndexCacheAt = Date.now();\n    }",
+              "uvIndexCacheAt = Date.now();\n      persistOfflineWeatherBundle();\n    }",
+              1,
+          )
+
+          listener = '''
+
+// \u6709\u7db2\u8def\u6642\u81ea\u52d5\u628a\u76ee\u524d\u8a18\u61b6\u9ad4\u88e1\u7684\u5929\u6c23\u8cc7\u6599\u518d\u5099\u4efd\u4e00\u6b21\uff1b\u65b7\u7dda\u6642\u63d0\u793a\u4f7f\u7528\u4e0a\u6b21\u8cc7\u6599\nwindow.addEventListener("online", () => {
+  try { persistOfflineWeatherBundle(); } catch (e) {}
+  if (currentCity && currentCity.label) {
+    setStatus("\u7db2\u8def\u5df2\u6062\u5fa9\uff0c\u6b63\u5728\u66f4\u65b0\u2026");
+    selectCity(currentCity.label);
+  }
+});
+window.addEventListener("offline", () => {
+  const age = __offlineBundleBoot && __offlineBundleBoot.savedAt
+    ? formatOfflineAge(__offlineBundleBoot.savedAt)
+    : "";
+  setStatus("\u76ee\u524d\u6c92\u6709\u7db2\u8def" + (age ? "\u30fb\u986f\u793a " + age + " \u7684\u5099\u4efd" : "\u30fb\u82e5\u6709\u5099\u4efd\u4ecd\u53ef\u67e5\u770b"));
+});
+'''
+          if 'window.addEventListener("online"' not in text:
+              text = text.rstrip() + "\n" + listener
+
+          path.write_text(text, encoding="utf-8")
+          print("patched size", path.stat().st_size)
+          assert "OFFLINE_WEATHER_BUNDLE_KEY" in text
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/renderer.js
+          if git diff --staged --quiet; then
+            echo "no changes"
+          else
+            git commit -m "feat: auto backup weather data for offline use"
+            git push
+          fi
