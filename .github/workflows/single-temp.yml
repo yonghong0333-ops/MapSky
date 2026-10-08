@@ -17,28 +17,27 @@ jobs:
           from pathlib import Path
           p = Path('public/renderer.js')
           js = p.read_text(encoding='utf-8')
-          if '溫度 ${minNow}–${maxNow}°C' in js:
+          if 'el("currentTemp").textContent = `${maxNow}°C`' in js:
               print('already')
           else:
-              old = (
-                  'el("currentTemp").textContent = `${minNow}–${maxNow}°C`;\n'
-                  '  el("currentDesc").textContent = wxNow;\n'
-                  '  el("currentDetail").textContent =\n'
-                  '    `舒適度 ${ciNow}\\n降雨機率 ${popNow}%\\n資料來源：中央氣象署`;'
-              )
-              new = (
-                  'el("currentTemp").textContent = `${maxNow}°C`;\n'
-                  '  el("currentDesc").textContent = wxNow;\n'
-                  '  el("currentDetail").textContent =\n'
-                  '    `舒適度 ${ciNow}\\n溫度 ${minNow}–${maxNow}°C\\n資料來源：中央氣象署`;'
-              )
-              if old not in js:
-                  # debug
-                  i = js.find('el("currentTemp").textContent')
-                  print(repr(js[i:i+220]))
-                  raise SystemExit('not found')
-              p.write_text(js.replace(old, new, 1), encoding='utf-8')
-              print('patched')
+              a = 'el("currentTemp").textContent = `${minNow}–${maxNow}°C`;'
+              b = 'el("currentTemp").textContent = `${maxNow}°C`;'
+              if a not in js:
+                  raise SystemExit('temp line missing')
+              js = js.replace(a, b, 1)
+              # Only the currentDetail line under comfort (first occurrence after currentTemp block)
+              c = '舒適度 ${ciNow}\\n降雨機率 ${popNow}%\\n資料來源：中央氣象署'
+              d = '舒適度 ${ciNow}\\n溫度 ${minNow}–${maxNow}°C\\n資料來源：中央氣象署'
+              # In the actual file the template has backslash-n as two chars
+              c2 = '舒適度 ${ciNow}\n降雨機率 ${popNow}%\n資料來源：中央氣象署'
+              d2 = '舒適度 ${ciNow}\n溫度 ${minNow}–${maxNow}°C\n資料來源：中央氣象署'
+              if c2 in js:
+                  js = js.replace(c2, d2, 1)
+                  print('detail replaced')
+              else:
+                  print('detail not found', '降雨機率 ${popNow}%' in js)
+              p.write_text(js, encoding='utf-8')
+              print('ok', b in p.read_text(encoding='utf-8'))
           PY
       - name: Commit
         run: |
