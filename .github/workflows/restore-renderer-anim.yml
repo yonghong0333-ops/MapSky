@@ -1,0 +1,54 @@
+name: restore-renderer-anim
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/restore-renderer-anim.yml'
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore and patch renderer.js
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          BLOB_SHA=52ebb4309c1b1edfd0a152c9b3cd002f11cb6db0
+          curl -sL -H "Accept: application/vnd.github.raw" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/yonghong0333-ops/MapSky/git/blobs/$BLOB_SHA" \
+            -o public/renderer.js
+          wc -c public/renderer.js
+          head -c 60 public/renderer.js; echo
+          python3 << 'PY'
+          from pathlib import Path
+          path = Path("public/renderer.js")
+          text = path.read_text(encoding="utf-8")
+          if "PLACEHOLDER" in text:
+              raise SystemExit("still placeholder")
+          old = '''  if (picker) {\n    picker.classList.toggle("hidden", !adventurePickerOpen);\n    if (adventurePickerOpen) updateAdventureDurationUI();\n  }\n  if (pickerBackdrop) pickerBackdrop.classList.toggle("hidden", !adventurePickerOpen);'''
+          new = '''  if (picker) {\n    const wasHidden = picker.classList.contains("hidden");\n    if (adventurePickerOpen) {\n      if (wasHidden) {\n        // 剛從關閉 → 開啟：強制一幀 hidden 再打開，確保 slide-up / scale 動畫一定會播\n        picker.classList.add("hidden");\n        void picker.offsetHeight;\n        picker.classList.remove("hidden");\n      }\n      updateAdventureDurationUI();\n    } else {\n      picker.classList.add("hidden");\n    }\n  }\n  if (pickerBackdrop) {\n    const wasHidden = pickerBackdrop.classList.contains("hidden");\n    if (adventurePickerOpen) {\n      if (wasHidden) {\n        pickerBackdrop.classList.add("hidden");\n        void pickerBackdrop.offsetHeight;\n        pickerBackdrop.classList.remove("hidden");\n      }\n    } else {\n      pickerBackdrop.classList.add("hidden");\n    }\n  }'''
+          if old not in text:
+              if "剛從關閉" in text:
+                  print("already patched")
+              else:
+                  raise SystemExit("target block not found")
+          else:
+              path.write_text(text.replace(old, new, 1), encoding="utf-8")
+              print("patched")
+          print("final size", path.stat().st_size)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/renderer.js
+          if git diff --staged --quiet; then
+            echo "no changes"
+          else
+            git commit -m "fix: restore renderer.js + adventure picker open anim reflow"
+            git push
+          fi
