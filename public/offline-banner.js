@@ -101,29 +101,16 @@
       "display:block;max-height:48px;opacity:1;" +
       "margin-top:8px;padding-top:8px;" +
       "border-top:1px solid rgba(251,146,60,0.28);" +
+      "animation:foldAway .36s cubic-bezier(.4,0,.8,1) reverse both !important;" +
+      "}" +
+      ".main-header.is-offline-opening{" +
+      "backdrop-filter:none !important;-webkit-backdrop-filter:none !important;" +
       "}" +
       ".main-header .offline-island-detail .od-title{font-size:12px;}" +
       ".main-header .offline-island-detail .od-sub{font-size:11px;font-weight:600;opacity:.95;margin-top:1px;}" +
       ".main-header.is-island-pulse{animation:islandPulse .5s cubic-bezier(.16,1.4,.3,1) both;}" +
       "@keyframes islandPulse{0%{transform:scale(1)}35%{transform:scale(1.03)}70%{transform:scale(0.99)}100%{transform:scale(1)}}" +
-      ".main-header." + HEADER_DETAIL + "{" +
-      "animation:islandDrop .52s cubic-bezier(.22,1.25,.36,1) both;" +
-      "}" +
-      "@keyframes islandDrop{" +
-      "0%{transform:translate3d(0,-10px,0)}" +
-      "48%{transform:translate3d(0,7px,0)}" +
-      "72%{transform:translate3d(0,-3px,0)}" +
-      "100%{transform:translate3d(0,0,0)}" +
-      "}" +
-      ".main-header." + HEADER_DETAIL + " .offline-island-detail{" +
-      "animation:odBounce .5s cubic-bezier(.22,1.3,.36,1) both;" +
-      "}" +
-      "@keyframes odBounce{" +
-      "0%{transform:translate3d(0,-18px,0);opacity:0}" +
-      "55%{transform:translate3d(0,5px,0);opacity:1}" +
-      "78%{transform:translate3d(0,-2px,0)}" +
-      "100%{transform:translate3d(0,0,0);opacity:1}" +
-      "}" +
+
       ".main-header.is-offline-fold{" +
       "backdrop-filter:none !important;-webkit-backdrop-filter:none !important;" +
       "}" +
@@ -208,13 +195,22 @@
     var sub = detail.querySelector(".od-sub");
     if (sub) sub.textContent = "顯示 " + ageHint();
     h.classList.remove("is-offline-fold");
-    if (!h.classList.contains(HEADER_DETAIL)) {
-      h.classList.add(HEADER_DETAIL);
-    } else {
+    h.classList.add("is-offline-opening");
+    if (h.classList.contains(HEADER_DETAIL)) {
       h.classList.remove(HEADER_DETAIL);
       void h.offsetHeight;
-      h.classList.add(HEADER_DETAIL);
     }
+    h.classList.add(HEADER_DETAIL);
+    var openDone = false;
+    function clearOpening(ev) {
+      if (ev && ev.animationName && ev.animationName !== "foldAway") return;
+      if (openDone) return;
+      openDone = true;
+      detail.removeEventListener("animationend", clearOpening);
+      h.classList.remove("is-offline-opening");
+    }
+    detail.addEventListener("animationend", clearOpening);
+    setTimeout(clearOpening, 480);
     if (detailHideTimer) clearTimeout(detailHideTimer);
     detailHideTimer = setTimeout(function () {
       hideDetail(h, true);
