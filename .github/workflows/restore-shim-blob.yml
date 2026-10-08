@@ -1,0 +1,33 @@
+name: restore-shim-blob
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/restore-shim-blob.yml'
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download known-good blob
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          curl -sL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" \
+            "https://api.github.com/repos/yonghong0333-ops/MapSky/git/blobs/1a9bb630813c213605ad5dad838b69b16cabfb4c" \
+            -o public/web-shim.js
+          wc -c public/web-shim.js
+          head -c 60 public/web-shim.js; echo
+          python3 -c "from pathlib import Path; js=Path('public/web-shim.js').read_text(); assert 'weatherAPI' in js and len(js)>50000; print('valid', len(js))"
+      - name: Commit restore
+        run: |
+          git config user.name mapsky-bot
+          git config user.email bot@mapsky.local
+          git add public/web-shim.js
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "fix: restore full web-shim.js (unstick login)"
+            git push
+          fi
