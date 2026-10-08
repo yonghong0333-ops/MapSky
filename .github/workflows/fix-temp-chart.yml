@@ -1,0 +1,234 @@
+name: fix-temp-chart
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-temp-chart.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace renderChart
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('public/renderer.js')
+          js = p.read_text(encoding='utf-8')
+          start = js.find('function renderChart(wx, minT, maxT)')
+          if start < 0:
+              raise SystemExit('renderChart not found')
+          end = js.find('// ---------------- Multi-city compare', start)
+          if end < 0:
+              raise SystemExit('end marker not found')
+
+          new_fn = r'''function renderChart(wx, minT, maxT) {
+  const canvas = el("tempChart");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cssW = canvas.clientWidth || 360;
+  const cssH = 220;
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  canvas.style.height = cssH + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const W = cssW, H = cssH;
+  const padL = 36, padR = 16, padT = 28, padB = 32;
+  ctx.clearRect(0, 0, W, H);
+
+  const periods = wx.time.length;
+  if (periods === 0 || !minT || !maxT) return;
+
+  const labels = wx.time.map((t) => formatPeriodLabel(t.startTime));
+  const tmax = maxT.time.map((t) => parseFloat(t.parameter.parameterName));
+  const tmin = minT.time.map((t) => parseFloat(t.parameter.parameterName));
+  const n = Math.min(periods, tmax.length, tmin.length, labels.length);
+  if (n < 1) return;
+
+  const allVals = [...tmax.slice(0, n), ...tmin.slice(0, n)];
+  let maxV = Math.ceil(Math.max(...allVals) + 1);
+  let minV = Math.floor(Math.min(...allVals) - 1);
+  if (maxV - minV < 6) {
+    const mid = (maxV + minV) / 2;
+    maxV = Math.ceil(mid + 3);
+    minV = Math.floor(mid - 3);
+  }
+  const xStep = n === 1 ? 0 : (W - padL - padR) / (n - 1);
+  const yScale = (H - padT - padB) / (maxV - minV || 1);
+  const toX = (i) => padL + i * xStep;
+  const toY = (v) => H - padB - (v - minV) * yScale;
+
+  // grid + y labels
+  ctx.strokeStyle = "rgba(14, 165, 233, 0.12)";
+  ctx.fillStyle = "#64748b";
+  ctx.font = "11px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  const gridLines = 4;
+  for (let g = 0; g <= gridLines; g++) {
+    const v = minV + ((maxV - minV) / gridLines) * g;
+    const y = toY(v);
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(W - padR, y);
+    ctx.stroke();
+    ctx.fillText(Math.round(v) + "°", padL - 6, y);
+  }
+
+  // x labels
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "#64748b";
+  for (let i = 0; i < n; i++) {
+    let lab = labels[i] || "";
+    // 避免過長被裁切
+    if (lab.length > 8 && n >= 3) {
+      lab = lab.replace("白天", "日").replace("傍晚", "晚").replace("晚上", "夜");
+    }
+    ctx.fillText(lab, toX(i), H - padB + 10);
+  }
+
+  function smoothLine(values) {
+    if (values.length === 1) {
+      ctx.lineTo(toX(0), toY(values[0]));
+      return;
+    }
+    ctx.moveTo(toX(0), toY(values[0]));
+    for (let i = 0; i < values.length - 1; i++) {
+      const x0 = toX(i), y0 = toY(values[i]);
+      const x1 = toX(i + 1), y1 = toY(values[i + 1]);
+      const cx = (x0 + x1) / 2;
+      ctx.bezierCurveTo(cx, y0, cx, y1, x1, y1);
+    }
+  }
+
+  // band between max and min
+  ctx.beginPath();
+  smoothLine(tmax.slice(0, n));
+  for (let i = n - 1; i >= 0; i--) {
+    if (i === n - 1) ctx.lineTo(toX(i), toY(tmin[i]));
+    else {
+      const x0 = toX(i + 1), y0 = toY(tmin[i + 1]);
+      const x1 = toX(i), y1 = toY(tmin[i]);
+      const cx = (x0 + x1) / 2;
+      ctx.bezierCurveTo(cx, y0, cx, y1, x1, y1);
+    }
+  }
+  ctx.closePath();
+  const band = ctx.createLinearGradient(0, padT, 0, H - padB);
+  band.addColorStop(0, "rgba(251, 146, 60, 0.18)");
+  band.addColorStop(1, "rgba(56, 189, 248, 0.14)");
+  ctx.fillStyle = band;
+  ctx.fill();
+
+  function drawLine(values, color) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    smoothLine(values);
+    ctx.stroke();
+    values.forEach((v, i) => {
+      const x = toX(i), y = toY(v);
+      ctx.beginPath();
+      ctx.fillStyle = "#fff";
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.fillStyle = color;
+      ctx.arc(x, y, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  drawLine(tmax.slice(0, n), "#f97316");
+  drawLine(tmin.slice(0, n), "#0ea5e9");
+
+  // value labels on points
+  ctx.font = "600 11px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.textAlign = "center";
+  for (let i = 0; i < n; i++) {
+    ctx.fillStyle = "#c2410c";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(Math.round(tmax[i]) + "°", toX(i), toY(tmax[i]) - 8);
+    ctx.fillStyle = "#0369a1";
+    ctx.textBaseline = "top";
+    ctx.fillText(Math.round(tmin[i]) + "°", toX(i), toY(tmin[i]) + 8);
+  }
+
+  // legend
+  ctx.font = "12px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#f97316";
+  ctx.beginPath();
+  ctx.arc(padL, 12, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#0f172a";
+  ctx.fillText("最高溫", padL + 10, 12);
+  ctx.fillStyle = "#0ea5e9";
+  ctx.beginPath();
+  ctx.arc(padL + 72, 12, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#0f172a";
+  ctx.fillText("最低溫", padL + 82, 12);
+}
+
+'''
+
+          js = js[:start] + new_fn + js[end:]
+          p.write_text(js, encoding='utf-8')
+          print('patched', p.stat().st_size)
+          PY
+      - name: Chart CSS polish
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('public/theme-tech-glass.css')
+          css = p.read_text(encoding='utf-8')
+          if 'TEMP_CHART_POLISH' in css:
+              print('css already')
+          else:
+              block = '''
+
+/* TEMP_CHART_POLISH */
+#chartPanel {
+  padding: 4px 0 12px !important;
+}
+#tempChart {
+  width: 100% !important;
+  height: 220px !important;
+  display: block !important;
+  border-radius: 18px !important;
+  background:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.72) 0%,
+      rgba(255, 255, 255, 0.42) 55%,
+      rgba(224, 242, 254, 0.35) 100%
+    ) !important;
+  border: 1px solid rgba(56, 189, 248, 0.4) !important;
+  box-shadow:
+    0 0 0 1px rgba(56, 189, 248, 0.12),
+    0 8px 24px rgba(14, 165, 233, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(20px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(160%) !important;
+}
+'''
+              p.write_text(css.rstrip() + '\n' + block, encoding='utf-8')
+              print('css ok')
+          PY
+      - name: Commit
+        run: |
+          git config user.name mapsky-bot
+          git config user.email bot@mapsky.local
+          git add public/renderer.js public/theme-tech-glass.css
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: polish temperature trend chart (smooth + labels + band)"
+            git push
+          fi
