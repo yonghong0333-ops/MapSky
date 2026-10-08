@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - '.github/workflows/single-temp.yml'
-      - 'scripts/patch-single-temp.py'
 jobs:
   patch:
     runs-on: ubuntu-latest
@@ -12,7 +11,35 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - run: python3 scripts/patch-single-temp.py
+      - name: Patch renderer
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('public/renderer.js')
+          js = p.read_text(encoding='utf-8')
+          if '溫度 ${minNow}–${maxNow}°C' in js:
+              print('already')
+          else:
+              old = (
+                  'el("currentTemp").textContent = `${minNow}–${maxNow}°C`;\n'
+                  '  el("currentDesc").textContent = wxNow;\n'
+                  '  el("currentDetail").textContent =\n'
+                  '    `舒適度 ${ciNow}\\n降雨機率 ${popNow}%\\n資料來源：中央氣象署`;'
+              )
+              new = (
+                  'el("currentTemp").textContent = `${maxNow}°C`;\n'
+                  '  el("currentDesc").textContent = wxNow;\n'
+                  '  el("currentDetail").textContent =\n'
+                  '    `舒適度 ${ciNow}\\n溫度 ${minNow}–${maxNow}°C\\n資料來源：中央氣象署`;'
+              )
+              if old not in js:
+                  # debug
+                  i = js.find('el("currentTemp").textContent')
+                  print(repr(js[i:i+220]))
+                  raise SystemExit('not found')
+              p.write_text(js.replace(old, new, 1), encoding='utf-8')
+              print('patched')
+          PY
       - name: Commit
         run: |
           git config user.name "mapsky-bot"
