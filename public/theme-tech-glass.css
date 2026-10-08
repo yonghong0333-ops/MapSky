@@ -319,11 +319,7 @@ input::placeholder { color: #94a3b8 !important; }
   box-shadow: 0 0 6px rgba(14, 165, 233, 0.35) !important;
 }
 
-/* ============================================================
-   Dynamic Island Adventure — light tech redesign
-   ============================================================ */
-
-/* Outer frame: soft cyan→violet glow border (replaces loud rainbow) */
+/* Dynamic Island Adventure */
 .adventure-panel {
   position: relative !important;
   overflow: hidden !important;
@@ -342,8 +338,6 @@ input::placeholder { color: #94a3b8 !important; }
     0 8px 28px rgba(14, 165, 233, 0.18),
     0 0 0 1px rgba(56, 189, 248, 0.2) !important;
 }
-
-/* Inner content: bright frosted glass */
 .adventure-content {
   position: relative !important;
   z-index: 1 !important;
@@ -360,14 +354,7 @@ input::placeholder { color: #94a3b8 !important; }
   -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
 }
-
-/* Soft particles */
-.adventure-particle {
-  opacity: 0.35 !important;
-  filter: none !important;
-}
-
-/* Title */
+.adventure-particle { opacity: 0.35 !important; filter: none !important; }
 .adventure-title {
   margin: 0 0 8px !important;
   font-size: 18px !important;
@@ -376,11 +363,7 @@ input::placeholder { color: #94a3b8 !important; }
   text-align: center !important;
   letter-spacing: 0.02em !important;
 }
-.adventure-sparkle {
-  filter: none !important;
-}
-
-/* Description */
+.adventure-sparkle { filter: none !important; }
 .adventure-desc {
   margin: 0 0 16px !important;
   font-size: 13px !important;
@@ -388,19 +371,9 @@ input::placeholder { color: #94a3b8 !important; }
   color: #475569 !important;
   text-align: center !important;
 }
-
-/* Conditions list */
-.adventure-conditions {
-  margin: 0 0 16px !important;
-}
-.adventure-cond {
-  color: #334155 !important;
-}
-.adventure-cond .adv-label {
-  color: #334155 !important;
-}
-
-/* === PRIMARY CTA: 「使用」 button === */
+.adventure-conditions { margin: 0 0 16px !important; }
+.adventure-cond { color: #334155 !important; }
+.adventure-cond .adv-label { color: #334155 !important; }
 .adventure-btn {
   width: 100% !important;
   border: none !important;
@@ -427,12 +400,7 @@ input::placeholder { color: #94a3b8 !important; }
   left: -40% !important;
   width: 40% !important;
   height: 100% !important;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.35),
-    transparent
-  ) !important;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent) !important;
   transform: skewX(-20deg) !important;
   animation: adventureBtnShine 3.2s ease-in-out infinite !important;
   pointer-events: none !important;
@@ -446,11 +414,7 @@ input::placeholder { color: #94a3b8 !important; }
   filter: brightness(0.96) !important;
 }
 .adventure-btn[disabled] {
-  background: linear-gradient(
-    135deg,
-    rgba(148, 163, 184, 0.45),
-    rgba(148, 163, 184, 0.35)
-  ) !important;
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.45), rgba(148, 163, 184, 0.35)) !important;
   color: rgba(71, 85, 105, 0.85) !important;
   box-shadow: none !important;
   cursor: not-allowed !important;
@@ -460,39 +424,22 @@ input::placeholder { color: #94a3b8 !important; }
   background: linear-gradient(135deg, #0284c7, #4f46e5) !important;
   color: #fff !important;
 }
-
-/* Status under button */
 .adventure-status {
   margin: 10px 0 0 !important;
   font-size: 12px !important;
   color: #64748b !important;
   text-align: center !important;
 }
-
-/* Bottom sheet picker — light glass */
 .adventure-picker {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.95) 0%,
-      rgba(240, 249, 255, 0.92) 100%
-    ) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 249, 255, 0.92) 100%) !important;
   border: 1px solid rgba(56, 189, 248, 0.35) !important;
-  box-shadow:
-    0 -8px 40px rgba(14, 165, 233, 0.12),
-    0 16px 40px rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 -8px 40px rgba(14, 165, 233, 0.12), 0 16px 40px rgba(15, 23, 42, 0.12) !important;
   backdrop-filter: blur(24px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
 }
-.adventure-picker-handle {
-  background: rgba(14, 165, 233, 0.35) !important;
-}
-.adventure-picker-row + .adventure-picker-row {
-  border-top-color: rgba(56, 189, 248, 0.15) !important;
-}
-.adventure-picker-label {
-  color: #0f172a !important;
-}
+.adventure-picker-handle { background: rgba(14, 165, 233, 0.35) !important; }
+.adventure-picker-row + .adventure-picker-row { border-top-color: rgba(56, 189, 248, 0.15) !important; }
+.adventure-picker-label { color: #0f172a !important; }
 .adventure-mode-opt {
   border: 1px solid rgba(14, 165, 233, 0.3) !important;
   background: rgba(255, 255, 255, 0.7) !important;
@@ -509,39 +456,21 @@ input::placeholder { color: #94a3b8 !important; }
   background: rgba(255, 255, 255, 0.8) !important;
   color: #0369a1 !important;
 }
-.adventure-duration-value {
-  color: #0f172a !important;
-}
-.adventure-usage-info {
-  color: #64748b !important;
-}
-.adventure-usage-info.exhausted {
-  color: #e11d48 !important;
-}
+.adventure-duration-value { color: #0f172a !important; }
+.adventure-usage-info { color: #64748b !important; }
+.adventure-usage-info.exhausted { color: #e11d48 !important; }
 .adventure-start-btn,
 .adventure-btn.adventure-start-btn {
   background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #06b6d4 100%) !important;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.35) inset,
-    0 6px 20px rgba(14, 165, 233, 0.35) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35) inset, 0 6px 20px rgba(14, 165, 233, 0.35) !important;
 }
-
-/* Enabled status card */
 .adventure-enabled-card {
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.8), rgba(224, 242, 254, 0.55)) !important;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.8), rgba(224, 242, 254, 0.55)) !important;
   border: 1px solid rgba(56, 189, 248, 0.4) !important;
-  box-shadow:
-    0 4px 16px rgba(14, 165, 233, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
 }
-.adventure-enabled-title {
-  color: #0c4a6e !important;
-  font-weight: 700 !important;
-}
-.adventure-enabled-sub {
-  color: #64748b !important;
-}
+.adventure-enabled-title { color: #0c4a6e !important; font-weight: 700 !important; }
+.adventure-enabled-sub { color: #64748b !important; }
 .adventure-enabled-off {
   border: 1px solid rgba(14, 165, 233, 0.35) !important;
   background: rgba(255, 255, 255, 0.7) !important;
@@ -554,4 +483,68 @@ input::placeholder { color: #94a3b8 !important; }
 ::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, #22d3ee, #3b82f6) !important;
   border-radius: 8px !important;
+}
+
+/* HEADER_LIQUID_GLASS — city name bar (高雄市) */
+.main-header {
+  position: relative !important;
+  margin: 4px 0 14px !important;
+  padding: 12px 16px !important;
+  border-radius: 18px !important;
+  background:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(255, 255, 255, 0.28) 45%,
+      rgba(224, 242, 254, 0.32) 100%
+    ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  box-shadow:
+    0 0 0 1px rgba(56, 189, 248, 0.12),
+    0 8px 28px rgba(14, 165, 233, 0.1),
+    0 2px 10px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(28px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+}
+.main-header::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  border-radius: inherit !important;
+  pointer-events: none !important;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    transparent 40%,
+    rgba(56, 189, 248, 0.08) 100%
+  ) !important;
+  z-index: 0 !important;
+}
+.main-header > * {
+  position: relative !important;
+  z-index: 1 !important;
+}
+#cityName,
+.main-header h2 {
+  margin: 0 !important;
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em !important;
+  color: #0c4a6e !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+}
+.fav-star-btn {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+.fav-star-btn:active {
+  transform: scale(0.96) !important;
+  background: rgba(255, 255, 255, 0.6) !important;
 }
