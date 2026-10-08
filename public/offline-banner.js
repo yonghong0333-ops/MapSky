@@ -1,4 +1,4 @@
-/* offline-banner.js — 離線提示：先由上滑出，再收進城市玻璃島 */
+/* offline-banner.js — 離線提示：由上滑出 → 飛入城市玻璃島 */
 (function () {
   var BANNER_ID = "mapskyOfflineBanner";
   var STYLE_ID = "mapsky-offline-banner-css";
@@ -23,61 +23,71 @@
       "position:fixed;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top,0px));" +
       "z-index:100000;padding:12px 14px;border-radius:16px;" +
       "display:flex;align-items:center;gap:10px;" +
-      "background:linear-gradient(160deg,rgba(255,247,237,0.94),rgba(255,237,213,0.8) 55%,rgba(254,215,170,0.6));" +
+      "background:linear-gradient(160deg,rgba(255,247,237,0.95),rgba(255,237,213,0.82) 55%,rgba(254,215,170,0.62));" +
       "border:1px solid rgba(251,146,60,0.55);" +
-      "box-shadow:0 0 0 1px rgba(251,146,60,0.18),0 10px 28px rgba(234,88,12,0.18),inset 0 1px 0 rgba(255,255,255,0.75);" +
+      "box-shadow:0 0 0 1px rgba(251,146,60,0.18),0 12px 32px rgba(234,88,12,0.2),inset 0 1px 0 rgba(255,255,255,0.8);" +
       "backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);" +
       "color:#9a3412;font-size:13px;font-weight:700;line-height:1.35;" +
-      "transform:translateY(-120%) scale(0.96);opacity:0;" +
-      "transition:transform .4s cubic-bezier(.16,1.15,.3,1),opacity .25s ease,top .55s cubic-bezier(.22,1,.36,1),left .55s ease,right .55s ease,border-radius .45s ease,padding .45s ease;" +
-      "pointer-events:none;" +
+      "transform:translate3d(0,-130%,0) scale(0.94);opacity:0;" +
+      "transition:none;" +
+      "pointer-events:none;will-change:transform,opacity,top,left,width,border-radius;" +
       "}" +
       "#" + BANNER_ID + ".is-visible{" +
-      "transform:translateY(0) scale(1);opacity:1;pointer-events:auto;" +
+      "transform:translate3d(0,0,0) scale(1);opacity:1;" +
+      "transition:transform .45s cubic-bezier(.16,1.2,.3,1),opacity .3s ease-out;" +
       "}" +
-      "#" + BANNER_ID + ".is-merging{" +
-      "pointer-events:none;" +
+      "#" + BANNER_ID + ".is-flying{" +
+      "transition:transform .62s cubic-bezier(.22,1,.36,1),opacity .5s ease .12s,border-radius .5s ease;" +
       "opacity:0;" +
-      "transform:translateY(0) scale(0.92);" +
       "}" +
       "#" + BANNER_ID + " .ob-icon{flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#c2410c;}" +
       "#" + BANNER_ID + " .ob-icon svg{display:block;}" +
       "#" + BANNER_ID + " .ob-text{flex:1;min-width:0;}" +
       "#" + BANNER_ID + " .ob-sub{display:block;margin-top:2px;font-size:11px;font-weight:600;color:#c2410c;opacity:.9;}" +
-      "#" + BANNER_ID + " .ob-close{" +
-      "flex-shrink:0;width:28px;height:28px;border-radius:50%;border:none;" +
-      "background:rgba(154,52,18,0.1);color:#9a3412;font-size:14px;font-weight:700;" +
-      "cursor:pointer;display:flex;align-items:center;justify-content:center;" +
-      "}" +
       ".main-header{" +
-      "transition:background .45s ease,border-color .45s ease,box-shadow .45s ease,padding .35s ease !important;" +
+      "position:relative !important;" +
+      "transition:background .5s ease,border-color .5s ease,box-shadow .5s ease,transform .45s cubic-bezier(.16,1.2,.3,1) !important;" +
       "}" +
       ".main-header." + HEADER_OFFLINE + "{" +
-      "background:linear-gradient(160deg,rgba(255,247,237,0.92),rgba(255,237,213,0.72) 50%,rgba(254,215,170,0.5)) !important;" +
+      "background:linear-gradient(160deg,rgba(255,247,237,0.94),rgba(255,237,213,0.75) 50%,rgba(254,215,170,0.52)) !important;" +
       "border:1px solid rgba(251,146,60,0.55) !important;" +
-      "box-shadow:0 0 0 1px rgba(251,146,60,0.15),0 8px 24px rgba(234,88,12,0.14),inset 0 1px 0 rgba(255,255,255,0.8) !important;" +
-      "padding:12px 14px 10px !important;" +
+      "box-shadow:0 0 0 1px rgba(251,146,60,0.16),0 8px 26px rgba(234,88,12,0.16),inset 0 1px 0 rgba(255,255,255,0.85) !important;" +
       "}" +
       ".main-header." + HEADER_OFFLINE + " #cityName," +
       ".main-header." + HEADER_OFFLINE + " h2{" +
       "color:#9a3412 !important;" +
+      "transition:color .4s ease !important;" +
       "}" +
       ".main-header .offline-island-row{" +
-      "display:none;align-items:center;gap:6px;margin-top:6px;" +
-      "font-size:11px;font-weight:700;color:#c2410c;line-height:1.3;" +
-      "opacity:0;transform:translateY(-6px);" +
-      "transition:opacity .35s ease .05s,transform .4s cubic-bezier(.16,1.1,.3,1) .05s;" +
+      "display:flex;align-items:center;gap:5px;" +
+      "max-width:0;opacity:0;overflow:hidden;" +
+      "margin-left:0;padding-left:0;" +
+      "font-size:11px;font-weight:700;color:#c2410c;line-height:1.25;white-space:nowrap;" +
+      "transform:translateX(12px) scale(0.9);" +
+      "transition:max-width .55s cubic-bezier(.16,1.15,.3,1),opacity .4s ease,transform .5s cubic-bezier(.16,1.2,.3,1),margin .4s ease,padding .4s ease;" +
       "}" +
       ".main-header." + HEADER_OFFLINE + " .offline-island-row{" +
-      "display:flex;opacity:1;transform:translateY(0);" +
+      "max-width:220px;opacity:1;transform:translateX(0) scale(1);" +
+      "margin-left:8px;padding-left:8px;" +
+      "border-left:1px solid rgba(251,146,60,0.35);" +
       "}" +
       ".main-header .offline-island-row .oi-icon{" +
       "display:flex;align-items:center;flex-shrink:0;color:#c2410c;" +
       "}" +
-      ".main-header .offline-island-row .oi-icon svg{display:block;}" +
+      ".main-header .offline-island-row .oi-icon svg{display:block;width:15px;height:15px;}" +
       ".main-header." + HEADER_OFFLINE + " .fav-star-btn{" +
       "background:rgba(255,255,255,0.55) !important;" +
       "border-color:rgba(251,146,60,0.35) !important;" +
+      "transition:background .4s ease,border-color .4s ease !important;" +
+      "}" +
+      ".main-header.is-island-pulse{" +
+      "animation:islandPulse .55s cubic-bezier(.16,1.4,.3,1) both;" +
+      "}" +
+      "@keyframes islandPulse{" +
+      "0%{transform:scale(1);}" +
+      "35%{transform:scale(1.035);}" +
+      "70%{transform:scale(0.985);}" +
+      "100%{transform:scale(1);}" +
       "}";
     document.head.appendChild(s);
   }
@@ -95,8 +105,20 @@
     row.className = "offline-island-row";
     row.innerHTML =
       '<span class="oi-icon">' + WIFI_ICON + "</span>" +
-      '<span class="oi-text">網路連線不穩定 · 顯示備份資料</span>';
-    h.appendChild(row);
+      '<span class="oi-text">網路連線不穩定</span>';
+    var star = h.querySelector(".fav-star-btn");
+    if (star && star.parentNode === h) {
+      if (star.nextSibling) h.insertBefore(row, star.nextSibling);
+      else h.appendChild(row);
+    } else {
+      h.appendChild(row);
+    }
+    var cs = window.getComputedStyle(h);
+    if (cs.display !== "flex") {
+      h.style.display = "flex";
+      h.style.alignItems = "center";
+      h.style.flexWrap = "nowrap";
+    }
     return row;
   }
 
@@ -121,54 +143,89 @@
   function ageHint() {
     try {
       var raw = localStorage.getItem("mapsky_offline_weather_bundle_v1");
-      if (!raw) return "將顯示上次備份的天氣資料";
+      if (!raw) return "顯示備份資料";
       var bundle = JSON.parse(raw);
-      if (!bundle || !bundle.savedAt) return "將顯示上次備份的天氣資料";
+      if (!bundle || !bundle.savedAt) return "顯示備份資料";
       var mins = Math.max(0, Math.round((Date.now() - bundle.savedAt) / 60000));
       var age;
       if (mins < 1) age = "剛剛";
       else if (mins < 60) age = mins + " 分鐘前";
       else if (mins < 48 * 60) age = Math.round(mins / 60) + " 小時前";
       else age = Math.round(mins / 1440) + " 天前";
-      return "顯示 " + age + " 的備份資料";
+      return age + " 的備份資料";
     } catch (e) {
-      return "將顯示上次備份的天氣資料";
+      return "顯示備份資料";
     }
   }
 
-  function mergeIntoIsland() {
+  function flyIntoIsland() {
     var b = document.getElementById(BANNER_ID);
     var h = headerEl();
-    if (b) {
-      b.classList.add("is-merging");
-      b.classList.remove("is-visible");
+    if (!b || !h) {
+      activateIsland();
+      return;
     }
-    ensureHeaderOfflineRow();
-    var row = h && h.querySelector(".offline-island-row .oi-text");
-    if (row) {
-      var hint = ageHint();
-      row.textContent = "網路連線不穩定 · " + hint.replace(/^顯示\s*/, "");
-    }
-    if (h) h.classList.add(HEADER_OFFLINE);
+
+    var bRect = b.getBoundingClientRect();
+    var hRect = h.getBoundingClientRect();
+
+    var dx = hRect.left + hRect.width * 0.55 - (bRect.left + bRect.width / 2);
+    var dy = hRect.top + hRect.height / 2 - (bRect.top + bRect.height / 2);
+    var scale = Math.max(0.28, Math.min(0.55, hRect.width / Math.max(bRect.width, 1)));
+
+    b.classList.add("is-visible");
+    b.classList.remove("is-flying");
+    void b.offsetHeight;
+
+    b.style.transform =
+      "translate3d(" + dx + "px," + dy + "px,0) scale(" + scale + ")";
+    b.classList.add("is-flying");
+
     setTimeout(function () {
-      if (b) b.classList.remove("is-merging");
-    }, 500);
+      if (!isOffline) return;
+      activateIsland();
+    }, 280);
+
+    setTimeout(function () {
+      b.classList.remove("is-visible");
+      b.classList.remove("is-flying");
+      b.style.transform = "";
+    }, 700);
+  }
+
+  function activateIsland() {
+    var h = headerEl();
+    if (!h) return;
+    ensureHeaderOfflineRow();
+    var text = h.querySelector(".offline-island-row .oi-text");
+    if (text) text.textContent = "網路連線不穩定 · " + ageHint();
+    h.classList.add(HEADER_OFFLINE);
+    h.classList.remove("is-island-pulse");
+    void h.offsetHeight;
+    h.classList.add("is-island-pulse");
+    setTimeout(function () {
+      h.classList.remove("is-island-pulse");
+    }, 600);
   }
 
   function onOffline() {
     isOffline = true;
     if (mergeTimer) clearTimeout(mergeTimer);
+
     var b = ensureBanner();
     var sub = b.querySelector(".ob-sub");
-    if (sub) sub.textContent = ageHint();
-    b.classList.remove("is-merging");
+    if (sub) sub.textContent = "將顯示 " + ageHint();
+
+    b.classList.remove("is-flying");
     b.classList.remove("is-visible");
+    b.style.transform = "";
     void b.offsetHeight;
     b.classList.add("is-visible");
+
     mergeTimer = setTimeout(function () {
       if (!isOffline) return;
-      mergeIntoIsland();
-    }, 900);
+      flyIntoIsland();
+    }, 1000);
   }
 
   function onOnline() {
@@ -180,20 +237,24 @@
     var b = document.getElementById(BANNER_ID);
     if (b) {
       b.classList.remove("is-visible");
-      b.classList.remove("is-merging");
+      b.classList.remove("is-flying");
+      b.style.transform = "";
     }
     var h = headerEl();
-    if (h) h.classList.remove(HEADER_OFFLINE);
+    if (h) {
+      h.classList.remove(HEADER_OFFLINE);
+      h.classList.remove("is-island-pulse");
+    }
   }
 
   function boot() {
     injectCss();
     ensureBanner();
-    ensureHeaderOfflineRow();
+    setTimeout(ensureHeaderOfflineRow, 400);
     window.addEventListener("offline", onOffline);
     window.addEventListener("online", onOnline);
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
-      setTimeout(onOffline, 500);
+      setTimeout(onOffline, 600);
     }
   }
 
