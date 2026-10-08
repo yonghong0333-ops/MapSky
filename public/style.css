@@ -5348,3 +5348,71 @@ input::placeholder { color: #94a3b8 !important; }
 .extra-info-card.is-flash::after {
   animation: tools-glass-flash 0.55s ease-out;
 }
+
+
+/* gyro-glass-shine: 高光線隨陀螺儀移動 */
+.current-card {
+  --shine-x: 50%;
+  --shine-y: 18%;
+  --shine-angle: -18deg;
+  isolation: isolate;
+}
+.current-card .gyro-shine-layer,
+.current-card > .gyro-shine-line {
+  pointer-events: none;
+}
+/* 頂部玻璃高光線（隨 --shine-x 移動） */
+.current-card::before {
+  content: "";
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  top: 0;
+  height: 42%;
+  border-radius: inherit;
+  background: linear-gradient(
+    var(--shine-angle, -18deg),
+    transparent 0%,
+    transparent calc(var(--shine-x) - 18%),
+    rgba(255, 255, 255, 0.08) calc(var(--shine-x) - 8%),
+    rgba(255, 255, 255, 0.55) var(--shine-x),
+    rgba(255, 255, 255, 0.12) calc(var(--shine-x) + 8%),
+    transparent calc(var(--shine-x) + 18%),
+    transparent 100%
+  );
+  opacity: 0.85;
+  pointer-events: none;
+  z-index: 2;
+  mix-blend-mode: soft-light;
+  transition: none;
+}
+/* 一條更銳利的高光線 */
+.current-card .gyro-shine-line {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent calc(var(--shine-x) - 22%),
+    rgba(255, 255, 255, 0.25) calc(var(--shine-x) - 10%),
+    rgba(255, 255, 255, 0.95) var(--shine-x),
+    rgba(255, 255, 255, 0.3) calc(var(--shine-x) + 10%),
+    transparent calc(var(--shine-x) + 22%),
+    transparent 100%
+  );
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0.9;
+}
+/* 整卡輕微傾角（很克制，避免暈） */
+.current-card.has-gyro-tilt {
+  transform: perspective(900px)
+    rotateX(var(--tilt-x, 0deg))
+    rotateY(var(--tilt-y, 0deg));
+  transform-style: preserve-3d;
+}

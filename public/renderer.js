@@ -3832,6 +3832,79 @@ document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
 // 工具頁分類收合（記住使用者偏好）
 
 // 工具玻璃卡：按下縮小 + 白色光暈，鬆開回彈
+
+// 主天氣卡玻璃高光線：跟隨裝置陀螺儀
+(function initGyroGlassShine() {
+  const card = document.querySelector(".current-card");
+  if (!card) return;
+
+  let enabled = false;
+  let raf = 0;
+  let targetX = 50;
+  let targetY = 18;
+  let targetTiltX = 0;
+  let targetTiltY = 0;
+  let curX = 50;
+  let curY = 18;
+  let curTiltX = 0;
+  let curTiltY = 0;
+
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  function tick() {
+    curX += (targetX - curX) * 0.12;
+    curY += (targetY - curY) * 0.12;
+    curTiltX += (targetTiltX - curTiltX) * 0.12;
+    curTiltY += (targetTiltY - curTiltY) * 0.12;
+    card.style.setProperty("--shine-x", curX.toFixed(2) + "%");
+    card.style.setProperty("--shine-y", curY.toFixed(2) + "%");
+    card.style.setProperty("--tilt-x", curTiltX.toFixed(3) + "deg");
+    card.style.setProperty("--tilt-y", curTiltY.toFixed(3) + "deg");
+    card.style.setProperty("--shine-angle", (-12 - (curX - 50) * 0.15).toFixed(2) + "deg");
+    raf = requestAnimationFrame(tick);
+  }
+
+  function onOrient(e) {
+    // gamma: 左右 -90~90；beta: 前後 -180~180
+    const gamma = typeof e.gamma === "number" ? e.gamma : 0;
+    const beta = typeof e.beta === "number" ? e.beta : 0;
+    targetX = clamp(50 + gamma * 0.9, 8, 92);
+    targetY = clamp(18 + (beta - 45) * 0.25, 5, 55);
+    targetTiltY = clamp(gamma * 0.08, -4, 4);
+    targetTiltX = clamp(-(beta - 45) * 0.04, -3, 3);
+  }
+
+  function start() {
+    if (enabled) return;
+    enabled = true;
+    window.addEventListener("deviceorientation", onOrient, { passive: true });
+    raf = requestAnimationFrame(tick);
+  }
+
+  async function tryEnable() {
+    try {
+      if (typeof DeviceOrientationEvent !== "undefined" &&
+          typeof DeviceOrientationEvent.requestPermission === "function") {
+        // iOS：需使用者手勢授權；首次點擊卡片時再請求
+        const once = async () => {
+          try {
+            const state = await DeviceOrientationEvent.requestPermission();
+            if (state === "granted") start();
+          } catch (err) {}
+          card.removeEventListener("pointerdown", once);
+        };
+        card.addEventListener("pointerdown", once, { once: true });
+        // 若先前已授權，直接 start 可能無效，仍等手勢較穩
+      } else if (typeof window.DeviceOrientationEvent !== "undefined") {
+        start();
+      }
+    } catch (e) {}
+  }
+
+  // 非 iOS 直接開；iOS 等第一次點卡片
+  tryEnable();
+})();
+
 (function initToolsGlassPress() {
   function bindPress(el) {
     if (!el || el.dataset.glassPressBound) return;
