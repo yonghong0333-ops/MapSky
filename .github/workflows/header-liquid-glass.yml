@@ -1,0 +1,101 @@
+name: header-liquid-glass
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/header-liquid-glass.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Append liquid glass header styles
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('public/theme-tech-glass.css')
+          css = p.read_text(encoding='utf-8')
+          marker = '/* HEADER_LIQUID_GLASS */'
+          if marker in css:
+              print('already')
+          else:
+              block = '''
+
+/* HEADER_LIQUID_GLASS — city name bar (高雄市 area) */
+.main-header {
+  position: relative !important;
+  margin: 4px 0 14px !important;
+  padding: 12px 16px !important;
+  border-radius: 18px !important;
+  background:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(255, 255, 255, 0.28) 45%,
+      rgba(224, 242, 254, 0.32) 100%
+    ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  box-shadow:
+    0 0 0 1px rgba(56, 189, 248, 0.12),
+    0 8px 28px rgba(14, 165, 233, 0.1),
+    0 2px 10px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(28px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+}
+.main-header::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  border-radius: inherit !important;
+  pointer-events: none !important;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    transparent 40%,
+    rgba(56, 189, 248, 0.08) 100%
+  ) !important;
+  z-index: 0 !important;
+}
+.main-header > * {
+  position: relative !important;
+  z-index: 1 !important;
+}
+#cityName,
+.main-header h2 {
+  margin: 0 !important;
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em !important;
+  color: #0c4a6e !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+}
+.fav-star-btn {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+.fav-star-btn:active {
+  transform: scale(0.96) !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+}
+'''
+              p.write_text(css.rstrip() + block, encoding='utf-8')
+              print('patched', p.stat().st_size)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/theme-tech-glass.css
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: liquid glass on city header (高雄市 bar)"
+            git push
+          fi
