@@ -1,0 +1,82 @@
+name: load-chart-polish
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/load-chart-polish.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch web-shim + CSS
+        run: |
+          set -e
+          python3 << 'PY'
+          from pathlib import Path
+
+          # web-shim: load chart-polish after renderer
+          p = Path('public/web-shim.js')
+          js = p.read_text(encoding='utf-8')
+          if 'chart-polish.js' in js:
+              print('shim already loads chart-polish')
+          else:
+              old = 'script.src = "renderer.js";\n    document.body.appendChild(script);'
+              new = '''script.src = "renderer.js";
+    script.onload = function () {
+      var c = document.createElement("script");
+      c.src = "chart-polish.js";
+      document.body.appendChild(c);
+    };
+    document.body.appendChild(script);'''
+              if old not in js:
+                  raise SystemExit('renderer load snippet missing')
+              js = js.replace(old, new, 1)
+              p.write_text(js, encoding='utf-8')
+              print('shim patched', p.stat().st_size)
+
+          # CSS
+          c = Path('public/theme-tech-glass.css')
+          css = c.read_text(encoding='utf-8')
+          if 'TEMP_CHART_POLISH' not in css:
+              css = css.rstrip() + '''
+
+/* TEMP_CHART_POLISH */
+#chartPanel {
+  padding: 4px 0 12px !important;
+}
+#tempChart {
+  width: 100% !important;
+  height: 220px !important;
+  display: block !important;
+  border-radius: 18px !important;
+  background:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.72) 0%,
+      rgba(255, 255, 255, 0.42) 55%,
+      rgba(224, 242, 254, 0.35) 100%
+    ) !important;
+  border: 1px solid rgba(56, 189, 248, 0.4) !important;
+  box-shadow:
+    0 0 0 1px rgba(56, 189, 248, 0.12),
+    0 8px 24px rgba(14, 165, 233, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75) !important;
+}
+'''
+              c.write_text(css, encoding='utf-8')
+              print('css patched')
+          else:
+              print('css already')
+          PY
+      - name: Commit
+        run: |
+          git config user.name mapsky-bot
+          git config user.email bot@mapsky.local
+          git add public/web-shim.js public/theme-tech-glass.css
+          if git diff --staged --quiet; then echo No changes; else
+            git commit -m "ui: wire polished temp chart + glass card style"
+            git push
+          fi
