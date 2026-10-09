@@ -1111,6 +1111,8 @@ button:hover { background: var(--accent-hover); }
   gap: 10px;
 }
 .main-header.hidden { display: none; }
+.fav-star-btn.hidden { display: none !important; }
+.settings-page-title.hidden { display: none !important; }
 .share-weather-btn {
   flex-shrink: 0;
   background: none;

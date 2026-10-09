@@ -582,7 +582,11 @@ async function selectCity(label) {
 
   currentCity = { label };
   tyMaybeForceForLocation(); // 警報資料如果比縣市先到，這裡補判斷（函式在下面定義，載入完才會被呼叫）
-  el("cityName").textContent = label;
+  const activeTabBtn = document.querySelector(".tab-btn.active");
+  const activeTab = activeTabBtn && activeTabBtn.dataset ? activeTabBtn.dataset.tab : "forecast";
+  if (!["tools", "settings", "admin"].includes(activeTab)) {
+    el("cityName").textContent = label;
+  }
   renderFavorites();
 
   const cached = cityWeatherCache[label];
@@ -1774,6 +1778,34 @@ function goToForecastTab() {
 }
 el("currentViewForecastBtn").onclick = goToForecastTab;
 
+
+// 依目前分頁同步頁首：城市名+星星（首頁等）或固定標題、隱藏星星（工具／設定／後台）
+function syncMainHeaderForTab(tab) {
+  const cityNameEl = el("cityName");
+  const favBtn = el("addFavBtn");
+  const mainHeader = document.querySelector(".main-header");
+  if (!cityNameEl || !mainHeader) return;
+  mainHeader.classList.remove("hidden");
+  const titleMap = { tools: "工具", admin: "後台管理", settings: "設定" };
+  const pageTitle = titleMap[tab];
+  // 面板內自己的大標題會跟頁首重複，這幾個分頁改由頁首顯示標題
+  document.querySelectorAll(
+    "#toolsPanel > .settings-page > .settings-page-title, " +
+    "#adminPanel .settings-page-title, " +
+    "#settingsPanel > .settings-page > .settings-page-title"
+  ).forEach((h) => {
+    h.classList.toggle("hidden", Boolean(pageTitle));
+  });
+  if (pageTitle) {
+    cityNameEl.textContent = pageTitle;
+    if (favBtn) favBtn.classList.add("hidden");
+  } else {
+    cityNameEl.textContent = currentCity ? currentCity.label : "尚未選擇城市";
+    if (favBtn) favBtn.classList.remove("hidden");
+    updateFavStar();
+  }
+}
+
 // ---------------- Tabs ----------------
 document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -1795,11 +1827,9 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     const target = panelMap[btn.dataset.tab] || "forecastPanel";
     el(target).classList.add("active");
     if (btn.dataset.tab !== "alerts") tyRestoreMapHome(); // 颱風地圖借放在警特報卡片裡，離開就還給「颱風」分頁
-    // 「工具」「設定」「後台管理」都跟城市無關，共用的頁首（城市名稱 + 加入
-    // 收藏）不應該留在這幾個畫面上
-    const hideHeaderTabs = ["tools", "settings", "admin"];
-    const mainHeader = document.querySelector(".main-header");
-    if (mainHeader) mainHeader.classList.toggle("hidden", hideHeaderTabs.includes(btn.dataset.tab));
+    // 頁首列：首頁等「跟城市有關」的分頁顯示城市名 + 星星；
+    // 工具／設定／後台管理改顯示該頁標題，並把星星拿掉（星星只在首頁用）。
+    syncMainHeaderForTab(btn.dataset.tab);
     if (btn.dataset.tab === "compare") {
       renderCompareView(Array.from(selectedCompare));
     }
