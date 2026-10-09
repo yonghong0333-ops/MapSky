@@ -346,7 +346,7 @@
   // ---------------- 登入狀態 / 使用者列 ----------------
   const PROVIDER_ICON = {
     google: "login-icons/google.png",
-    x: "login-icons/x.png",
+    x: "login-icons/x.svg",
     facebook: "login-icons/facebook.png",
     microsoft: "login-icons/microsoft.png",
     discord: "login-icons/discord.png",
@@ -355,6 +355,7 @@
   };
 
   const GOOGLE_SVG = `<svg viewBox="0 0 48 48" width="18" height="18"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 7 29.5 5 24 5c-7.7 0-14.4 4.3-17.7 10.7z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.3-2.1 14-5.5l-6.5-5.5c-2 1.5-4.6 2.5-7.5 2.5-5.2 0-9.6-3.5-11.2-8.2l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.5 5.5C41.9 35.6 44 30.2 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>`;
+const X_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="#ffffff" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`;
 
   function el(id) {
     return document.getElementById(id);
@@ -1182,9 +1183,10 @@
   function buildGateButtons(providers) {
     return providers
       .map((p) => {
-        const icon = PROVIDER_ICON[p.id]
-          ? `<img src="${PROVIDER_ICON[p.id]}" alt="" width="18" height="18" />`
-          : (p.id === "google" ? GOOGLE_SVG : "");
+        let icon = "";
+        if (p.id === "google") icon = GOOGLE_SVG;
+        else if (p.id === "x") icon = (typeof X_SVG !== "undefined" ? X_SVG : `<img src="login-icons/x.svg" alt="" width="18" height="18" />`);
+        else if (PROVIDER_ICON[p.id]) icon = `<img src="${PROVIDER_ICON[p.id]}" alt="" width="18" height="18" />`;
         const disabled = p.configured ? "" : "disabled title=\"尚未設定\"";
         // data-provider 給原生 App 那段攔截點擊用（見 initNativeLoginFlow），
         // href 保留給一般網頁版／桌面版沿用原本「直接導覽過去」的行為。
