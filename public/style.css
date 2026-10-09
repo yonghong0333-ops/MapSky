@@ -3889,6 +3889,43 @@ body:has(#alertsPanel.active) #tyOverlay.ty-force { display: flex; }
   box-shadow: 0 6px 16px rgba(20, 26, 40, 0.08);
 }
 .adventure-enabled-card.hidden { display: none; }
+
+/* 動態島冒險：使用／關閉時宣傳卡 ↔ 進行中卡片過渡 */
+@keyframes adventure-card-out {
+  0% { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 0; transform: scale(0.94) translateY(10px); }
+}
+@keyframes adventure-card-in {
+  0% { opacity: 0; transform: scale(0.94) translateY(10px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.adventure-panel.adventure-card-exiting,
+.adventure-enabled-card.adventure-card-exiting {
+  animation: adventure-card-out 0.36s ease forwards;
+  pointer-events: none;
+}
+.adventure-panel.adventure-card-enter,
+.adventure-enabled-card.adventure-card-enter {
+  animation: adventure-card-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* 動畫期間不能被 .hidden { display:none } 砍掉 */
+.adventure-panel.adventure-card-exiting,
+.adventure-enabled-card.adventure-card-exiting {
+  display: block !important;
+}
+.adventure-enabled-card.adventure-card-exiting,
+.adventure-enabled-card.adventure-card-enter {
+  display: flex !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .adventure-panel.adventure-card-exiting,
+  .adventure-enabled-card.adventure-card-exiting,
+  .adventure-panel.adventure-card-enter,
+  .adventure-enabled-card.adventure-card-enter {
+    animation: none !important;
+  }
+}
+
 .adventure-enabled-icon { font-size: 26px; flex-shrink: 0; }
 .adventure-enabled-text { flex: 1; min-width: 0; }
 .adventure-enabled-title { font-size: 14px; font-weight: 700; color: var(--text-main); }

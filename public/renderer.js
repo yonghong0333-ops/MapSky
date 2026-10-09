@@ -4659,10 +4659,70 @@ function updateAdventureCardSwap(unlocked) {
   const enabled = el("adventureEnabledCard");
   if (!promo || !enabled) return;
   const showEnabled = unlocked && dynamicIslandOn;
-  promo.classList.toggle("hidden", showEnabled);
-  enabled.classList.toggle("hidden", !showEnabled);
   const sub = el("adventureEnabledSub");
   if (sub) sub.textContent = currentCity ? `${currentCity.label}．已顯示在動態島 / 鎖定畫面` : "已顯示在動態島 / 鎖定畫面";
+
+  // 使用／關閉時在宣傳卡 ↔ 進行中卡片之間做過渡動畫
+  const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const promoVisible = !promo.classList.contains("hidden") && !promo.classList.contains("adventure-card-exiting");
+  const enabledVisible = !enabled.classList.contains("hidden") && !enabled.classList.contains("adventure-card-exiting");
+  const currentlyEnabled = enabledVisible && !promoVisible;
+
+  function clearAnim(el) {
+    el.classList.remove("adventure-card-enter", "adventure-card-exiting");
+  }
+
+  if (showEnabled === currentlyEnabled) {
+    // 已在正確狀態（初次渲染或重複呼叫）：直接對齊 class，不重播動畫
+    clearAnim(promo);
+    clearAnim(enabled);
+    promo.classList.toggle("hidden", showEnabled);
+    enabled.classList.toggle("hidden", !showEnabled);
+    return;
+  }
+
+  if (reduceMotion) {
+    clearAnim(promo);
+    clearAnim(enabled);
+    promo.classList.toggle("hidden", showEnabled);
+    enabled.classList.toggle("hidden", !showEnabled);
+    return;
+  }
+
+  const outEl = showEnabled ? promo : enabled;
+  const inEl = showEnabled ? enabled : promo;
+
+  // 準備進場卡片
+  clearAnim(inEl);
+  inEl.classList.remove("hidden");
+  // 強制重啟 enter 動畫
+  void inEl.offsetWidth;
+  inEl.classList.add("adventure-card-enter");
+
+  // 退場卡片
+  clearAnim(outEl);
+  outEl.classList.remove("hidden");
+  void outEl.offsetWidth;
+  outEl.classList.add("adventure-card-exiting");
+
+  let done = false;
+  function finish() {
+    if (done) return;
+    done = true;
+    outEl.classList.add("hidden");
+    outEl.classList.remove("adventure-card-exiting");
+    inEl.classList.remove("adventure-card-enter");
+    // 最終狀態保險
+    promo.classList.toggle("hidden", showEnabled);
+    enabled.classList.toggle("hidden", !showEnabled);
+  }
+  function onEnd(e) {
+    if (e && e.target !== outEl) return;
+    outEl.removeEventListener("animationend", onEnd);
+    finish();
+  }
+  outEl.addEventListener("animationend", onEnd);
+  setTimeout(finish, 420);
 }
 
 advCheckIn(); // 進頁面時算一次今天的連續簽到
