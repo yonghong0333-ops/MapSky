@@ -2,18 +2,30 @@
 from pathlib import Path
 import base64
 import re
+import urllib.request
 
-parts = []
-for name in ["google_icon_b64_a.txt", "google_icon_b64_b.txt", "google_icon_b64.txt"]:
-    p = Path("scripts/otp") / name
-    if p.exists():
-        parts.append(p.read_text().strip())
-if parts:
-    Path("public/login-icons").mkdir(parents=True, exist_ok=True)
-    Path("public/login-icons/google.png").write_bytes(base64.b64decode("".join(parts)))
-    print("google.png written")
+Path("public/login-icons").mkdir(parents=True, exist_ok=True)
+google_path = Path("public/login-icons/google.png")
+if not google_path.exists() or google_path.stat().st_size < 500:
+    urls = [
+        "https://www.google.com/images/branding/googleg/1x/googleg_standard_color_48dp.png",
+        "https://cdn.jsdelivr.net/npm/simple-icons@v11/icons/google.svg",
+    ]
+    ok = False
+    for u in urls:
+        try:
+            urllib.request.urlretrieve(u, google_path)
+            if google_path.stat().st_size > 100:
+                print("google icon from", u, google_path.stat().st_size)
+                ok = True
+                break
+        except Exception as e:
+            print("fail", u, e)
+    if not ok:
+        # minimal 1x1 fallback will break icon; leave missing
+        print("WARN: could not download google icon")
 else:
-    print("no google b64")
+    print("google.png exists")
 
 html = Path("public/index.html")
 t = html.read_text(encoding="utf-8")
