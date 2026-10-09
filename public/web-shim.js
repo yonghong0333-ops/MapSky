@@ -345,7 +345,7 @@
 
   // ---------------- 登入狀態 / 使用者列 ----------------
   const PROVIDER_ICON = {
-    google: null, // 用內建 SVG（見下方），不用圖檔
+    google: "login-icons/google.png",
     facebook: "login-icons/facebook.png",
     microsoft: "login-icons/microsoft.png",
     discord: "login-icons/discord.png",
@@ -1181,7 +1181,9 @@
   function buildGateButtons(providers) {
     return providers
       .map((p) => {
-        const icon = p.id === "google" ? GOOGLE_SVG : `<img src="${PROVIDER_ICON[p.id]}" alt="" />`;
+        const icon = PROVIDER_ICON[p.id]
+          ? `<img src="${PROVIDER_ICON[p.id]}" alt="" width="18" height="18" />`
+          : (p.id === "google" ? GOOGLE_SVG : "");
         const disabled = p.configured ? "" : "disabled title=\"尚未設定\"";
         // data-provider 給原生 App 那段攔截點擊用（見 initNativeLoginFlow），
         // href 保留給一般網頁版／桌面版沿用原本「直接導覽過去」的行為。
@@ -2342,6 +2344,50 @@
         var el = document.getElementById("loginGateTitleTyped");
         if (el && el.dataset.done !== "1") runType();
       }
+    }).observe(gate, { attributes: true, attributeFilter: ["class"] });
+  }
+})();
+
+/* LOGIN_TAGLINE_TYPE */
+(function () {
+  function typeText(el, text, delay, done) {
+    if (!el) { if (done) done(); return; }
+    if (el.dataset.typing === "1") return;
+    el.dataset.typing = "1";
+    var i = 0;
+    el.textContent = "";
+    function tick() {
+      if (i <= text.length) {
+        el.textContent = text.slice(0, i);
+        i += 1;
+        setTimeout(tick, 70);
+      } else {
+        el.dataset.typing = "0";
+        el.dataset.done = "1";
+        if (done) done();
+      }
+    }
+    setTimeout(tick, delay || 0);
+  }
+  function runAll() {
+    var gate = document.getElementById("loginGate");
+    if (gate && gate.classList.contains("login-gate--booting")) return;
+    var title = document.getElementById("loginGateTitleTyped");
+    var tag = document.getElementById("loginGateTaglineTyped");
+    if (title && title.dataset.done !== "1") {
+      typeText(title, "MapSky", 200, function () {
+        typeText(tag, "掌控天後，連動生活", 180);
+      });
+    } else if (tag && tag.dataset.done !== "1") {
+      typeText(tag, "掌控天後，連動生活", 120);
+    }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", runAll);
+  else runAll();
+  var gate = document.getElementById("loginGate");
+  if (gate) {
+    new MutationObserver(function () {
+      if (!gate.classList.contains("login-gate--booting")) runAll();
     }).observe(gate, { attributes: true, attributeFilter: ["class"] });
   }
 })();

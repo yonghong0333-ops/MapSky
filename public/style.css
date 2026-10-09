@@ -5791,3 +5791,40 @@ input::placeholder { color: #94a3b8 !important; }
 .login-gate-divider::after {
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent) !important;
 }
+
+
+/* LOGIN_TEXT_WHITE_TERMINAL */
+.login-gate-title--terminal,
+.login-gate-title,
+.login-gate-title-typed {
+  color: #ffffff !important;
+  text-shadow: 0 1px 12px rgba(0,0,0,0.45), 0 0 20px rgba(92, 225, 255, 0.25) !important;
+}
+.login-gate-tagline,
+.login-gate-tagline--terminal,
+.login-gate-tagline-typed {
+  color: rgba(255, 255, 255, 0.92) !important;
+  text-align: left !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  font-size: 13.5px !important;
+  letter-spacing: 0.06em !important;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.4) !important;
+  margin-bottom: 28px !important;
+}
+.login-gate-terminal-prefix { color: #7ef0ff !important; }
+.login-gate-cursor { color: #7ef0ff !important; }
+.login-gate-more-toggle,
+.login-gate-divider { color: rgba(255, 255, 255, 0.7) !important; }
+.login-gate-divider::before,
+.login-gate-divider::after {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent) !important;
+}
+.login-gate .login-gate-terms,
+.login-gate a { color: rgba(255, 255, 255, 0.85) !important; }
+.login-gate-btn img,
+.login-gate-btn svg {
+  width: 18px !important;
+  height: 18px !important;
+  flex-shrink: 0;
+  opacity: 1 !important;
+}
