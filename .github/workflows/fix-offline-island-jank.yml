@@ -1,0 +1,218 @@
+name: fix-offline-island-jank
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-offline-island-jank.yml'
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Smooth offline island expand/collapse; fix copy
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path("public/offline-banner.js")
+          s = p.read_text(encoding="utf-8")
+
+          # 1) Remove backdrop-filter:none during open/fold (main iOS jank source)
+          s2 = s.replace(
+              '.main-header.is-offline-opening{" +
+          "backdrop-filter:none !important;-webkit-backdrop-filter:none !important;" +
+          "}"',
+              '.main-header.is-offline-opening{" +
+          "/* keep blur — toggling backdrop-filter mid-animation causes jank on iOS */" +
+          "}"',
+          )
+          # The string is built with + concatenation in JS source
+          old_open = (
+              '".main-header.is-offline-opening{" +\n'
+              '      "backdrop-filter:none !important;-webkit-backdrop-filter:none !important;" +\n'
+              '      "}" +'
+          )
+          new_open = (
+              '".main-header.is-offline-opening{" +\n'
+              '      "/* keep glass blur; toggling backdrop-filter mid-anim janks on iOS */" +\n'
+              '      "}" +'
+          )
+          if old_open in s:
+              s = s.replace(old_open, new_open, 1)
+              print("removed opening backdrop-filter none")
+          else:
+              print("opening backdrop rule not exact; try alt")
+
+          old_fold = (
+              '".main-header.is-offline-fold{" +\n'
+              '      "backdrop-filter:none !important;-webkit-backdrop-filter:none !important;" +\n'
+              '      "}" +'
+          )
+          new_fold = (
+              '".main-header.is-offline-fold{" +\n'
+              '      "/* keep glass blur */" +\n'
+              '      "}" +'
+          )
+          if old_fold in s:
+              s = s.replace(old_fold, new_fold, 1)
+              print("removed fold backdrop-filter none")
+          else:
+              print("fold backdrop rule not exact")
+
+          # 2) Promote header to its own layer during anim to reduce paint jank
+          old_hdr = (
+              '".main-header{" +\n'
+              '      "position:relative !important;" +\n'
+              '      "transition:background .45s ease,border-color .45s ease,box-shadow .45s ease,padding .35s ease !important;" +\n'
+              '      "}" +'
+          )
+          new_hdr = (
+              '".main-header{" +\n'
+              '      "position:relative !important;" +\n'
+              '      "transition:background .45s ease,border-color .45s ease,box-shadow .45s ease,padding .35s ease !important;" +\n'
+              '      "transform:translateZ(0);" +\n'
+              '      "}" +'
+          )
+          if old_hdr in s and "transform:translateZ(0)" not in s[s.find(".main-header{"):s.find(".main-header{")+400]:
+              s = s.replace(old_hdr, new_hdr, 1)
+              print("added translateZ layer")
+          else:
+              print("header layer skip or already")
+
+          # 3) Fix ageHint / detail text duplication
+          # showDetailOnIsland does: sub.textContent = "顯示 " + ageHint()
+          # ageHint sometimes returns full sentence starting with 顯示
+          old_age = (
+              'function ageHint() {\n'
+              '    try {\n'
+              '      var raw = localStorage.getItem("mapsky_offline_weather_bundle_v1");\n'
+              '      if (!raw) return "顯示上次備份資料";\n'
+              '      var bundle = JSON.parse(raw);\n'
+              '      if (!bundle || !bundle.savedAt) return "顯示上次備份資料";\n'
+              '      var mins = Math.max(0, Math.round((Date.now() - bundle.savedAt) / 60000));\n'
+              '      var age;\n'
+              '      if (mins < 1) age = "剛剛";\n'
+              '      else if (mins < 60) age = mins + " 分鐘前";\n'
+              '      else if (mins < 48 * 60) age = Math.round(mins / 60) + " 小時前";\n'
+              '      else age = Math.round(mins / 1440) + " 天前";\n'
+              '      return age + " 的備份資料";\n'
+              '    } catch (e) {\n'
+              '      return "顯示上次備份資料";\n'
+              '    }\n'
+              '  }'
+          )
+          new_age = (
+              'function ageHint() {\n'
+              '    try {\n'
+              '      var raw = localStorage.getItem("mapsky_offline_weather_bundle_v1");\n'
+              '      if (!raw) return "上次備份資料";\n'
+              '      var bundle = JSON.parse(raw);\n'
+              '      if (!bundle || !bundle.savedAt) return "上次備份資料";\n'
+              '      var mins = Math.max(0, Math.round((Date.now() - bundle.savedAt) / 60000));\n'
+              '      var age;\n'
+              '      if (mins < 1) age = "剛剛";\n'
+              '      else if (mins < 60) age = mins + " 分鐘前";\n'
+              '      else if (mins < 48 * 60) age = Math.round(mins / 60) + " 小時前";\n'
+              '      else age = Math.round(mins / 1440) + " 天前";\n'
+              '      return age + "的備份資料";\n'
+              '    } catch (e) {\n'
+              '      return "上次備份資料";\n'
+              '    }\n'
+              '  }'
+          )
+          if old_age in s:
+              s = s.replace(old_age, new_age, 1)
+              print("fixed ageHint text")
+          else:
+              print("ageHint block not found exact")
+
+          # onOffline banner sub uses "將顯示 " + ageHint() — still ok with new ageHint
+
+          # 4) Soften islandPulse (scale on blurred header causes jank)
+          old_pulse = '@keyframes islandPulse{0%{transform:scale(1)}35%{transform:scale(1.03)}70%{transform:scale(0.99)}100%{transform:scale(1)}}'
+          new_pulse = '@keyframes islandPulse{0%{transform:translateZ(0) scale(1)}40%{transform:translateZ(0) scale(1.015)}100%{transform:translateZ(0) scale(1)}}'
+          if old_pulse in s:
+              s = s.replace(old_pulse, new_pulse, 1)
+              print("softened islandPulse")
+          else:
+              print("islandPulse keyframes not found")
+
+          # 5) Detail expand: prefer transition over reverse animation conflict
+          old_detail_show = (
+              '".main-header." + HEADER_DETAIL + " .offline-island-detail{" +\n'
+              '      "display:block;max-height:48px;opacity:1;" +\n'
+              '      "margin-top:8px;padding-top:8px;" +\n'
+              '      "border-top:1px solid rgba(251,146,60,0.28);" +\n'
+              '      "animation:foldAway .36s cubic-bezier(.4,0,.8,1) reverse both !important;" +\n'
+              '      "}" +'
+          )
+          new_detail_show = (
+              '".main-header." + HEADER_DETAIL + " .offline-island-detail{" +\n'
+              '      "display:block;max-height:48px;opacity:1;" +\n'
+              '      "margin-top:8px;padding-top:8px;" +\n'
+              '      "border-top:1px solid rgba(251,146,60,0.28);" +\n'
+              '      "transform:translate3d(0,0,0);" +\n'
+              '      "/* use CSS transition on max-height/opacity (defined on base) — avoid reverse keyframes jank */" +\n'
+              '      "}" +'
+          )
+          if old_detail_show in s:
+              s = s.replace(old_detail_show, new_detail_show, 1)
+              print("detail expand uses transition")
+          else:
+              print("detail show rule not found")
+
+          # hideDetail still uses foldAway animation — keep but ensure clearOpening listens for transitionend too
+          old_clear = (
+              'function clearOpening(ev) {\n'
+              '      if (ev && ev.animationName && ev.animationName !== "foldAway") return;\n'
+              '      if (openDone) return;\n'
+              '      openDone = true;\n'
+              '      detail.removeEventListener("animationend", clearOpening);\n'
+              '      h.classList.remove("is-offline-opening");\n'
+              '    }\n'
+              '    detail.addEventListener("animationend", clearOpening);\n'
+              '    setTimeout(clearOpening, 480);'
+          )
+          new_clear = (
+              'function clearOpening(ev) {\n'
+              '      if (ev && ev.type === "animationend" && ev.animationName && ev.animationName !== "foldAway") return;\n'
+              '      if (openDone) return;\n'
+              '      openDone = true;\n'
+              '      detail.removeEventListener("animationend", clearOpening);\n'
+              '      detail.removeEventListener("transitionend", clearOpening);\n'
+              '      h.classList.remove("is-offline-opening");\n'
+              '    }\n'
+              '    detail.addEventListener("animationend", clearOpening);\n'
+              '    detail.addEventListener("transitionend", clearOpening);\n'
+              '    setTimeout(clearOpening, 420);'
+          )
+          if old_clear in s:
+              s = s.replace(old_clear, new_clear, 1)
+              print("clearOpening listens transitionend")
+          else:
+              print("clearOpening block not found")
+
+          if s == p.read_text(encoding="utf-8"):
+              # re-read original
+              pass
+
+          p.write_text(s, encoding="utf-8")
+          print("wrote", p.stat().st_size)
+
+          # verify critical bits
+          t = p.read_text(encoding="utf-8")
+          assert "上次備份資料" in t
+          print("ok checks passed")
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/offline-banner.js
+          if git diff --staged --quiet; then
+            echo "no changes"
+          else
+            git commit -m "fix: 離線提示展開/收合不再卡頓（保留毛玻璃、改過渡動畫）"
+            git push
+          fi
