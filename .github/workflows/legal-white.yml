@@ -1,0 +1,18 @@
+name: Legal white
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/otp/apply_legal_white.py
+      - name: Commit
+        run: |
+          git config user.name "MapSky Bot"
+          git config user.email "bot@mapsky.local"
+          git add public/style.css
+          git commit -m "ui(auth): legal text white, terms link blue" || echo "no changes"
+          git push origin HEAD:main
