@@ -43,23 +43,8 @@ const PROVIDERS = {
     extraAuthParams: { access_type: "online", prompt: "select_account" },
     mapProfile: (json) => ({ id: json.sub, name: json.name, avatarUrl: json.picture || null, email: json.email || null }),
   },
-  facebook: {
-    id: "facebook",
-    label: "Facebook",
-    clientId: process.env.FACEBOOK_CLIENT_ID,
-    clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
-    scope: "public_profile,email",
-    authorizeUrl: "https://www.facebook.com/v21.0/dialog/oauth",
-    tokenUrl: "https://graph.facebook.com/v21.0/oauth/access_token",
-    tokenMethod: "GET", // Facebook 官方文件是用 GET + query string 換 token
-    profileUrl: "https://graph.facebook.com/me?fields=id,name,picture.type(large),email",
-    mapProfile: (json) => ({
-      id: json.id,
-      name: json.name,
-      avatarUrl: json.picture?.data?.url || null,
-      email: json.email || null,
-    }),
-  },
+  // Facebook OAuth 已下架（登入畫面不再提供）
+  // facebook: { ... },
   microsoft: {
     id: "microsoft",
     label: "Microsoft",

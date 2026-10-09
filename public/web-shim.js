@@ -361,7 +361,8 @@
 
   async function loadProviders() {
     const { providers } = await getJson("/api/auth/session?action=providers");
-    return providers;
+    // Facebook 已下架，前端一律過濾
+    return (providers || []).filter((p) => p && p.id !== "facebook");
   }
 
   async function loadSession() {
@@ -2228,7 +2229,7 @@
       return;
     }
 
-    // 未登入：Google／Facebook 預設顯示，其他收在「更多登入方式」（無藍底按鈕）
+    // 未登入：Google 預設顯示，其他收在「更多登入方式」
     endLoginGateBoot();
     {
       const b = el("loginGateBoot");
@@ -2243,7 +2244,7 @@
       statusEl.textContent = "";
       statusEl.classList.remove("login-gate-status--loading");
     }
-    const primaryIds = ["google", "facebook"];
+    const primaryIds = ["google"];
     const primaryProviders = (providers || []).filter((p) => primaryIds.includes(p.id));
     const extraProviders = (providers || []).filter((p) => !primaryIds.includes(p.id));
     if (buttonsEl) {
