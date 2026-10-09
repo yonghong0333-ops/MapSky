@@ -2275,7 +2275,7 @@
           extraEl.setAttribute("aria-hidden", expanded ? "false" : "true");
           moreToggle.setAttribute("aria-expanded", expanded ? "true" : "false");
           const s = moreToggle.querySelector("span:not(.login-gate-more-chevron)") || moreToggle.querySelector("span");
-          if (s) s.textContent = expanded ? "收起" : "更多登入方式";
+          if (s) s.textContent = expanded ? "顯示較少" : "更多登入方式";
         });
       }
     } else {

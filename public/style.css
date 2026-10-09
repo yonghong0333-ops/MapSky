@@ -5854,3 +5854,18 @@ input::placeholder { color: #94a3b8 !important; }
 .login-gate .login-gate-terms {
   color: rgba(255, 255, 255, 0.75) !important;
 }
+
+
+/* LOGIN_MORE_BOLD_WHITE */
+.login-gate-more-toggle,
+.login-gate-more-toggle span:not(.login-gate-more-chevron) {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+  letter-spacing: 0.02em;
+}
+.login-gate-more-chevron {
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+  opacity: 1 !important;
+}
