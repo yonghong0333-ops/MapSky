@@ -4,7 +4,33 @@
     return Math.max(a, Math.min(b, v));
   }
 
+  function injectCss() {
+    if (document.getElementById("mapsky-gyro-shine-css")) return;
+    var s = document.createElement("style");
+    s.id = "mapsky-gyro-shine-css";
+    s.textContent =
+      ".current-card.has-gyro-tilt{" +
+      "--shine-x:50%;--shine-y:18%;--tilt-x:0deg;--tilt-y:0deg;" +
+      "transform:perspective(1000px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));" +
+      "transform-style:preserve-3d;will-change:transform;" +
+      "}" +
+      ".current-card.has-gyro-tilt .gyro-shine-line{" +
+      "pointer-events:none;position:absolute;inset:0;z-index:4;border-radius:inherit;" +
+      "background:radial-gradient(140% 90% at var(--shine-x) var(--shine-y)," +
+      "rgba(255,255,255,0.62) 0%,rgba(255,255,255,0.18) 26%," +
+      "rgba(186,230,253,0.08) 42%,transparent 58%);" +
+      "mix-blend-mode:soft-light;opacity:0.95;" +
+      "}" +
+      ".current-card.has-gyro-tilt>*:not(.gyro-shine-line){position:relative;z-index:5;}" +
+      "@media (prefers-reduced-motion:reduce){" +
+      ".current-card.has-gyro-tilt{transform:none!important;}" +
+      ".current-card.has-gyro-tilt .gyro-shine-line{opacity:0.25;}" +
+      "}";
+    document.head.appendChild(s);
+  }
+
   function boot() {
+    injectCss();
     var card = document.querySelector(".current-card");
     if (!card) {
       setTimeout(boot, 400);
@@ -102,7 +128,6 @@
     document.addEventListener("pointerdown", once, { once: true, passive: true });
     document.addEventListener("touchstart", once, { once: true, passive: true });
 
-    /* Desktop / pointer fallback */
     card.addEventListener(
       "pointermove",
       function (e) {

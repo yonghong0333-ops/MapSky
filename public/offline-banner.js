@@ -453,3 +453,13 @@
     setTimeout(boot, 250);
   }
 })();
+
+/* boot gyro-shine if not already loaded */
+(function loadGyroShine() {
+  if (document.querySelector("script[data-mapsky-gyro]")) return;
+  var s = document.createElement("script");
+  s.src = "gyro-shine.js";
+  s.async = true;
+  s.setAttribute("data-mapsky-gyro", "1");
+  document.head.appendChild(s);
+})();
