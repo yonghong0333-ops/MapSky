@@ -1,4 +1,4 @@
-/* MAPSKY_GYRO_SHIM_V4 — tilt shine + soft rainbow rim that orbits with gyro */
+/* MAPSKY_GYRO_SHIM_V5 — tilt shine + soft rainbow rim that orbits with gyro */
 (function mapskyGyroShimV4() {
   function clamp(v, a, b) {
     return Math.max(a, Math.min(b, v));
@@ -16,8 +16,8 @@
       "isolation:isolate;" +
       "}" +
       ".current-card.has-gyro-tilt .gyro-color-rim{" +
-      "pointer-events:none;position:absolute;inset:-1.5px;z-index:6;" +
-      "border-radius:inherit;padding:1.5px;" +
+      "pointer-events:none;position:absolute;inset:-2px;z-index:6;" +
+      "border-radius:inherit;padding:2px;" +
       "background:conic-gradient(from var(--rim-angle)," +
       "rgba(56,189,248,0.85)," +
       "rgba(167,139,250,0.75)," +
@@ -28,7 +28,7 @@
       "-webkit-mask-composite:xor;" +
       "mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);" +
       "mask-composite:exclude;" +
-      "opacity:0.72;" +
+      "opacity:0.92;" +
       "filter:saturate(1.05);" +
       "}" +
       ".current-card.has-gyro-tilt .gyro-color-rim::after{" +
@@ -39,7 +39,7 @@
       "rgba(244,114,182,0.12)," +
       "rgba(125,211,252,0.2)," +
       "rgba(56,189,248,0.25));" +
-      "filter:blur(6px);opacity:0.55;z-index:-1;" +
+      "filter:blur(7px);opacity:0.7;z-index:-1;" +
       "}" +
       ".current-card.has-gyro-tilt .gyro-shine-line{" +
       "pointer-events:none;position:absolute;inset:0;z-index:4;border-radius:inherit;" +
@@ -98,14 +98,14 @@
       curRim = 0;
 
     function tick() {
-      curX += (targetX - curX) * 0.18;
-      curY += (targetY - curY) * 0.18;
-      curTiltX += (targetTiltX - curTiltX) * 0.18;
-      curTiltY += (targetTiltY - curTiltY) * 0.18;
+      curX += (targetX - curX) * 0.42;
+      curY += (targetY - curY) * 0.42;
+      curTiltX += (targetTiltX - curTiltX) * 0.42;
+      curTiltY += (targetTiltY - curTiltY) * 0.42;
       var d = targetRim - curRim;
       while (d > 180) d -= 360;
       while (d < -180) d += 360;
-      curRim += d * 0.12;
+      curRim += d * 0.38;
       card.style.setProperty("--shine-x", curX.toFixed(2) + "%");
       card.style.setProperty("--shine-y", curY.toFixed(2) + "%");
       card.style.setProperty("--tilt-x", curTiltX.toFixed(3) + "deg");
@@ -118,11 +118,12 @@
       var gamma = typeof e.gamma === "number" ? e.gamma : 0;
       var beta = typeof e.beta === "number" ? e.beta : 0;
       var alpha = typeof e.alpha === "number" ? e.alpha : 0;
-      targetX = clamp(50 + gamma * 1.5, 5, 95);
-      targetY = clamp(20 + (beta - 40) * 0.45, 4, 65);
-      targetTiltY = clamp(gamma * 0.16, -8, 8);
-      targetTiltX = clamp(-(beta - 40) * 0.08, -6, 6);
-      targetRim = (alpha * 0.85 + gamma * 2.2 + (beta - 40) * 0.6) % 360;
+      targetX = clamp(50 + gamma * 3.2, 2, 98);
+      targetY = clamp(20 + (beta - 40) * 1.1, 2, 85);
+      targetTiltY = clamp(gamma * 0.42, -14, 14);
+      targetTiltX = clamp(-(beta - 40) * 0.22, -12, 12);
+      /* slight phone move → rim spins a lot */
+      targetRim = (alpha * 1.6 + gamma * 7.5 + (beta - 40) * 2.4) % 360;
     }
 
     function onMotion(e) {
@@ -131,11 +132,11 @@
         if (!a) return;
         var x = typeof a.x === "number" ? a.x : 0;
         var y = typeof a.y === "number" ? a.y : 0;
-        targetX = clamp(50 + x * 7, 5, 95);
-        targetY = clamp(22 - y * 3.5, 4, 65);
-        targetTiltY = clamp(x * 0.7, -8, 8);
-        targetTiltX = clamp(y * 0.4, -6, 6);
-        targetRim = (targetRim + x * 4) % 360;
+        targetX = clamp(50 + x * 12, 2, 98);
+        targetY = clamp(22 - y * 7, 2, 85);
+        targetTiltY = clamp(x * 1.4, -14, 14);
+        targetTiltX = clamp(y * 0.9, -12, 12);
+        targetRim = (targetRim + x * 14) % 360;
       } catch (err) {}
     }
 
@@ -184,9 +185,9 @@
         var y = ((e.clientY - rect.top) / rect.height) * 100;
         targetX = clamp(x, 5, 95);
         targetY = clamp(y, 4, 65);
-        targetTiltY = clamp((x - 50) * 0.14, -8, 8);
-        targetTiltX = clamp((y - 40) * -0.1, -6, 6);
-        targetRim = ((x - 50) * 3.6 + (y - 50) * 1.8 + 360) % 360;
+        targetTiltY = clamp((x - 50) * 0.28, -14, 14);
+        targetTiltX = clamp((y - 40) * -0.22, -12, 12);
+        targetRim = ((x - 50) * 7.2 + (y - 50) * 3.6 + 360) % 360;
         if (!raf) raf = requestAnimationFrame(tick);
       },
       { passive: true }
