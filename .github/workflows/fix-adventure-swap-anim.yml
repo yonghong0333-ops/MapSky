@@ -1,0 +1,197 @@
+name: fix-adventure-swap-anim
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-adventure-swap-anim.yml'
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch renderer + CSS for adventure card swap animation
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+
+          js = Path("public/renderer.js")
+          s = js.read_text(encoding="utf-8")
+
+          old = '''function updateAdventureCardSwap(unlocked) {
+            const promo = el("adventurePanel");
+            const enabled = el("adventureEnabledCard");
+            if (!promo || !enabled) return;
+            const showEnabled = unlocked && dynamicIslandOn;
+            promo.classList.toggle("hidden", showEnabled);
+            enabled.classList.toggle("hidden", !showEnabled);
+            const sub = el("adventureEnabledSub");
+            if (sub) sub.textContent = currentCity ? `${currentCity.label}．已顯示在動態島 / 鎖定畫面` : "已顯示在動態島 / 鎖定畫面";
+          }'''
+
+          # Normalize: source uses 2-space indent without the leading spaces I may have added incorrectly
+          old = (
+              'function updateAdventureCardSwap(unlocked) {\n'
+              '  const promo = el("adventurePanel");\n'
+              '  const enabled = el("adventureEnabledCard");\n'
+              '  if (!promo || !enabled) return;\n'
+              '  const showEnabled = unlocked && dynamicIslandOn;\n'
+              '  promo.classList.toggle("hidden", showEnabled);\n'
+              '  enabled.classList.toggle("hidden", !showEnabled);\n'
+              '  const sub = el("adventureEnabledSub");\n'
+              '  if (sub) sub.textContent = currentCity ? `${currentCity.label}．已顯示在動態島 / 鎖定畫面` : "已顯示在動態島 / 鎖定畫面";\n'
+              '}'
+          )
+
+          new = (
+              'function updateAdventureCardSwap(unlocked) {\n'
+              '  const promo = el("adventurePanel");\n'
+              '  const enabled = el("adventureEnabledCard");\n'
+              '  if (!promo || !enabled) return;\n'
+              '  const showEnabled = unlocked && dynamicIslandOn;\n'
+              '  const sub = el("adventureEnabledSub");\n'
+              '  if (sub) sub.textContent = currentCity ? `${currentCity.label}．已顯示在動態島 / 鎖定畫面` : "已顯示在動態島 / 鎖定畫面";\n'
+              '\n'
+              '  // 使用／關閉時在宣傳卡 ↔ 進行中卡片之間做過渡動畫\n'
+              '  const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;\n'
+              '  const promoVisible = !promo.classList.contains("hidden") && !promo.classList.contains("adventure-card-exiting");\n'
+              '  const enabledVisible = !enabled.classList.contains("hidden") && !enabled.classList.contains("adventure-card-exiting");\n'
+              '  const currentlyEnabled = enabledVisible && !promoVisible;\n'
+              '\n'
+              '  function clearAnim(el) {\n'
+              '    el.classList.remove("adventure-card-enter", "adventure-card-exiting");\n'
+              '  }\n'
+              '\n'
+              '  if (showEnabled === currentlyEnabled) {\n'
+              '    // 已在正確狀態（初次渲染或重複呼叫）：直接對齊 class，不重播動畫\n'
+              '    clearAnim(promo);\n'
+              '    clearAnim(enabled);\n'
+              '    promo.classList.toggle("hidden", showEnabled);\n'
+              '    enabled.classList.toggle("hidden", !showEnabled);\n'
+              '    return;\n'
+              '  }\n'
+              '\n'
+              '  if (reduceMotion) {\n'
+              '    clearAnim(promo);\n'
+              '    clearAnim(enabled);\n'
+              '    promo.classList.toggle("hidden", showEnabled);\n'
+              '    enabled.classList.toggle("hidden", !showEnabled);\n'
+              '    return;\n'
+              '  }\n'
+              '\n'
+              '  const outEl = showEnabled ? promo : enabled;\n'
+              '  const inEl = showEnabled ? enabled : promo;\n'
+              '\n'
+              '  // 準備進場卡片\n'
+              '  clearAnim(inEl);\n'
+              '  inEl.classList.remove("hidden");\n'
+              '  // 強制重啟 enter 動畫\n'
+              '  void inEl.offsetWidth;\n'
+              '  inEl.classList.add("adventure-card-enter");\n'
+              '\n'
+              '  // 退場卡片\n'
+              '  clearAnim(outEl);\n'
+              '  outEl.classList.remove("hidden");\n'
+              '  void outEl.offsetWidth;\n'
+              '  outEl.classList.add("adventure-card-exiting");\n'
+              '\n'
+              '  let done = false;\n'
+              '  function finish() {\n'
+              '    if (done) return;\n'
+              '    done = true;\n'
+              '    outEl.classList.add("hidden");\n'
+              '    outEl.classList.remove("adventure-card-exiting");\n'
+              '    inEl.classList.remove("adventure-card-enter");\n'
+              '    // 最終狀態保險\n'
+              '    promo.classList.toggle("hidden", showEnabled);\n'
+              '    enabled.classList.toggle("hidden", !showEnabled);\n'
+              '  }\n'
+              '  function onEnd(e) {\n'
+              '    if (e && e.target !== outEl) return;\n'
+              '    outEl.removeEventListener("animationend", onEnd);\n'
+              '    finish();\n'
+              '  }\n'
+              '  outEl.addEventListener("animationend", onEnd);\n'
+              '  setTimeout(finish, 420);\n'
+              '}'
+          )
+
+          if "adventure-card-exiting" in s and "function updateAdventureCardSwap" in s:
+              # already patched?
+              if "adventure-card-enter" in s and "reduceMotion" in s[s.find("function updateAdventureCardSwap"):s.find("function updateAdventureCardSwap")+800]:
+                  print("renderer already patched")
+              elif old not in s:
+                  raise SystemExit("updateAdventureCardSwap block not found")
+              else:
+                  s = s.replace(old, new, 1)
+                  js.write_text(s, encoding="utf-8")
+                  print("renderer patched")
+          elif old not in s:
+              raise SystemExit("updateAdventureCardSwap block not found")
+          else:
+              s = s.replace(old, new, 1)
+              js.write_text(s, encoding="utf-8")
+              print("renderer patched")
+
+          css = Path("public/style.css")
+          c = css.read_text(encoding="utf-8")
+          anim_css = '''
+          /* 動態島冒險：使用／關閉時宣傳卡 ↔ 進行中卡片過渡 */
+          @keyframes adventure-card-out {
+            0% { opacity: 1; transform: scale(1) translateY(0); }
+            100% { opacity: 0; transform: scale(0.94) translateY(10px); }
+          }
+          @keyframes adventure-card-in {
+            0% { opacity: 0; transform: scale(0.94) translateY(10px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+          }
+          .adventure-panel.adventure-card-exiting,
+          .adventure-enabled-card.adventure-card-exiting {
+            animation: adventure-card-out 0.36s ease forwards;
+            pointer-events: none;
+          }
+          .adventure-panel.adventure-card-enter,
+          .adventure-enabled-card.adventure-card-enter {
+            animation: adventure-card-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+          }
+          /* 動畫期間不能被 .hidden { display:none } 砍掉 */
+          .adventure-panel.adventure-card-exiting,
+          .adventure-enabled-card.adventure-card-exiting {
+            display: block !important;
+          }
+          .adventure-enabled-card.adventure-card-exiting,
+          .adventure-enabled-card.adventure-card-enter {
+            display: flex !important;
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .adventure-panel.adventure-card-exiting,
+            .adventure-enabled-card.adventure-card-exiting,
+            .adventure-panel.adventure-card-enter,
+            .adventure-enabled-card.adventure-card-enter {
+              animation: none !important;
+            }
+          }
+          '''
+          if "adventure-card-out" in c:
+              print("css already has adventure card anim")
+          else:
+              anchor = ".adventure-enabled-card.hidden { display: none; }"
+              if anchor in c:
+                  c = c.replace(anchor, anchor + "\n" + anim_css, 1)
+              else:
+                  c = c + "\n" + anim_css
+              css.write_text(c, encoding="utf-8")
+              print("css patched", css.stat().st_size)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/renderer.js public/style.css
+          if git diff --staged --quiet; then
+            echo "no changes"
+          else
+            git commit -m "ui: 動態島冒險使用／關閉加入卡片過渡動畫"
+            git push
+          fi
