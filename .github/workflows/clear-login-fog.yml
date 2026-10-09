@@ -1,0 +1,18 @@
+name: Clear login fog
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/otp/apply_clear_fog.py
+      - name: Commit
+        run: |
+          git config user.name "MapSky Bot"
+          git config user.email "bot@mapsky.local"
+          git add public/style.css
+          git commit -m "ui(auth): remove heavy fog overlay on login background" || echo "no changes"
+          git push origin HEAD:main
