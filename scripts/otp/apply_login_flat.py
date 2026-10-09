@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import base64
-
-parts = []
-for i in range(4):
-    p = Path(f"scripts/otp/login_bg_part_{i}.txt")
-    if not p.exists():
-        raise SystemExit(f"missing {p}")
-    parts.append(p.read_text().strip())
-Path("public/login-bg.jpg").write_bytes(base64.b64decode("".join(parts)))
+a = Path("scripts/otp/login_bg_a.txt").read_text().strip()
+b = Path("scripts/otp/login_bg_b.txt").read_text().strip()
+Path("public/login-bg.jpg").write_bytes(base64.b64decode(a + b))
 print("bg", Path("public/login-bg.jpg").stat().st_size)
 
 p = Path("public/index.html")
@@ -19,7 +14,7 @@ old = """    <div class=\"login-gate-card\">
       <p class=\"login-gate-tagline\">看見天氣，連結你的每一刻</p>"""
 new = """    <div class=\"login-gate-card login-gate-card--flat\">
       <h1 class=\"login-gate-title login-gate-title--terminal\" id=\"loginGateTitle\" aria-label=\"MapSky\">
-        <span class=\"login-gate-terminal-prefix\" aria-hidden=\"true\">&gt; </span><span id=\"loginGateTitleTyped\" class=\"login-gate-title-typed\"></span><span class=\"login-gate-cursor\" aria-hidden=\"true\">\u2588</span>
+        <span class=\"login-gate-terminal-prefix\" aria-hidden=\"true\">&gt; </span><span id=\"loginGateTitleTyped\" class=\"login-gate-title-typed\"></span><span class=\"login-gate-cursor\" aria-hidden=\"true\">█</span>
       </h1>
       <p class=\"login-gate-tagline\">看見天氣，連結你的每一刻</p>"""
 if "login-gate-title--terminal" in t:
@@ -38,9 +33,9 @@ if "LOGIN_FLAT_BG_TERMINAL" not in c:
 /* LOGIN_FLAT_BG_TERMINAL */
 .login-gate {
   background:
-    linear-gradient(180deg, rgba(8, 18, 40, 0.22) 0%, rgba(8, 18, 40, 0.4) 100%),
+    linear-gradient(180deg, rgba(8, 18, 40, 0.18) 0%, rgba(8, 18, 40, 0.42) 100%),
     url("login-bg.jpg") center / cover no-repeat !important;
-  background-color: #0a1a2e !important;
+  background-color: #6a9fd4 !important;
 }
 .login-gate-card,
 .login-gate-card.login-gate-card--flat {
