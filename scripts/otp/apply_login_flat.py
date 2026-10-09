@@ -1,24 +1,33 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 
 p = Path("public/index.html")
 t = p.read_text(encoding="utf-8")
-old = """    <div class=\"login-gate-card\">
-      <img class=\"login-gate-logo\" src=\"icons/logo-dark.png\" alt=\"MapSky\" />
-      <h1 class=\"login-gate-title\">MapSky</h1>
-      <p class=\"login-gate-tagline\">看見天氣，連結你的每一刻</p>"""
-new = """    <div class=\"login-gate-card login-gate-card--flat\">
-      <h1 class=\"login-gate-title login-gate-title--terminal\" id=\"loginGateTitle\" aria-label=\"MapSky\">
-        <span class=\"login-gate-terminal-prefix\" aria-hidden=\"true\">&gt; </span><span id=\"loginGateTitleTyped\" class=\"login-gate-title-typed\"></span><span class=\"login-gate-cursor\" aria-hidden=\"true\">█</span>
-      </h1>
-      <p class=\"login-gate-tagline\">看見天氣，連結你的每一刻</p>"""
+
 if "login-gate-title--terminal" in t:
     print("html already")
-elif old in t:
-    p.write_text(t.replace(old, new, 1), encoding="utf-8")
-    print("html ok")
 else:
-    raise SystemExit("html block not found")
+    # 只改第一個 login-gate-card 區塊（登入 gate）
+    pat = re.compile(
+        r'(<div class="login-gate-card">)\s*'
+        r'<img class="login-gate-logo"[^>]*>\s*'
+        r'<h1 class="login-gate-title">MapSky</h1>',
+        re.M,
+    )
+    repl = (
+        r'<div class="login-gate-card login-gate-card--flat">'
+        r'\n      <h1 class="login-gate-title login-gate-title--terminal" id="loginGateTitle" aria-label="MapSky">'
+        r'\n        <span class="login-gate-terminal-prefix" aria-hidden="true">&gt; </span>'
+        r'<span id="loginGateTitleTyped" class="login-gate-title-typed"></span>'
+        r'<span class="login-gate-cursor" aria-hidden="true">\u2588</span>'
+        r'\n      </h1>'
+    )
+    t2, n = pat.subn(repl, t, count=1)
+    if n != 1:
+        raise SystemExit(f"html block not found (n={n})")
+    p.write_text(t2, encoding="utf-8")
+    print("html ok")
 
 css = Path("public/style.css")
 c = css.read_text(encoding="utf-8")
