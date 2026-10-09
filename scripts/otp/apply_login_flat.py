@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import base64
-a = Path("scripts/otp/login_bg_a.txt").read_text().strip()
-b = Path("scripts/otp/login_bg_b.txt").read_text().strip()
-Path("public/login-bg.jpg").write_bytes(base64.b64decode(a + b))
-print("bg", Path("public/login-bg.jpg").stat().st_size)
 
 p = Path("public/index.html")
 t = p.read_text(encoding="utf-8")
@@ -33,9 +28,10 @@ if "LOGIN_FLAT_BG_TERMINAL" not in c:
 /* LOGIN_FLAT_BG_TERMINAL */
 .login-gate {
   background:
-    linear-gradient(180deg, rgba(8, 18, 40, 0.18) 0%, rgba(8, 18, 40, 0.42) 100%),
-    url("login-bg.jpg") center / cover no-repeat !important;
-  background-color: #6a9fd4 !important;
+    linear-gradient(180deg, rgba(8, 18, 40, 0.2) 0%, rgba(8, 18, 40, 0.45) 100%),
+    url("login-bg.jpg") center / cover no-repeat,
+    linear-gradient(165deg, #7eb6e8 0%, #a8c8e8 35%, #c5d4e0 55%, #8fa8bc 75%, #6a8499 100%) !important;
+  background-color: #7eb6e8 !important;
 }
 .login-gate-card,
 .login-gate-card.login-gate-card--flat {
