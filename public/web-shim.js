@@ -2255,22 +2255,33 @@
     const moreToggle = el("loginGateMoreToggle");
     if (extraEl && moreToggle && extraProviders.length > 0) {
       extraEl.innerHTML = buildGateButtons(extraProviders);
-      extraEl.classList.add("hidden");
+      // 用 is-open 做展開動畫，不再用 display:none（無法過渡）
+      extraEl.classList.remove("hidden");
+      extraEl.classList.remove("is-open");
+      extraEl.setAttribute("aria-hidden", "true");
       moreToggle.classList.remove("hidden");
       moreToggle.classList.remove("expanded");
+      moreToggle.setAttribute("aria-expanded", "false");
       const labelSpan = moreToggle.querySelector("span:not(.login-gate-more-chevron)") || moreToggle.querySelector("span");
       if (labelSpan) labelSpan.textContent = "更多登入方式";
       if (!moreToggle.dataset.bound) {
         moreToggle.dataset.bound = "1";
         moreToggle.addEventListener("click", () => {
           const expanded = moreToggle.classList.toggle("expanded");
-          extraEl.classList.toggle("hidden", !expanded);
+          extraEl.classList.toggle("is-open", expanded);
+          extraEl.classList.remove("hidden");
+          extraEl.setAttribute("aria-hidden", expanded ? "false" : "true");
+          moreToggle.setAttribute("aria-expanded", expanded ? "true" : "false");
           const s = moreToggle.querySelector("span:not(.login-gate-more-chevron)") || moreToggle.querySelector("span");
           if (s) s.textContent = expanded ? "收起" : "更多登入方式";
         });
       }
     } else {
-      if (extraEl) { extraEl.innerHTML = ""; extraEl.classList.add("hidden"); }
+      if (extraEl) {
+        extraEl.innerHTML = "";
+        extraEl.classList.remove("is-open");
+        extraEl.classList.add("hidden");
+      }
       if (moreToggle) moreToggle.classList.add("hidden");
     }
     initMagicLinkForm();

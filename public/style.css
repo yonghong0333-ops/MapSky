@@ -5678,3 +5678,56 @@ input::placeholder { color: #94a3b8 !important; }
 .login-gate-magic-submit:active {
   transform: scale(0.94) !important;
 }
+
+
+/* MORE_LOGIN_ANIM — 更多登入方式展開／收合過渡 */
+.login-gate-buttons-extra {
+  display: flex !important;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 0;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition:
+    max-height 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.28s ease,
+    transform 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+    margin-top 0.32s ease;
+}
+.login-gate-buttons-extra.is-open {
+  max-height: 420px;
+  opacity: 1;
+  transform: translateY(0);
+  margin-top: 10px;
+  pointer-events: auto;
+}
+.login-gate-buttons-extra.hidden {
+  display: none !important;
+}
+.login-gate-more-chevron {
+  transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.login-gate-more-toggle.expanded .login-gate-more-chevron {
+  transform: rotate(-135deg) !important;
+}
+.login-gate-buttons-extra.is-open .login-gate-btn {
+  animation: more-login-btn-in 0.36s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+}
+.login-gate-buttons-extra.is-open .login-gate-btn:nth-child(1) { animation-delay: 0.02s; }
+.login-gate-buttons-extra.is-open .login-gate-btn:nth-child(2) { animation-delay: 0.06s; }
+.login-gate-buttons-extra.is-open .login-gate-btn:nth-child(3) { animation-delay: 0.10s; }
+.login-gate-buttons-extra.is-open .login-gate-btn:nth-child(4) { animation-delay: 0.14s; }
+.login-gate-buttons-extra.is-open .login-gate-btn:nth-child(5) { animation-delay: 0.18s; }
+@keyframes more-login-btn-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
