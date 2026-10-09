@@ -5869,3 +5869,17 @@ input::placeholder { color: #94a3b8 !important; }
   border-color: #ffffff !important;
   opacity: 1 !important;
 }
+
+
+/* LOGIN_LEGAL_WHITE */
+.login-gate-legal,
+.login-gate .login-gate-legal {
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+/* 服務條款連結維持藍色 */
+.login-gate-legal a,
+.login-gate .login-gate-legal a,
+.login-gate a[href*="terms"] {
+  color: #3b82f6 !important;
+}
