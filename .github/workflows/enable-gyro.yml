@@ -1,0 +1,86 @@
+name: Enable gyro shine wiring
+on:
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch style.css and index.html
+        run: |
+          python3 << 'PY2'
+          from pathlib import Path
+
+          css_path = Path("public/style.css")
+          css = css_path.read_text(encoding="utf-8")
+          if "has-gyro-tilt" not in css or "--shine-x" not in css[-3000:]:
+              block = """
+
+/* ── Gyro specular shine + 3D tilt on hero weather card ── */
+.current-card.has-gyro-tilt {
+  --shine-x: 50%;
+  --shine-y: 18%;
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  transform: perspective(1000px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.current-card.has-gyro-tilt .gyro-shine-line {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: inherit;
+  background:
+    radial-gradient(
+      140% 90% at var(--shine-x) var(--shine-y),
+      rgba(255, 255, 255, 0.62) 0%,
+      rgba(255, 255, 255, 0.18) 26%,
+      rgba(186, 230, 253, 0.08) 42%,
+      transparent 58%
+    );
+  mix-blend-mode: soft-light;
+  opacity: 0.95;
+}
+.current-card.has-gyro-tilt > *:not(.gyro-shine-line) {
+  position: relative;
+  z-index: 5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .current-card.has-gyro-tilt {
+    transform: none !important;
+  }
+  .current-card.has-gyro-tilt .gyro-shine-line {
+    opacity: 0.25;
+  }
+}
+"""
+              css_path.write_text(css.rstrip() + "\n" + block, encoding="utf-8")
+              print("style.css: gyro CSS appended")
+          else:
+              print("style.css: already has gyro CSS")
+
+          html_path = Path("public/index.html")
+          html = html_path.read_text(encoding="utf-8")
+          if "gyro-shine.js" in html:
+              print("index.html: script already present")
+          else:
+              needle = '<script src="offline-banner.js"></script>'
+              insert = needle + '\n<script src="gyro-shine.js"></script>'
+              if needle not in html:
+                  html = html.replace("</body>", '<script src="gyro-shine.js"></script>\n</body>', 1)
+                  print("index.html: script inserted before </body>")
+              else:
+                  html = html.replace(needle, insert, 1)
+                  print("index.html: script after offline-banner")
+              html_path.write_text(html, encoding="utf-8")
+          PY2
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/style.css public/index.html
+          git diff --cached --quiet && echo "no changes" && exit 0
+          git commit -m "feat: wire gyro-shine.js + CSS for weather card tilt"
+          git push
