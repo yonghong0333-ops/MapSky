@@ -4160,7 +4160,7 @@ html.app-paused *, html.app-paused *::before, html.app-paused *::after,
   to { transform: rotate(360deg); }
 }
 
-/* BOOT_ORBIT_DOTS_V4 — visible dots, full rotation */
+/* BOOT_ORBIT_DOTS_V5 — dots spin, then morph into continuous line */
 .login-gate-boot-orbit-wrap {
   position: relative;
   width: 248px;
@@ -4182,13 +4182,17 @@ html.app-paused *, html.app-paused *::before, html.app-paused *::after,
   height: 248px;
   overflow: visible;
   transform-origin: 50% 50%;
-  animation: login-boot-orbit-spin 2.6s linear infinite;
+  animation: login-boot-orbit-spin 2.8s linear infinite;
 }
-.login-gate-boot-orbit-dots circle {
-  fill: #2563eb;
-  stroke: none;
+.login-gate-boot-orbit-dots .boot-orbit-path,
+.login-gate-boot-orbit-dots circle.boot-orbit-path {
+  fill: none;
+  stroke: #2563eb;
+  stroke-width: 12;
+  stroke-linecap: round;
+  stroke-dasharray: 0.01 52.36;
   filter: drop-shadow(0 1px 2px rgba(37, 99, 235, 0.35));
-  animation: none;
+  animation: login-boot-dots-to-line 2.8s ease-in-out infinite;
 }
 .login-gate-boot-orbit-wrap .login-gate-boot-weather {
   width: 96px;
@@ -4197,6 +4201,20 @@ html.app-paused *, html.app-paused *::before, html.app-paused *::after,
 }
 @keyframes login-boot-orbit-spin {
   to { transform: rotate(360deg); }
+}
+@keyframes login-boot-dots-to-line {
+  0%, 35% {
+    stroke-dasharray: 0.01 52.36;
+    stroke-width: 12;
+  }
+  55%, 85% {
+    stroke-dasharray: 628.3 0;
+    stroke-width: 5;
+  }
+  100% {
+    stroke-dasharray: 0.01 52.36;
+    stroke-width: 12;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .login-gate-boot-orbit-dots svg,

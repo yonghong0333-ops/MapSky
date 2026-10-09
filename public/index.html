@@ -95,21 +95,41 @@
     height: 248px !important;
     overflow: visible !important;
     transform-origin: 50% 50% !important;
-    animation: criticalBootSpin 2.6s linear infinite !important;
+    animation: criticalBootSpin 2.8s linear infinite !important;
   }
-  .login-gate-boot-orbit-dots circle {
-    fill: #2563eb !important;
-    stroke: none !important;
+  /* r=100 → circumference ≈ 628.3；12 等分 ≈ 52.36
+     點模式：round cap + 極短 dash = 看起來像圓點
+     線模式：dash 拉長接成一圈連續線 */
+  .login-gate-boot-orbit-dots .boot-orbit-path {
+    fill: none !important;
+    stroke: #2563eb !important;
+    stroke-width: 12 !important;
+    stroke-linecap: round !important;
+    stroke-dasharray: 0.01 52.36 !important;
     filter: drop-shadow(0 1px 2px rgba(37, 99, 235, 0.35)) !important;
-    animation: none !important;
+    animation: criticalBootDotsToLine 2.8s ease-in-out infinite !important;
   }
   @keyframes criticalBootSpin {
     to { transform: rotate(360deg); }
   }
+  @keyframes criticalBootDotsToLine {
+    0%, 35% {
+      stroke-dasharray: 0.01 52.36;
+      stroke-width: 12;
+    }
+    55%, 85% {
+      stroke-dasharray: 628.3 0;
+      stroke-width: 5;
+    }
+    100% {
+      stroke-dasharray: 0.01 52.36;
+      stroke-width: 12;
+    }
+  }
 
   @media (prefers-reduced-motion: reduce) {
     .login-gate-boot-orbit-dots svg,
-    .login-gate-boot-orbit-dots circle { animation: none !important; }
+    .login-gate-boot-orbit-dots .boot-orbit-path { animation: none !important; }
   }
 </style>
 <link rel="stylesheet" href="style.css" />
@@ -313,7 +333,7 @@
   <div id="loginGate" class="login-gate login-gate--booting">
     <div id="loginGateBoot" class="login-gate-boot" role="status" aria-live="polite">
       <div class="login-gate-boot-orbit-wrap" aria-hidden="true">
-        <span class="login-gate-boot-orbit-dots" aria-hidden="true"><svg viewBox="0 0 248 248" width="248" height="248"><circle cx="124.0" cy="24.0" r="7"/><circle cx="174.0" cy="37.4" r="7"/><circle cx="210.6" cy="74.0" r="7"/><circle cx="224.0" cy="124.0" r="7"/><circle cx="210.6" cy="174.0" r="7"/><circle cx="174.0" cy="210.6" r="7"/><circle cx="124.0" cy="224.0" r="7"/><circle cx="74.0" cy="210.6" r="7"/><circle cx="37.4" cy="174.0" r="7"/><circle cx="24.0" cy="124.0" r="7"/><circle cx="37.4" cy="74.0" r="7"/><circle cx="74.0" cy="37.4" r="7"/></svg></span>
+        <span class="login-gate-boot-orbit-dots" aria-hidden="true"><svg viewBox="0 0 248 248" width="248" height="248"><circle class="boot-orbit-path" cx="124" cy="124" r="100" pathLength="628.3" fill="none"/></svg></span>
         <div class="login-gate-boot-weather">
         <img class="login-gate-boot-wx is-active" src="icons/sunny.png" alt="" data-wx="sunny" />
         <img class="login-gate-boot-wx" src="icons/partly-cloudy.png" alt="" data-wx="partly" />
