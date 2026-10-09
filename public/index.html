@@ -95,55 +95,16 @@
     height: 248px !important;
     overflow: visible !important;
     transform-origin: 50% 50% !important;
-    animation: criticalBootSpin 1.7s linear infinite !important;
+    animation: criticalBootSpin 2.6s linear infinite !important;
   }
   .login-gate-boot-orbit-dots circle {
-    fill: none !important;
-    stroke: #ffffff !important;
-    stroke-width: 6 !important;
-    stroke-linecap: round !important;
-    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.7)) !important;
-    animation: criticalBootMorph 1.7s linear infinite !important;
+    fill: #2563eb !important;
+    stroke: none !important;
+    filter: drop-shadow(0 1px 2px rgba(37, 99, 235, 0.35)) !important;
+    animation: none !important;
   }
   @keyframes criticalBootSpin {
-    0% { transform: rotate(-90.00deg); }
-    16% { transform: rotate(-21.43deg); }
-    30% { transform: rotate(38.57deg); }
-    42% { transform: rotate(90.00deg); }
-    68% { transform: rotate(170.69deg); }
-    86% { transform: rotate(226.55deg); }
-    100% { transform: rotate(270.00deg); }
-  }
-  @keyframes criticalBootMorph {
-    0% { stroke-dasharray: 18.000 0.800 18.000 0.800 18.000 0.800 18.000 0.800 18.000 610.517; }
-    16% { stroke-dasharray: 8.000 6.000 8.000 6.000 8.000 6.000 8.000 6.000 8.000 639.717; }
-    30% { stroke-dasharray: 2.200 14.000 2.200 14.000 2.200 14.000 2.200 14.000 2.200 636.717; }
-    42% { stroke-dasharray: 0.600 20.000 0.600 20.000 0.600 20.000 0.600 20.000 0.600 620.717; }
-    68% { stroke-dasharray: 0.600 18.000 0.600 18.000 0.600 18.000 0.600 18.000 0.600 628.717; }
-    86% { stroke-dasharray: 10.000 3.500 10.000 3.500 10.000 3.500 10.000 3.500 10.000 639.717; }
-    100% { stroke-dasharray: 18.000 0.800 18.000 0.800 18.000 0.800 18.000 0.800 18.000 610.517; }
-  }
-
-  /* Open transition (matches style.css) */
-  body.auth-ok .login-gate.login-gate--booting,
-  body.auth-ok .login-gate.login-gate--opening {
-    display: flex !important;
-  }
-  .login-gate.login-gate--booting {
-    clip-path: circle(150% at 50% 50%);
-    transition: clip-path 0.72s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.55s ease;
-  }
-  .login-gate.login-gate--opening {
-    clip-path: circle(0% at 50% 50%);
-    opacity: 0;
-    pointer-events: none;
-  }
-  .login-gate-boot--exit {
-    animation: login-boot-open-out 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
-  }
-  @keyframes login-boot-open-out {
-    0% { opacity: 1; transform: scale(1); filter: blur(0); }
-    100% { opacity: 0; transform: scale(1.28); filter: blur(6px); }
+    to { transform: rotate(360deg); }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -352,7 +313,7 @@
   <div id="loginGate" class="login-gate login-gate--booting">
     <div id="loginGateBoot" class="login-gate-boot" role="status" aria-live="polite">
       <div class="login-gate-boot-orbit-wrap" aria-hidden="true">
-        <span class="login-gate-boot-orbit-dots" aria-hidden="true"><svg viewBox="0 0 248 248" width="248" height="248"><circle cx="124" cy="124" r="112" /></svg></span>
+        <span class="login-gate-boot-orbit-dots" aria-hidden="true"><svg viewBox="0 0 248 248" width="248" height="248"><circle cx="124.0" cy="24.0" r="7"/><circle cx="174.0" cy="37.4" r="7"/><circle cx="210.6" cy="74.0" r="7"/><circle cx="224.0" cy="124.0" r="7"/><circle cx="210.6" cy="174.0" r="7"/><circle cx="174.0" cy="210.6" r="7"/><circle cx="124.0" cy="224.0" r="7"/><circle cx="74.0" cy="210.6" r="7"/><circle cx="37.4" cy="174.0" r="7"/><circle cx="24.0" cy="124.0" r="7"/><circle cx="37.4" cy="74.0" r="7"/><circle cx="74.0" cy="37.4" r="7"/></svg></span>
         <div class="login-gate-boot-weather">
         <img class="login-gate-boot-wx is-active" src="icons/sunny.png" alt="" data-wx="sunny" />
         <img class="login-gate-boot-wx" src="icons/partly-cloudy.png" alt="" data-wx="partly" />

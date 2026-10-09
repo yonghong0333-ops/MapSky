@@ -4160,7 +4160,7 @@ html.app-paused *, html.app-paused *::before, html.app-paused *::after,
   to { transform: rotate(360deg); }
 }
 
-/* BOOT_ORBIT_DOTS_V3 */
+/* BOOT_ORBIT_DOTS_V4 — visible dots, full rotation */
 .login-gate-boot-orbit-wrap {
   position: relative;
   width: 248px;
@@ -4182,15 +4182,13 @@ html.app-paused *, html.app-paused *::before, html.app-paused *::after,
   height: 248px;
   overflow: visible;
   transform-origin: 50% 50%;
-  animation: login-boot-orbit-spin 1.7s linear infinite;
+  animation: login-boot-orbit-spin 2.6s linear infinite;
 }
 .login-gate-boot-orbit-dots circle {
-  fill: none;
-  stroke: #ffffff;
-  stroke-width: 6;
-  stroke-linecap: round;
-  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.7));
-  animation: login-boot-orbit-morph 1.7s linear infinite;
+  fill: #2563eb;
+  stroke: none;
+  filter: drop-shadow(0 1px 2px rgba(37, 99, 235, 0.35));
+  animation: none;
 }
 .login-gate-boot-orbit-wrap .login-gate-boot-weather {
   width: 96px;
@@ -4198,22 +4196,7 @@ html.app-paused *, html.app-paused *::before, html.app-paused *::after,
   z-index: 1;
 }
 @keyframes login-boot-orbit-spin {
-  0% { transform: rotate(-90.00deg); }
-  16% { transform: rotate(-21.43deg); }
-  30% { transform: rotate(38.57deg); }
-  42% { transform: rotate(90.00deg); }
-  68% { transform: rotate(170.69deg); }
-  86% { transform: rotate(226.55deg); }
-  100% { transform: rotate(270.00deg); }
-}
-@keyframes login-boot-orbit-morph {
-  0% { stroke-dasharray: 18.000 0.800 18.000 0.800 18.000 0.800 18.000 0.800 18.000 610.517; }
-  16% { stroke-dasharray: 8.000 6.000 8.000 6.000 8.000 6.000 8.000 6.000 8.000 639.717; }
-  30% { stroke-dasharray: 2.200 14.000 2.200 14.000 2.200 14.000 2.200 14.000 2.200 636.717; }
-  42% { stroke-dasharray: 0.600 20.000 0.600 20.000 0.600 20.000 0.600 20.000 0.600 620.717; }
-  68% { stroke-dasharray: 0.600 18.000 0.600 18.000 0.600 18.000 0.600 18.000 0.600 628.717; }
-  86% { stroke-dasharray: 10.000 3.500 10.000 3.500 10.000 3.500 10.000 3.500 10.000 639.717; }
-  100% { stroke-dasharray: 18.000 0.800 18.000 0.800 18.000 0.800 18.000 0.800 18.000 610.517; }
+  to { transform: rotate(360deg); }
 }
 @media (prefers-reduced-motion: reduce) {
   .login-gate-boot-orbit-dots svg,

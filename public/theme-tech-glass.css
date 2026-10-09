@@ -362,16 +362,20 @@ input[type="search"],
   100% { transform: scale(1); }
 }
 
-/* GYRO_SHINE_WIRE */
+/* GYRO_SHINE_WIRE — still at rest, tilts only with the phone */
 .current-card.has-gyro-tilt {
   --shine-x: 50%;
-  --shine-y: 18%;
+  --shine-y: 22%;
   --tilt-x: 0deg;
   --tilt-y: 0deg;
   --shine-angle: -12deg;
-  transform-style: preserve-3d !important;
-  transform: perspective(900px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) !important;
-  transition: transform 0.05s linear !important;
+  transform: none !important;
+  transition: none !important;
+  will-change: auto !important;
+}
+.current-card.has-gyro-tilt.is-gyro-live {
+  transform: perspective(880px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) !important;
+  transform-origin: center center !important;
   will-change: transform !important;
 }
 .current-card .gyro-shine-line {
@@ -384,6 +388,10 @@ input[type="search"],
   pointer-events: none !important;
   border-radius: 22px 22px 0 0 !important;
   overflow: hidden !important;
+  opacity: 0 !important;
+}
+.current-card.has-gyro-tilt.is-gyro-live .gyro-shine-line {
+  opacity: 1 !important;
 }
 .current-card .gyro-shine-line::before {
   content: "" !important;
@@ -418,6 +426,10 @@ input[type="search"],
   ) !important;
   z-index: 2 !important;
   pointer-events: none !important;
+  opacity: 0 !important;
+}
+.current-card.has-gyro-tilt.is-gyro-live::before {
+  opacity: 1 !important;
 }
 
 /* TEMP_CHART_POLISH */

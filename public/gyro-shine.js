@@ -1,193 +1,83 @@
-/* MAPSKY_GYRO_SHIM_V8 — thin orbiting rim only (no full-card fill) */
-(function mapskyGyroV8() {
-  if (window.__mapskyGyroV8) return;
-  window.__mapskyGyroV8 = true;
+/* MAPSKY_GYRO_SHIM_V9 — rest still, tilt only while the phone tilts.
+   renderer.js owns this when it loads; this file is the fallback. */
+(function mapskyGyroV9() {
+  if (window.__mapskyGyroV9) return;
+  window.__mapskyGyroV9 = true;
+  if (window.__mapskyGyroOwned) return;
 
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-
-  function injectCss() {
-    if (document.getElementById("mapsky-gyro-shine-css")) return;
-    var s = document.createElement("style");
-    s.id = "mapsky-gyro-shine-css";
-    s.textContent =
-      ".current-card.has-gyro-tilt{" +
-      "position:relative !important;" +
-      "overflow:visible !important;" +
-      "isolation:isolate !important;" +
-      "will-change:transform !important;" +
-      "}" +
-      ".current-card.has-gyro-tilt .gyro-color-rim{" +
-      "pointer-events:none !important;" +
-      "position:absolute !important;" +
-      "left:0 !important;right:0 !important;top:0 !important;bottom:0 !important;" +
-      "border-radius:inherit !important;" +
-      "z-index:7 !important;" +
-      "opacity:1 !important;" +
-      "padding:2.5px !important;" +
-      "box-sizing:border-box !important;" +
-      "-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);" +
-      "-webkit-mask-composite:xor;" +
-      "mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);" +
-      "mask-composite:exclude;" +
-      "}" +
-      ".current-card.has-gyro-tilt .gyro-shine-line{" +
-      "pointer-events:none !important;position:absolute !important;" +
-      "inset:0 !important;z-index:6 !important;border-radius:inherit !important;" +
-      "mix-blend-mode:soft-light !important;" +
-      "}" +
-      ".current-card.has-gyro-tilt > *:not(.gyro-color-rim):not(.gyro-shine-line){" +
-      "position:relative !important;z-index:5 !important;" +
-      "}";
-    document.head.appendChild(s);
-  }
-
-  function el(tag, cls) {
-    var n = document.createElement(tag);
-    n.className = cls;
-    n.setAttribute("aria-hidden", "true");
-    return n;
-  }
+  const DEAD = 4.5;
+  const MAX = 16;
 
   function boot() {
-    injectCss();
+    if (window.__mapskyGyroOwned) return;
     var card = document.querySelector(".current-card");
-    if (!card) {
-      setTimeout(boot, 250);
-      return;
-    }
+    if (!card) { setTimeout(boot, 250); return; }
+    if (window.__mapskyGyroOwned) return;
+    window.__mapskyGyroOwned = "shim";
+    card.classList.add("has-gyro-tilt", "is-gyro-rest");
 
-    card.classList.add("has-gyro-tilt");
-    try {
-      var p = card.parentElement;
-      if (p) p.style.overflow = "visible";
-    } catch (e) {}
-
-    var rim = card.querySelector(".gyro-color-rim");
-    if (!rim) {
-      rim = el("div", "gyro-color-rim");
-      card.insertBefore(rim, card.firstChild);
-    }
-    var shine = card.querySelector(".gyro-shine-line");
-    if (!shine) {
-      shine = el("div", "gyro-shine-line");
-      card.insertBefore(shine, rim.nextSibling);
-    }
-
-    var enabled = false;
-    var targetX = 50, targetY = 20, targetTiltX = 0, targetTiltY = 0, targetRim = 0;
-    var curX = 50, curY = 20, curTiltX = 0, curTiltY = 0, curRim = 0;
-    var idle = 0;
+    var baseGamma = null, baseBeta = null;
+    var targetX = 0, targetY = 0, curX = 0, curY = 0;
+    var running = false, raf = 0;
 
     function paint() {
-      idle = (idle + 2.4) % 360;
-      var aim = (targetRim + idle) % 360;
-
-      curX += (targetX - curX) * 0.55;
-      curY += (targetY - curY) * 0.55;
-      curTiltX += (targetTiltX - curTiltX) * 0.55;
-      curTiltY += (targetTiltY - curTiltY) * 0.55;
-      var d = aim - curRim;
-      while (d > 180) d -= 360;
-      while (d < -180) d += 360;
-      curRim += d * 0.5;
-
-      rim.style.background =
-        "conic-gradient(from " + curRim.toFixed(1) + "deg," +
-        "#22d3ee 0deg,#818cf8 72deg,#f472b6 144deg,#38bdf8 216deg,#a78bfa 288deg,#22d3ee 360deg)";
-
-      card.style.transform =
-        "perspective(900px) rotateX(" + curTiltX.toFixed(2) + "deg) rotateY(" + curTiltY.toFixed(2) + "deg)";
-
-      shine.style.background =
-        "radial-gradient(120% 80% at " + curX.toFixed(1) + "% " + curY.toFixed(1) + "%," +
-        "rgba(255,255,255,0.55) 0%,rgba(255,255,255,0.12) 28%,transparent 55%)";
-
-      requestAnimationFrame(paint);
+      var idle = Math.abs(targetX) < 0.04 && Math.abs(targetY) < 0.04 &&
+        Math.abs(curX) < 0.08 && Math.abs(curY) < 0.08;
+      if (idle) {
+        curX = 0; curY = 0;
+        card.classList.remove("is-gyro-live");
+        card.classList.add("is-gyro-rest");
+        card.style.setProperty("--tilt-x", "0deg");
+        card.style.setProperty("--tilt-y", "0deg");
+        running = false;
+        return;
+      }
+      card.classList.add("is-gyro-live");
+      card.classList.remove("is-gyro-rest");
+      card.style.setProperty("--tilt-x", curX.toFixed(3) + "deg");
+      card.style.setProperty("--tilt-y", curY.toFixed(3) + "deg");
     }
+    function tick() {
+      curX += (targetX - curX) * 0.22;
+      curY += (targetY - curY) * 0.22;
+      paint();
+      if (running) raf = requestAnimationFrame(tick);
+    }
+    function kick() { if (!running) { running = true; raf = requestAnimationFrame(tick); } }
+    function aim(x, y) { targetX = x; targetY = y; kick(); }
 
     function onOrient(e) {
       var g = typeof e.gamma === "number" ? e.gamma : 0;
       var b = typeof e.beta === "number" ? e.beta : 0;
-      var a = typeof e.alpha === "number" ? e.alpha : 0;
-      targetX = clamp(50 + g * 3.5, 2, 98);
-      targetY = clamp(18 + (b - 40) * 1.2, 2, 90);
-      targetTiltY = clamp(g * 0.5, -16, 16);
-      targetTiltX = clamp(-(b - 40) * 0.28, -14, 14);
-      targetRim = (a * 2.2 + g * 10 + (b - 40) * 3.5) % 360;
+      if (baseGamma == null) { baseGamma = g; baseBeta = b; return; }
+      var dg = g - baseGamma, db = b - baseBeta;
+      if (Math.hypot(dg, db) < DEAD) {
+        baseGamma = g; baseBeta = b;
+        aim(0, 0);
+        return;
+      }
+      aim(clamp(-db * 0.55, -MAX, MAX), clamp(dg * 0.62, -MAX, MAX));
     }
-
-    function onMotion(e) {
-      try {
-        var acc = e.accelerationIncludingGravity || e.acceleration;
-        if (!acc) return;
-        var x = acc.x || 0, y = acc.y || 0;
-        targetX = clamp(50 + x * 14, 2, 98);
-        targetY = clamp(22 - y * 8, 2, 90);
-        targetTiltY = clamp(x * 1.6, -16, 16);
-        targetTiltX = clamp(y * 1.1, -14, 14);
-        targetRim = (targetRim + x * 20) % 360;
-      } catch (err) {}
-    }
-
-    function startListeners() {
-      if (enabled) return;
-      enabled = true;
+    function start() {
       window.addEventListener("deviceorientation", onOrient, true);
-      window.addEventListener("deviceorientationabsolute", onOrient, true);
-      window.addEventListener("devicemotion", onMotion, true);
     }
-
-    async function requestPerm() {
+    function requestPerm() {
       try {
-        if (window.DeviceOrientationEvent &&
-            typeof DeviceOrientationEvent.requestPermission === "function") {
-          var st = await DeviceOrientationEvent.requestPermission();
-          if (st === "granted") startListeners();
-        } else {
-          startListeners();
-        }
-      } catch (e) { startListeners(); }
-      try {
-        if (window.DeviceMotionEvent &&
-            typeof DeviceMotionEvent.requestPermission === "function") {
-          await DeviceMotionEvent.requestPermission();
+        if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === "function") {
+          DeviceOrientationEvent.requestPermission().then(function (st) {
+            if (st === "granted") start();
+          }).catch(function () {});
+          return;
         }
       } catch (e) {}
-      startListeners();
+      start();
     }
-
-    window.mapskyRequestMotion = requestPerm;
-    window.mapskyStartGyro = startListeners;
-
     document.addEventListener("pointerdown", function () { requestPerm(); }, { once: true, capture: true });
-    document.addEventListener("touchstart", function () { requestPerm(); }, { once: true, capture: true });
-
-    card.addEventListener("pointermove", function (e) {
-      var r = card.getBoundingClientRect();
-      if (!r.width) return;
-      var x = ((e.clientX - r.left) / r.width) * 100;
-      var y = ((e.clientY - r.top) / r.height) * 100;
-      targetX = clamp(x, 2, 98);
-      targetY = clamp(y, 2, 90);
-      targetTiltY = clamp((x - 50) * 0.32, -16, 16);
-      targetTiltX = clamp((y - 40) * -0.26, -14, 14);
-      targetRim = ((x - 50) * 9 + (y - 50) * 4.5 + 360) % 360;
-    }, { passive: true });
-
     try {
-      if (!(window.DeviceOrientationEvent &&
-            typeof DeviceOrientationEvent.requestPermission === "function")) {
-        startListeners();
-      }
-    } catch (e) { startListeners(); }
-
-    setTimeout(function () { try { startListeners(); } catch (e) {} }, 800);
-    requestAnimationFrame(paint);
+      if (!(window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === "function")) start();
+    } catch (e) { start(); }
   }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () { setTimeout(boot, 150); });
-  } else {
-    setTimeout(boot, 150);
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setTimeout(boot, 400); });
+  else setTimeout(boot, 400);
 })();

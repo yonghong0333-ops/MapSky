@@ -3939,71 +3939,129 @@ document.querySelectorAll(".bottom-nav-btn").forEach((btn) => {
 (function initGyroGlassShine() {
   const card = document.querySelector(".current-card");
   if (!card) return;
+  window.__mapskyGyroOwned = "renderer";
 
+  const DEAD = 4.5;
+  const MAX = 16;
   let enabled = false;
   let raf = 0;
-  let targetX = 50;
-  let targetY = 18;
-  let targetTiltX = 0;
-  let targetTiltY = 0;
-  let curX = 50;
-  let curY = 18;
-  let curTiltX = 0;
-  let curTiltY = 0;
+  let running = false;
+  let baseGamma = null;
+  let baseBeta = null;
+  let targetX = 50, targetY = 22, targetTiltX = 0, targetTiltY = 0;
+  let curX = 50, curY = 22, curTiltX = 0, curTiltY = 0;
 
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
-  function tick() {
-    curX += (targetX - curX) * 0.12;
-    curY += (targetY - curY) * 0.12;
-    curTiltX += (targetTiltX - curTiltX) * 0.12;
-    curTiltY += (targetTiltY - curTiltY) * 0.12;
+  function settled() {
+    return Math.abs(targetTiltX) < 0.04 && Math.abs(targetTiltY) < 0.04 &&
+      Math.abs(curTiltX) < 0.08 && Math.abs(curTiltY) < 0.08 &&
+      Math.abs(curX - 50) < 0.4 && Math.abs(curY - 22) < 0.4;
+  }
+
+  function paint() {
+    if (settled()) {
+      curTiltX = 0; curTiltY = 0; curX = 50; curY = 22;
+      card.classList.remove("is-gyro-live");
+      card.classList.add("is-gyro-rest");
+      card.style.setProperty("--tilt-x", "0deg");
+      card.style.setProperty("--tilt-y", "0deg");
+      card.style.setProperty("--shine-x", "50%");
+      card.style.setProperty("--shine-y", "22%");
+      card.style.setProperty("--shine-angle", "-12deg");
+      running = false;
+      raf = 0;
+      return;
+    }
+    card.classList.add("is-gyro-live");
+    card.classList.remove("is-gyro-rest");
     card.style.setProperty("--shine-x", curX.toFixed(2) + "%");
     card.style.setProperty("--shine-y", curY.toFixed(2) + "%");
     card.style.setProperty("--tilt-x", curTiltX.toFixed(3) + "deg");
     card.style.setProperty("--tilt-y", curTiltY.toFixed(3) + "deg");
-    card.style.setProperty("--shine-angle", (-12 - (curX - 50) * 0.15).toFixed(2) + "deg");
+    card.style.setProperty("--shine-angle", (-12 - curTiltY * 1.1).toFixed(2) + "deg");
+  }
+
+  function tick() {
+    curX += (targetX - curX) * 0.22;
+    curY += (targetY - curY) * 0.22;
+    curTiltX += (targetTiltX - curTiltX) * 0.22;
+    curTiltY += (targetTiltY - curTiltY) * 0.22;
+    paint();
+    if (running) raf = requestAnimationFrame(tick);
+  }
+
+  function kick() {
+    if (running) return;
+    running = true;
     raf = requestAnimationFrame(tick);
   }
 
+  function aim(tiltX, tiltY) {
+    targetTiltX = tiltX;
+    targetTiltY = tiltY;
+    targetX = clamp(50 + tiltY * 2.4, 8, 92);
+    targetY = clamp(22 + tiltX * 2.1, 6, 90);
+    kick();
+  }
+
   function onOrient(e) {
-    // gamma: 左右 -90~90；beta: 前後 -180~180
     const gamma = typeof e.gamma === "number" ? e.gamma : 0;
     const beta = typeof e.beta === "number" ? e.beta : 0;
-    targetX = clamp(50 + gamma * 0.9, 8, 92);
-    targetY = clamp(18 + (beta - 45) * 0.25, 5, 55);
-    targetTiltY = clamp(gamma * 0.08, -4, 4);
-    targetTiltX = clamp(-(beta - 45) * 0.04, -3, 3);
+    if (baseGamma == null) {
+      baseGamma = gamma;
+      baseBeta = beta;
+      return;
+    }
+    const dg = gamma - baseGamma;
+    const db = beta - baseBeta;
+    if (Math.hypot(dg, db) < DEAD) {
+      baseGamma = gamma;
+      baseBeta = beta;
+      aim(0, 0);
+      return;
+    }
+    aim(clamp(-db * 0.55, -MAX, MAX), clamp(dg * 0.62, -MAX, MAX));
+  }
+
+  function onPointer(e) {
+    if (e.pointerType && e.pointerType !== "mouse") return;
+    const r = card.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
+    const ny = ((e.clientY - r.top) / r.height) * 2 - 1;
+    if (Math.hypot(nx, ny) < 0.08) { aim(0, 0); return; }
+    aim(clamp(-ny * 8, -MAX, MAX), clamp(nx * 10, -MAX, MAX));
   }
 
   function start() {
     if (enabled) return;
     enabled = true;
     window.addEventListener("deviceorientation", onOrient, { passive: true });
-    raf = requestAnimationFrame(tick);
+    card.classList.add("is-gyro-rest");
+    card.addEventListener("pointermove", onPointer, { passive: true });
+    card.addEventListener("pointerleave", function () { aim(0, 0); });
   }
 
   async function tryEnable() {
     try {
       if (typeof DeviceOrientationEvent !== "undefined" &&
           typeof DeviceOrientationEvent.requestPermission === "function") {
-        // iOS：需使用者手勢授權；首次點擊卡片時再請求
         const once = async () => {
           try {
             const state = await DeviceOrientationEvent.requestPermission();
             if (state === "granted") start();
           } catch (err) {}
-          card.removeEventListener("pointerdown", once);
         };
-        card.addEventListener("pointerdown", once, { once: true });
-        // 若先前已授權，直接 start 可能無效，仍等手勢較穩
+        window.addEventListener("pointerdown", once, { once: true, capture: true });
       } else if (typeof window.DeviceOrientationEvent !== "undefined") {
         start();
+      } else {
+        start();
       }
-    } catch (e) {}
+    } catch (e) { start(); }
   }
 
-  // 非 iOS 直接開；iOS 等第一次點卡片
   tryEnable();
 })();
 
