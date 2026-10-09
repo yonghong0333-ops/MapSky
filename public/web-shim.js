@@ -346,7 +346,7 @@
   // ---------------- 登入狀態 / 使用者列 ----------------
   const PROVIDER_ICON = {
     google: "login-icons/google.png",
-    x: "login-icons/x.svg",
+    x: "login-icons/x.png",
     facebook: "login-icons/facebook.png",
     microsoft: "login-icons/microsoft.png",
     discord: "login-icons/discord.png",
@@ -1184,9 +1184,14 @@ const X_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width
     return providers
       .map((p) => {
         let icon = "";
-        if (p.id === "google") icon = GOOGLE_SVG;
-        else if (p.id === "x") icon = (typeof X_SVG !== "undefined" ? X_SVG : `<img src="login-icons/x.svg" alt="" width="18" height="18" />`);
-        else if (PROVIDER_ICON[p.id]) icon = `<img src="${PROVIDER_ICON[p.id]}" alt="" width="18" height="18" />`;
+        // 一律用 <img> 官方圖檔，原生 Liquid Glass 才能用 URL 下載（inline SVG 無法當 UIImage）
+        if (PROVIDER_ICON[p.id]) {
+          icon = `<img src="${PROVIDER_ICON[p.id]}" alt="" width="18" height="18" />`;
+        } else if (p.id === "google") {
+          icon = GOOGLE_SVG;
+        } else if (p.id === "x" && typeof X_SVG !== "undefined") {
+          icon = X_SVG;
+        }
         const disabled = p.configured ? "" : "disabled title=\"尚未設定\"";
         // data-provider 給原生 App 那段攔截點擊用（見 initNativeLoginFlow），
         // href 保留給一般網頁版／桌面版沿用原本「直接導覽過去」的行為。
