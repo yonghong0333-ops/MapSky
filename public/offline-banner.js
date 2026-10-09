@@ -49,6 +49,7 @@
       "display:flex !important;align-items:center !important;flex-wrap:nowrap !important;" +
       "position:relative !important;" +
       "transition:background .45s ease,border-color .45s ease,box-shadow .45s ease,padding .35s ease !important;" +
+      "transform:translateZ(0);" +
       "}" +
       ".main-header #cityName,.main-header h2{" +
       "flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" +
@@ -110,18 +111,16 @@
       "display:block;max-height:48px;opacity:1;" +
       "margin-top:8px;padding-top:8px;" +
       "border-top:1px solid rgba(251,146,60,0.28);" +
-      "animation:foldAway .36s cubic-bezier(.4,0,.8,1) reverse both !important;" +
+      "transform:translate3d(0,0,0);" +
       "}" +
       ".main-header.is-offline-opening{" +
-      "backdrop-filter:none !important;-webkit-backdrop-filter:none !important;" +
       "}" +
       ".main-header .offline-island-detail .od-title{font-size:12px;}" +
       ".main-header .offline-island-detail .od-sub{font-size:11px;font-weight:600;opacity:.95;margin-top:1px;}" +
       ".main-header.is-island-pulse{animation:islandPulse .5s cubic-bezier(.16,1.4,.3,1) both;}" +
-      "@keyframes islandPulse{0%{transform:scale(1)}35%{transform:scale(1.03)}70%{transform:scale(0.99)}100%{transform:scale(1)}}" +
+      "@keyframes islandPulse{0%{transform:translateZ(0) scale(1)}40%{transform:translateZ(0) scale(1.015)}100%{transform:translateZ(0) scale(1)}}" +
 
       ".main-header.is-offline-fold{" +
-      "backdrop-filter:none !important;-webkit-backdrop-filter:none !important;" +
       "}" +
       ".main-header.is-offline-fold .offline-island-detail{" +
       "display:block !important;overflow:hidden;" +
@@ -144,18 +143,18 @@
   function ageHint() {
     try {
       var raw = localStorage.getItem("mapsky_offline_weather_bundle_v1");
-      if (!raw) return "顯示上次備份資料";
+      if (!raw) return "上次備份資料";
       var bundle = JSON.parse(raw);
-      if (!bundle || !bundle.savedAt) return "顯示上次備份資料";
+      if (!bundle || !bundle.savedAt) return "上次備份資料";
       var mins = Math.max(0, Math.round((Date.now() - bundle.savedAt) / 60000));
       var age;
       if (mins < 1) age = "剛剛";
       else if (mins < 60) age = mins + " 分鐘前";
       else if (mins < 48 * 60) age = Math.round(mins / 60) + " 小時前";
       else age = Math.round(mins / 1440) + " 天前";
-      return age + " 的備份資料";
+      return age + "的備份資料";
     } catch (e) {
-      return "顯示上次備份資料";
+      return "上次備份資料";
     }
   }
 
@@ -212,14 +211,16 @@
     h.classList.add(HEADER_DETAIL);
     var openDone = false;
     function clearOpening(ev) {
-      if (ev && ev.animationName && ev.animationName !== "foldAway") return;
+      if (ev && ev.type === "animationend" && ev.animationName && ev.animationName !== "foldAway") return;
       if (openDone) return;
       openDone = true;
       detail.removeEventListener("animationend", clearOpening);
+      detail.removeEventListener("transitionend", clearOpening);
       h.classList.remove("is-offline-opening");
     }
     detail.addEventListener("animationend", clearOpening);
-    setTimeout(clearOpening, 480);
+    detail.addEventListener("transitionend", clearOpening);
+    setTimeout(clearOpening, 420);
     if (detailHideTimer) clearTimeout(detailHideTimer);
     detailHideTimer = setTimeout(function () {
       hideDetail(h, true);
