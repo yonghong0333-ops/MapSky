@@ -1,0 +1,146 @@
+name: fix-boot-open
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-boot-open.yml'
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add open transition CSS + JS timing
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+
+          css = Path("public/style.css")
+          c = css.read_text(encoding="utf-8")
+
+          OPEN_CSS = '''
+          /* Boot 結束「打開」特效：圓形收合露出主畫面 + 圖示放大淡出 */
+          body.auth-ok .login-gate.login-gate--booting,
+          body.auth-ok .login-gate.login-gate--opening {
+            display: flex !important;
+          }
+          .login-gate.login-gate--booting {
+            clip-path: circle(150% at 50% 50%);
+            transition: clip-path 0.72s cubic-bezier(0.33, 1, 0.68, 1),
+                        opacity 0.55s ease;
+            will-change: clip-path, opacity;
+          }
+          .login-gate.login-gate--opening {
+            clip-path: circle(0% at 50% 50%);
+            opacity: 0;
+            pointer-events: none;
+          }
+          .login-gate-boot--exit {
+            animation: login-boot-open-out 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+          }
+          .login-gate-boot--exit .login-gate-boot-orbit-dots svg,
+          .login-gate-boot--exit .login-gate-boot-orbit-dots circle {
+            animation-play-state: paused !important;
+          }
+          @keyframes login-boot-open-out {
+            0% { opacity: 1; transform: scale(1); filter: blur(0); }
+            100% { opacity: 0; transform: scale(1.28); filter: blur(6px); }
+          }
+          body.auth-ok .app {
+            animation: login-app-open-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+          }
+          @keyframes login-app-open-in {
+            0% { opacity: 0.6; transform: scale(0.96); }
+            100% { opacity: 1; transform: scale(1); }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .login-gate.login-gate--booting,
+            .login-gate.login-gate--opening {
+              transition: none !important;
+              clip-path: none !important;
+            }
+            .login-gate-boot--exit { animation: none !important; opacity: 0 !important; }
+            body.auth-ok .app { animation: none !important; }
+          }
+          '''
+
+          if "login-boot-open-out" in c:
+              print("style.css already has open animation")
+          else:
+              anchor = "body.auth-ok .login-gate.login-gate--booting {\n  display: flex;\n}"
+              if anchor not in c:
+                  raise SystemExit("style.css anchor not found")
+              c = c.replace(anchor, anchor + "\n" + OPEN_CSS, 1)
+              css.write_text(c, encoding="utf-8")
+              print("style.css patched", css.stat().st_size)
+
+          # Critical CSS in index.html so first paint also knows opening rules
+          html = Path("public/index.html")
+          h = html.read_text(encoding="utf-8")
+          CRIT = '''
+            /* Open transition (matches style.css) */
+            body.auth-ok .login-gate.login-gate--booting,
+            body.auth-ok .login-gate.login-gate--opening {
+              display: flex !important;
+            }
+            .login-gate.login-gate--booting {
+              clip-path: circle(150% at 50% 50%);
+              transition: clip-path 0.72s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.55s ease;
+            }
+            .login-gate.login-gate--opening {
+              clip-path: circle(0% at 50% 50%);
+              opacity: 0;
+              pointer-events: none;
+            }
+            .login-gate-boot--exit {
+              animation: login-boot-open-out 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
+            }
+            @keyframes login-boot-open-out {
+              0% { opacity: 1; transform: scale(1); filter: blur(0); }
+              100% { opacity: 0; transform: scale(1.28); filter: blur(6px); }
+            }
+          '''
+          if "login-boot-open-out" in h:
+              print("index.html critical css already has open animation")
+          else:
+              marker = "  @media (prefers-reduced-motion: reduce) {\n    .login-gate-boot-orbit-dots svg,\n    .login-gate-boot-orbit-dots circle { animation: none !important; }\n  }\n</style>"
+              if marker not in h:
+                  # try alternate spacing
+                  marker2 = "@media (prefers-reduced-motion: reduce) {\n    .login-gate-boot-orbit-dots svg,\n    .login-gate-boot-orbit-dots circle { animation: none !important; }\n  }\n</style>"
+                  if marker2 in h:
+                      h = h.replace(marker2, CRIT + "\n" + marker2, 1)
+                      html.write_text(h, encoding="utf-8")
+                      print("index.html critical css patched (alt)")
+                  else:
+                      raise SystemExit("index.html critical marker not found")
+              else:
+                  h = h.replace(marker, CRIT + "\n" + marker, 1)
+                  html.write_text(h, encoding="utf-8")
+                  print("index.html critical css patched")
+
+          # JS: give animation enough time (700 -> 900ms)
+          js = Path("public/web-shim.js")
+          s = js.read_text(encoding="utf-8")
+          old = "    setTimeout(finish, 700);"
+          new = "    setTimeout(finish, 900);"
+          if "setTimeout(finish, 900)" in s:
+              print("web-shim timing already updated")
+          elif old in s:
+              s = s.replace(old, new, 1)
+              js.write_text(s, encoding="utf-8")
+              print("web-shim timing updated")
+          else:
+              print("web-shim finish timeout not found, skip")
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/style.css public/index.html public/web-shim.js
+          if git diff --staged --quiet; then
+            echo "no changes"
+          else
+            git commit -m "ui: boot 載入結束後加入打開特效（圓形收合 + 圖示放大淡出）"
+            git push
+          fi
