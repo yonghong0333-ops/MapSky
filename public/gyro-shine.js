@@ -1,8 +1,6 @@
-/* MAPSKY_GYRO_SHIM_V5 — tilt shine + soft rainbow rim that orbits with gyro */
-(function mapskyGyroShimV4() {
-  function clamp(v, a, b) {
-    return Math.max(a, Math.min(b, v));
-  }
+/* MAPSKY_GYRO_SHIM_V6 — always-on idle rim spin + gyro boost */
+(function mapskyGyroInline() {
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
   function injectCss() {
     if (document.getElementById("mapsky-gyro-shine-css")) return;
@@ -11,62 +9,64 @@
     s.textContent =
       ".current-card.has-gyro-tilt{" +
       "--shine-x:50%;--shine-y:18%;--tilt-x:0deg;--tilt-y:0deg;--rim-angle:0deg;" +
-      "transform:perspective(1000px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));" +
-      "transform-style:preserve-3d;will-change:transform;" +
+      "position:relative !important;" +
+      "transform:perspective(1000px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) !important;" +
+      "transform-style:preserve-3d !important;" +
+      "will-change:transform;" +
       "isolation:isolate;" +
+      "overflow:visible !important;" +
       "}" +
       ".current-card.has-gyro-tilt .gyro-color-rim{" +
-      "pointer-events:none;position:absolute;inset:-2px;z-index:6;" +
-      "border-radius:inherit;padding:2px;" +
+      "pointer-events:none !important;position:absolute !important;" +
+      "inset:-2.5px !important;z-index:0 !important;" +
+      "border-radius:inherit !important;" +
       "background:conic-gradient(from var(--rim-angle)," +
-      "rgba(56,189,248,0.85)," +
-      "rgba(167,139,250,0.75)," +
-      "rgba(244,114,182,0.55)," +
-      "rgba(125,211,252,0.8)," +
-      "rgba(56,189,248,0.85));" +
-      "-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);" +
-      "-webkit-mask-composite:xor;" +
-      "mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);" +
-      "mask-composite:exclude;" +
-      "opacity:0.92;" +
-      "filter:saturate(1.05);" +
+      "#38bdf8 0deg," +
+      "#a78bfa 90deg," +
+      "#f472b6 180deg," +
+      "#22d3ee 270deg," +
+      "#38bdf8 360deg) !important;" +
+      "opacity:0.95 !important;" +
       "}" +
       ".current-card.has-gyro-tilt .gyro-color-rim::after{" +
-      "content:'';position:absolute;inset:-3px;border-radius:inherit;" +
+      "content:'' !important;position:absolute !important;inset:-4px !important;" +
+      "border-radius:inherit !important;" +
       "background:conic-gradient(from var(--rim-angle)," +
-      "rgba(56,189,248,0.25)," +
-      "rgba(167,139,250,0.18)," +
-      "rgba(244,114,182,0.12)," +
-      "rgba(125,211,252,0.2)," +
-      "rgba(56,189,248,0.25));" +
-      "filter:blur(7px);opacity:0.7;z-index:-1;" +
+      "rgba(56,189,248,0.45)," +
+      "rgba(167,139,250,0.35)," +
+      "rgba(244,114,182,0.3)," +
+      "rgba(34,211,238,0.4)," +
+      "rgba(56,189,248,0.45)) !important;" +
+      "filter:blur(8px) !important;opacity:0.75 !important;z-index:-1 !important;" +
       "}" +
       ".current-card.has-gyro-tilt .gyro-shine-line{" +
-      "pointer-events:none;position:absolute;inset:0;z-index:4;border-radius:inherit;" +
+      "pointer-events:none !important;position:absolute !important;" +
+      "inset:0 !important;z-index:4 !important;border-radius:inherit !important;" +
       "background:radial-gradient(140% 90% at var(--shine-x) var(--shine-y)," +
-      "rgba(255,255,255,0.55) 0%,rgba(255,255,255,0.14) 26%," +
-      "rgba(186,230,253,0.06) 42%,transparent 58%);" +
-      "mix-blend-mode:soft-light;opacity:0.9;" +
+      "rgba(255,255,255,0.6) 0%,rgba(255,255,255,0.15) 28%,transparent 55%) !important;" +
+      "mix-blend-mode:soft-light !important;opacity:0.95 !important;" +
       "}" +
-      ".current-card.has-gyro-tilt>*:not(.gyro-shine-line):not(.gyro-color-rim){" +
-      "position:relative;z-index:5;" +
+      ".current-card.has-gyro-tilt > *:not(.gyro-color-rim):not(.gyro-shine-line){" +
+      "position:relative !important;z-index:2 !important;" +
+      "}" +
+      ".current-card.has-gyro-tilt::before{" +
+      "z-index:1 !important;" +
       "}" +
       "@media (prefers-reduced-motion:reduce){" +
-      ".current-card.has-gyro-tilt{transform:none!important;}" +
-      ".current-card.has-gyro-tilt .gyro-shine-line{opacity:0.2;}" +
-      ".current-card.has-gyro-tilt .gyro-color-rim{opacity:0.35;}" +
-      ".current-card.has-gyro-tilt .gyro-color-rim::after{display:none;}" +
+      ".current-card.has-gyro-tilt{transform:none !important;}" +
+      ".current-card.has-gyro-tilt .gyro-color-rim{opacity:0.4 !important;}" +
       "}";
     document.head.appendChild(s);
   }
 
-  function ensureChild(card, className) {
+  function ensureChild(card, className, asFirst) {
     var el = card.querySelector("." + className);
     if (el) return el;
     el = document.createElement("div");
     el.className = className;
     el.setAttribute("aria-hidden", "true");
-    card.insertBefore(el, card.firstChild);
+    if (asFirst) card.insertBefore(el, card.firstChild);
+    else card.appendChild(el);
     return el;
   }
 
@@ -74,38 +74,33 @@
     injectCss();
     var card = document.querySelector(".current-card");
     if (!card) {
-      setTimeout(boot, 400);
+      setTimeout(boot, 300);
       return;
     }
 
-    if (!card.classList.contains("has-gyro-tilt")) {
-      card.classList.add("has-gyro-tilt");
-    }
-    ensureChild(card, "gyro-color-rim");
-    ensureChild(card, "gyro-shine-line");
+    card.classList.add("has-gyro-tilt");
+    ensureChild(card, "gyro-color-rim", true);
+    ensureChild(card, "gyro-shine-line", true);
 
     var enabled = false;
     var raf = 0;
-    var targetX = 50,
-      targetY = 18,
-      targetTiltX = 0,
-      targetTiltY = 0,
-      targetRim = 0;
-    var curX = 50,
-      curY = 18,
-      curTiltX = 0,
-      curTiltY = 0,
-      curRim = 0;
+    var targetX = 50, targetY = 18, targetTiltX = 0, targetTiltY = 0, targetRim = 0;
+    var curX = 50, curY = 18, curTiltX = 0, curTiltY = 0, curRim = 0;
+    var idle = 0;
 
     function tick() {
-      curX += (targetX - curX) * 0.42;
-      curY += (targetY - curY) * 0.42;
-      curTiltX += (targetTiltX - curTiltX) * 0.42;
-      curTiltY += (targetTiltY - curTiltY) * 0.42;
-      var d = targetRim - curRim;
+      idle = (idle + 1.8) % 360;
+      var aimRim = (targetRim + idle) % 360;
+
+      curX += (targetX - curX) * 0.5;
+      curY += (targetY - curY) * 0.5;
+      curTiltX += (targetTiltX - curTiltX) * 0.5;
+      curTiltY += (targetTiltY - curTiltY) * 0.5;
+      var d = aimRim - curRim;
       while (d > 180) d -= 360;
       while (d < -180) d += 360;
-      curRim += d * 0.38;
+      curRim += d * 0.45;
+
       card.style.setProperty("--shine-x", curX.toFixed(2) + "%");
       card.style.setProperty("--shine-y", curY.toFixed(2) + "%");
       card.style.setProperty("--tilt-x", curTiltX.toFixed(3) + "deg");
@@ -118,12 +113,11 @@
       var gamma = typeof e.gamma === "number" ? e.gamma : 0;
       var beta = typeof e.beta === "number" ? e.beta : 0;
       var alpha = typeof e.alpha === "number" ? e.alpha : 0;
-      targetX = clamp(50 + gamma * 3.2, 2, 98);
-      targetY = clamp(20 + (beta - 40) * 1.1, 2, 85);
-      targetTiltY = clamp(gamma * 0.42, -14, 14);
-      targetTiltX = clamp(-(beta - 40) * 0.22, -12, 12);
-      /* slight phone move → rim spins a lot */
-      targetRim = (alpha * 1.6 + gamma * 7.5 + (beta - 40) * 2.4) % 360;
+      targetX = clamp(50 + gamma * 3.5, 2, 98);
+      targetY = clamp(20 + (beta - 40) * 1.2, 2, 85);
+      targetTiltY = clamp(gamma * 0.45, -14, 14);
+      targetTiltX = clamp(-(beta - 40) * 0.25, -12, 12);
+      targetRim = (alpha * 2 + gamma * 9 + (beta - 40) * 3) % 360;
     }
 
     function onMotion(e) {
@@ -132,11 +126,11 @@
         if (!a) return;
         var x = typeof a.x === "number" ? a.x : 0;
         var y = typeof a.y === "number" ? a.y : 0;
-        targetX = clamp(50 + x * 12, 2, 98);
-        targetY = clamp(22 - y * 7, 2, 85);
-        targetTiltY = clamp(x * 1.4, -14, 14);
-        targetTiltX = clamp(y * 0.9, -12, 12);
-        targetRim = (targetRim + x * 14) % 360;
+        targetX = clamp(50 + x * 14, 2, 98);
+        targetY = clamp(22 - y * 8, 2, 85);
+        targetTiltY = clamp(x * 1.5, -14, 14);
+        targetTiltX = clamp(y * 1.0, -12, 12);
+        targetRim = (targetRim + x * 18) % 360;
       } catch (err) {}
     }
 
@@ -146,72 +140,59 @@
       window.addEventListener("deviceorientation", onOrient, { passive: true });
       window.addEventListener("deviceorientationabsolute", onOrient, { passive: true });
       window.addEventListener("devicemotion", onMotion, { passive: true });
-      if (!raf) raf = requestAnimationFrame(tick);
     }
 
     async function requestPerm() {
       try {
-        if (
-          typeof DeviceOrientationEvent !== "undefined" &&
-          typeof DeviceOrientationEvent.requestPermission === "function"
-        ) {
+        if (typeof DeviceOrientationEvent !== "undefined" &&
+            typeof DeviceOrientationEvent.requestPermission === "function") {
           var st = await DeviceOrientationEvent.requestPermission();
           if (st === "granted") startListeners();
+        } else {
+          startListeners();
         }
-      } catch (e) {}
+      } catch (e) {
+        startListeners();
+      }
       try {
-        if (
-          typeof DeviceMotionEvent !== "undefined" &&
-          typeof DeviceMotionEvent.requestPermission === "function"
-        ) {
+        if (typeof DeviceMotionEvent !== "undefined" &&
+            typeof DeviceMotionEvent.requestPermission === "function") {
           await DeviceMotionEvent.requestPermission();
         }
       } catch (e) {}
       startListeners();
     }
 
-    var once = function () {
-      requestPerm();
-    };
-    document.addEventListener("pointerdown", once, { once: true, passive: true });
-    document.addEventListener("touchstart", once, { once: true, passive: true });
+    document.addEventListener("pointerdown", function () { requestPerm(); }, { once: true, passive: true });
+    document.addEventListener("touchstart", function () { requestPerm(); }, { once: true, passive: true });
 
-    card.addEventListener(
-      "pointermove",
-      function (e) {
-        var rect = card.getBoundingClientRect();
-        if (!rect.width) return;
-        var x = ((e.clientX - rect.left) / rect.width) * 100;
-        var y = ((e.clientY - rect.top) / rect.height) * 100;
-        targetX = clamp(x, 5, 95);
-        targetY = clamp(y, 4, 65);
-        targetTiltY = clamp((x - 50) * 0.28, -14, 14);
-        targetTiltX = clamp((y - 40) * -0.22, -12, 12);
-        targetRim = ((x - 50) * 7.2 + (y - 50) * 3.6 + 360) % 360;
-        if (!raf) raf = requestAnimationFrame(tick);
-      },
-      { passive: true }
-    );
+    card.addEventListener("pointermove", function (e) {
+      var rect = card.getBoundingClientRect();
+      if (!rect.width) return;
+      var x = ((e.clientX - rect.left) / rect.width) * 100;
+      var y = ((e.clientY - rect.top) / rect.height) * 100;
+      targetX = clamp(x, 2, 98);
+      targetY = clamp(y, 2, 85);
+      targetTiltY = clamp((x - 50) * 0.3, -14, 14);
+      targetTiltX = clamp((y - 40) * -0.24, -12, 12);
+      targetRim = ((x - 50) * 8 + (y - 50) * 4 + 360) % 360;
+    }, { passive: true });
 
     try {
-      if (
-        !(
-          typeof DeviceOrientationEvent !== "undefined" &&
-          typeof DeviceOrientationEvent.requestPermission === "function"
-        )
-      ) {
+      if (!(typeof DeviceOrientationEvent !== "undefined" &&
+            typeof DeviceOrientationEvent.requestPermission === "function")) {
         startListeners();
       }
-    } catch (e) {}
+    } catch (e) {
+      startListeners();
+    }
 
     if (!raf) raf = requestAnimationFrame(tick);
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () {
-      setTimeout(boot, 300);
-    });
+    document.addEventListener("DOMContentLoaded", function () { setTimeout(boot, 200); });
   } else {
-    setTimeout(boot, 300);
+    setTimeout(boot, 200);
   }
 })();
