@@ -2119,7 +2119,7 @@
       finish();
     }
     gate.addEventListener("transitionend", onEnd);
-    setTimeout(finish, 700);
+    setTimeout(finish, 900);
   }
 
   async function initAuthGate() {

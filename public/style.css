@@ -4187,6 +4187,51 @@ body.auth-ok .login-gate.login-gate--booting {
   display: flex;
 }
 
+/* Boot 結束「打開」特效：圓形收合露出主畫面 + 圖示放大淡出 */
+body.auth-ok .login-gate.login-gate--booting,
+body.auth-ok .login-gate.login-gate--opening {
+  display: flex !important;
+}
+.login-gate.login-gate--booting {
+  clip-path: circle(150% at 50% 50%);
+  transition: clip-path 0.72s cubic-bezier(0.33, 1, 0.68, 1),
+              opacity 0.55s ease;
+  will-change: clip-path, opacity;
+}
+.login-gate.login-gate--opening {
+  clip-path: circle(0% at 50% 50%);
+  opacity: 0;
+  pointer-events: none;
+}
+.login-gate-boot--exit {
+  animation: login-boot-open-out 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.login-gate-boot--exit .login-gate-boot-orbit-dots svg,
+.login-gate-boot--exit .login-gate-boot-orbit-dots circle {
+  animation-play-state: paused !important;
+}
+@keyframes login-boot-open-out {
+  0% { opacity: 1; transform: scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: scale(1.28); filter: blur(6px); }
+}
+body.auth-ok .app {
+  animation: login-app-open-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes login-app-open-in {
+  0% { opacity: 0.6; transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-gate.login-gate--booting,
+  .login-gate.login-gate--opening {
+    transition: none !important;
+    clip-path: none !important;
+  }
+  .login-gate-boot--exit { animation: none !important; opacity: 0 !important; }
+  body.auth-ok .app { animation: none !important; }
+}
+
+
 /* 更多／收起：文字按鈕，不要藍底（避免 iOS 預設 button 樣式） */
 .login-gate-more-toggle,
 .login-gate-more-toggle.expanded,
