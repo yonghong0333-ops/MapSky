@@ -8,22 +8,22 @@ t = p.read_text(encoding="utf-8")
 if "login-gate-title--terminal" in t:
     print("html already")
 else:
-    # 只改第一個 login-gate-card 區塊（登入 gate）
     pat = re.compile(
         r'(<div class="login-gate-card">)\s*'
         r'<img class="login-gate-logo"[^>]*>\s*'
         r'<h1 class="login-gate-title">MapSky</h1>',
         re.M,
     )
+    cursor = chr(0x2588)
     repl = (
-        r'<div class="login-gate-card login-gate-card--flat">'
-        r'\n      <h1 class="login-gate-title login-gate-title--terminal" id="loginGateTitle" aria-label="MapSky">'
-        r'\n        <span class="login-gate-terminal-prefix" aria-hidden="true">&gt; </span>'
-        r'<span id="loginGateTitleTyped" class="login-gate-title-typed"></span>'
-        r'<span class="login-gate-cursor" aria-hidden="true">\u2588</span>'
-        r'\n      </h1>'
+        '<div class="login-gate-card login-gate-card--flat">\n'
+        '      <h1 class="login-gate-title login-gate-title--terminal" id="loginGateTitle" aria-label="MapSky">\n'
+        '        <span class="login-gate-terminal-prefix" aria-hidden="true">&gt; </span>'
+        '<span id="loginGateTitleTyped" class="login-gate-title-typed"></span>'
+        f'<span class="login-gate-cursor" aria-hidden="true">{cursor}</span>\n'
+        '      </h1>'
     )
-    t2, n = pat.subn(repl, t, count=1)
+    t2, n = pat.subn(lambda m: repl, t, count=1)
     if n != 1:
         raise SystemExit(f"html block not found (n={n})")
     p.write_text(t2, encoding="utf-8")
