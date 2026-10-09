@@ -3,11 +3,17 @@ from pathlib import Path
 import base64
 import re
 
-b64p = Path("scripts/otp/google_icon_b64.txt")
-if b64p.exists():
+parts = []
+for name in ["google_icon_b64_a.txt", "google_icon_b64_b.txt", "google_icon_b64.txt"]:
+    p = Path("scripts/otp") / name
+    if p.exists():
+        parts.append(p.read_text().strip())
+if parts:
     Path("public/login-icons").mkdir(parents=True, exist_ok=True)
-    Path("public/login-icons/google.png").write_bytes(base64.b64decode(b64p.read_text().strip()))
+    Path("public/login-icons/google.png").write_bytes(base64.b64decode("".join(parts)))
     print("google.png written")
+else:
+    print("no google b64")
 
 html = Path("public/index.html")
 t = html.read_text(encoding="utf-8")
