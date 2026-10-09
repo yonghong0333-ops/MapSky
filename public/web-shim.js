@@ -2305,3 +2305,43 @@
     document.addEventListener("DOMContentLoaded", initAuthGate);
   }
 })();
+
+/* LOGIN_TERMINAL_TYPE */
+(function () {
+  function runType() {
+    var el = document.getElementById("loginGateTitleTyped");
+    if (!el) return;
+    if (el.dataset.typing === "1") return;
+    el.dataset.typing = "1";
+    var text = "MapSky";
+    var i = 0;
+    el.textContent = "";
+    function tick() {
+      if (i <= text.length) {
+        el.textContent = text.slice(0, i);
+        i += 1;
+        setTimeout(tick, 110);
+      } else {
+        el.dataset.typing = "0";
+        el.dataset.done = "1";
+      }
+    }
+    setTimeout(tick, 200);
+  }
+  function tryType() {
+    var gate = document.getElementById("loginGate");
+    if (gate && gate.classList.contains("login-gate--booting")) return;
+    runType();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tryType);
+  else tryType();
+  var gate = document.getElementById("loginGate");
+  if (gate) {
+    new MutationObserver(function () {
+      if (!gate.classList.contains("login-gate--booting")) {
+        var el = document.getElementById("loginGateTitleTyped");
+        if (el && el.dataset.done !== "1") runType();
+      }
+    }).observe(gate, { attributes: true, attributeFilter: ["class"] });
+  }
+})();

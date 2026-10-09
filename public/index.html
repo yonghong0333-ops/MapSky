@@ -353,9 +353,10 @@
       </div>
       <p class="login-gate-boot-text" id="loginGateBootText">正在確認登入狀態…</p>
     </div>
-    <div class="login-gate-card">
-      <img class="login-gate-logo" src="icons/logo-dark.png" alt="MapSky" />
-      <h1 class="login-gate-title">MapSky</h1>
+    <div class="login-gate-card login-gate-card--flat">
+      <h1 class="login-gate-title login-gate-title--terminal" id="loginGateTitle" aria-label="MapSky">
+        <span class="login-gate-terminal-prefix" aria-hidden="true">&gt; </span><span id="loginGateTitleTyped" class="login-gate-title-typed"></span><span class="login-gate-cursor" aria-hidden="true">█</span>
+      </h1>
       <p class="login-gate-tagline">看見天氣，連結你的每一刻</p>
       <p id="loginGateStatus" class="login-gate-status login-gate-status--loading" role="status" aria-live="polite"><span class="login-gate-spinner" aria-hidden="true"></span><span class="sr-only">正在確認登入狀態…</span></p>
       <div id="loginGateButtons" class="login-gate-buttons hidden"></div>

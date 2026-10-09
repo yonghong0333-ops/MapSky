@@ -5731,3 +5731,64 @@ input::placeholder { color: #94a3b8 !important; }
     transform: translateY(0) scale(1);
   }
 }
+
+
+/* LOGIN_FLAT_BG_TERMINAL */
+.login-gate {
+  background:
+    linear-gradient(180deg, rgba(8, 18, 40, 0.2) 0%, rgba(8, 18, 40, 0.45) 100%),
+    url("login-bg.jpg") center / cover no-repeat,
+    linear-gradient(165deg, #7eb6e8 0%, #a8c8e8 35%, #c5d4e0 55%, #8fa8bc 75%, #6a8499 100%) !important;
+  background-color: #7eb6e8 !important;
+}
+.login-gate-card,
+.login-gate-card.login-gate-card--flat {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  width: min(100%, 400px) !important;
+  padding: 28px 22px 32px !important;
+  overflow: visible !important;
+}
+.login-gate-card::before,
+.login-gate-card::after {
+  display: none !important;
+  content: none !important;
+}
+.login-gate-logo { display: none !important; }
+.login-gate-title--terminal,
+.login-gate-title {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  font-size: 34px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  color: #f2f7ff !important;
+  text-align: left !important;
+  text-shadow: 0 0 18px rgba(92, 225, 255, 0.35), 0 2px 8px rgba(0,0,0,0.35) !important;
+  margin: 0 0 8px !important;
+  min-height: 1.2em;
+}
+.login-gate-terminal-prefix { color: #5ce1ff; opacity: 0.9; }
+.login-gate-cursor {
+  display: inline-block;
+  margin-left: 2px;
+  color: #5ce1ff;
+  animation: login-cursor-blink 1s steps(1) infinite;
+}
+@keyframes login-cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.login-gate-tagline {
+  color: rgba(242, 247, 255, 0.72) !important;
+  text-align: left !important;
+  margin-bottom: 28px !important;
+}
+.login-gate-more-toggle,
+.login-gate-divider { color: rgba(242, 247, 255, 0.55) !important; }
+.login-gate-divider::before,
+.login-gate-divider::after {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent) !important;
+}
