@@ -95,33 +95,40 @@
     height: 248px !important;
     overflow: visible !important;
     transform-origin: 50% 50% !important;
-    animation: criticalBootSpin 2.8s linear infinite !important;
+    /* 0→50%：往上轉（順時針一圈）＝線；50→100%：往下轉（逆時針回）＝點 */
+    animation: criticalBootSpinUpDown 3.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite !important;
   }
-  /* r=100 → circumference ≈ 628.3；12 等分 ≈ 52.36
-     點模式：round cap + 極短 dash = 看起來像圓點
-     線模式：dash 拉長接成一圈連續線 */
   .login-gate-boot-orbit-dots .boot-orbit-path {
     fill: none !important;
     stroke: #2563eb !important;
-    stroke-width: 12 !important;
     stroke-linecap: round !important;
-    stroke-dasharray: 0.01 52.36 !important;
     filter: drop-shadow(0 1px 2px rgba(37, 99, 235, 0.35)) !important;
-    animation: criticalBootDotsToLine 2.8s ease-in-out infinite !important;
+    animation: criticalBootLineUpDotsDown 3.2s ease-in-out infinite !important;
   }
-  @keyframes criticalBootSpin {
-    to { transform: rotate(360deg); }
+  @keyframes criticalBootSpinUpDown {
+    0%   { transform: rotate(0deg); }
+    45%  { transform: rotate(360deg); }
+    50%  { transform: rotate(360deg); }
+    95%  { transform: rotate(0deg); }
+    100% { transform: rotate(0deg); }
   }
-  @keyframes criticalBootDotsToLine {
-    0%, 35% {
+  @keyframes criticalBootLineUpDotsDown {
+    /* 往上轉 → 線 */
+    0%, 8% {
       stroke-dasharray: 0.01 52.36;
       stroke-width: 12;
     }
-    55%, 85% {
+    18%, 45% {
       stroke-dasharray: 628.3 0;
       stroke-width: 5;
     }
-    100% {
+    /* 換向緩衝 */
+    50%, 58% {
+      stroke-dasharray: 628.3 0;
+      stroke-width: 5;
+    }
+    /* 往下轉 → 點 */
+    68%, 100% {
       stroke-dasharray: 0.01 52.36;
       stroke-width: 12;
     }
@@ -130,6 +137,7 @@
   @media (prefers-reduced-motion: reduce) {
     .login-gate-boot-orbit-dots svg,
     .login-gate-boot-orbit-dots .boot-orbit-path { animation: none !important; }
+  }
   }
 </style>
 <link rel="stylesheet" href="style.css" />
