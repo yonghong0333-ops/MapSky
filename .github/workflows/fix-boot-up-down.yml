@@ -1,0 +1,18 @@
+name: Boot up line down dots
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/otp/fix_boot_up_line_down_dots.py
+      - name: Commit
+        run: |
+          git config user.name "MapSky Bot"
+          git config user.email "bot@mapsky.local"
+          git add public/index.html public/style.css
+          git commit -m "ui: boot orbit up=line, down=dots with reverse spin" || echo "no changes"
+          git push origin HEAD:main
