@@ -13,6 +13,6 @@ jobs:
         run: |
           git config user.name "MapSky Bot"
           git config user.email "bot@mapsky.local"
-          git add public/index.html public/style.css public/web-shim.js public/login-icons/google.png
-          git commit -m "ui(auth): white terminal text, tagline type, Google official icon" || echo "no changes"
+          git add public/index.html public/style.css public/web-shim.js public/login-icons/google.png || true
+          git commit -m "ui(auth): white terminal text, tagline type, Google icon" || echo "no changes"
           git push origin HEAD:main
