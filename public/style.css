@@ -5883,3 +5883,14 @@ input::placeholder { color: #94a3b8 !important; }
 .login-gate a[href*="terms"] {
   color: #3b82f6 !important;
 }
+
+
+/* LOGIN_BUTTONS_SHIFT_DOWN */
+.login-gate-buttons,
+#loginGateButtons {
+  margin-top: 18px !important;
+}
+.login-gate-tagline,
+.login-gate-tagline--terminal {
+  margin-bottom: 8px !important;
+}
