@@ -48,19 +48,20 @@
       ".main-header{" +
       "display:flex !important;align-items:center !important;flex-wrap:nowrap !important;" +
       "position:relative !important;" +
-      "transition:background .45s ease,border-color .45s ease,box-shadow .45s ease,padding .35s ease !important;" +
+      "transition:background .45s ease,border-color .45s ease,box-shadow .45s ease,padding .28s ease !important;" +
       "transform:translateZ(0);" +
+      "}" +
+      ".main-header." + HEADER_OFFLINE + "{" +
+      "flex-wrap:wrap !important;" +
+      "background:linear-gradient(160deg,rgba(255,247,237,0.94),rgba(255,237,213,0.75) 50%,rgba(254,215,170,0.52)) !important;" +
+      "border:1px solid rgba(251,146,60,0.55) !important;" +
+      "box-shadow:0 0 0 1px rgba(251,146,60,0.16),0 8px 26px rgba(234,88,12,0.14),inset 0 1px 0 rgba(255,255,255,0.85) !important;" +
       "}" +
       ".main-header #cityName,.main-header h2{" +
       "flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" +
       "}" +
       ".main-header .fav-star-btn{" +
       "margin-left:auto !important;flex-shrink:0;" +
-      "}" +
-      ".main-header." + HEADER_OFFLINE + "{" +
-      "background:linear-gradient(160deg,rgba(255,247,237,0.94),rgba(255,237,213,0.75) 50%,rgba(254,215,170,0.52)) !important;" +
-      "border:1px solid rgba(251,146,60,0.55) !important;" +
-      "box-shadow:0 0 0 1px rgba(251,146,60,0.16),0 8px 26px rgba(234,88,12,0.14),inset 0 1px 0 rgba(255,255,255,0.85) !important;" +
       "}" +
       ".main-header." + HEADER_OFFLINE + " #cityName," +
       ".main-header." + HEADER_OFFLINE + " h2{" +
@@ -98,40 +99,36 @@
       "100%{opacity:0;transform:translate3d(36px,0,0) scale(.92)}" +
       "}" +
       ".main-header .offline-island-detail{" +
-      "display:none;width:100%;flex-basis:100%;order:10;" +
-      "margin-top:0;padding-top:0;max-height:0;opacity:0;overflow:hidden;" +
+      "display:block;width:100%;flex-basis:100%;order:10;box-sizing:border-box;" +
+      "max-height:0;opacity:0;overflow:hidden;" +
+      "margin-top:0;padding-top:0;" +
+      "border-top:1px solid transparent;" +
       "font-size:11px;font-weight:700;color:#c2410c;line-height:1.35;" +
-      "transition:max-height .4s cubic-bezier(.16,1.15,.3,1),opacity .3s ease,margin .35s ease,padding .35s ease;" +
+      "pointer-events:none;" +
+      "transition:max-height .28s ease,opacity .22s ease,margin-top .28s ease,padding-top .28s ease,border-color .22s ease;" +
+      "will-change:max-height,opacity;" +
       "}" +
       ".main-header." + HEADER_DETAIL + "{" +
-      "flex-wrap:wrap !important;" +
       "padding-bottom:10px !important;" +
       "}" +
       ".main-header." + HEADER_DETAIL + " .offline-island-detail{" +
-      "display:block;max-height:48px;opacity:1;" +
+      "max-height:52px;opacity:1;" +
       "margin-top:8px;padding-top:8px;" +
-      "border-top:1px solid rgba(251,146,60,0.28);" +
-      "transform:translate3d(0,0,0);" +
-      "}" +
-      ".main-header.is-offline-opening{" +
+      "border-top-color:rgba(251,146,60,0.28);" +
+      "pointer-events:auto;" +
       "}" +
       ".main-header .offline-island-detail .od-title{font-size:12px;}" +
       ".main-header .offline-island-detail .od-sub{font-size:11px;font-weight:600;opacity:.95;margin-top:1px;}" +
-      ".main-header.is-island-pulse{animation:islandPulse .5s cubic-bezier(.16,1.4,.3,1) both;}" +
-      "@keyframes islandPulse{0%{transform:translateZ(0) scale(1)}40%{transform:translateZ(0) scale(1.015)}100%{transform:translateZ(0) scale(1)}}" +
-
-      ".main-header.is-offline-fold{" +
-      "}" +
+      ".main-header.is-island-pulse{animation:islandPulse .45s ease both;}" +
+      "@keyframes islandPulse{0%,100%{transform:translateZ(0)}50%{transform:translateZ(0) scale(1.01)}}" +
       ".main-header.is-offline-fold .offline-island-detail{" +
-      "display:block !important;overflow:hidden;" +
-      "animation:foldAway .36s cubic-bezier(.4,0,.8,1) forwards !important;" +
-      "}" +
-      "@keyframes foldAway{" +
-      "0%{opacity:1;transform:translate3d(0,0,0);max-height:48px;margin-top:8px;padding-top:8px}" +
-      "100%{opacity:0;transform:translate3d(0,-6px,0);max-height:0;margin-top:0;padding-top:0}" +
+      "max-height:0 !important;opacity:0 !important;" +
+      "margin-top:0 !important;padding-top:0 !important;" +
+      "border-top-color:transparent !important;" +
       "}" +
       "@media (prefers-reduced-motion:reduce){" +
-      ".main-header." + HEADER_DETAIL + ",.main-header." + HEADER_DETAIL + " .offline-island-detail{animation:none !important;}" +
+      ".main-header .offline-island-detail{transition:none !important;}" +
+      ".main-header.is-island-pulse{animation:none !important;}" +
       "}";
     document.head.appendChild(s);
   }
@@ -203,24 +200,9 @@
     var sub = detail.querySelector(".od-sub");
     if (sub) sub.textContent = "顯示 " + ageHint();
     h.classList.remove("is-offline-fold");
-    h.classList.add("is-offline-opening");
-    if (h.classList.contains(HEADER_DETAIL)) {
-      h.classList.remove(HEADER_DETAIL);
-      void h.offsetHeight;
+    if (!h.classList.contains(HEADER_DETAIL)) {
+      h.classList.add(HEADER_DETAIL);
     }
-    h.classList.add(HEADER_DETAIL);
-    var openDone = false;
-    function clearOpening(ev) {
-      if (ev && ev.type === "animationend" && ev.animationName && ev.animationName !== "foldAway") return;
-      if (openDone) return;
-      openDone = true;
-      detail.removeEventListener("animationend", clearOpening);
-      detail.removeEventListener("transitionend", clearOpening);
-      h.classList.remove("is-offline-opening");
-    }
-    detail.addEventListener("animationend", clearOpening);
-    detail.addEventListener("transitionend", clearOpening);
-    setTimeout(clearOpening, 420);
     if (detailHideTimer) clearTimeout(detailHideTimer);
     detailHideTimer = setTimeout(function () {
       hideDetail(h, true);
@@ -239,7 +221,7 @@
     }
     var detail = h.querySelector(".offline-island-detail");
     var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!animated || !detail || reduce || h.classList.contains("is-offline-fold")) {
+    if (!animated || !detail || reduce) {
       h.classList.remove(HEADER_DETAIL);
       h.classList.remove("is-offline-fold");
       return;
@@ -249,16 +231,17 @@
     function finish() {
       if (done) return;
       done = true;
+      detail.removeEventListener("transitionend", onEnd);
       h.classList.remove(HEADER_DETAIL);
       h.classList.remove("is-offline-fold");
     }
     function onEnd(ev) {
-      if (ev.animationName !== "foldAway") return;
-      detail.removeEventListener("animationend", onEnd);
+      if (ev && ev.target !== detail) return;
+      if (ev && ev.propertyName && ev.propertyName !== "max-height" && ev.propertyName !== "opacity") return;
       finish();
     }
-    detail.addEventListener("animationend", onEnd);
-    setTimeout(finish, 480);
+    detail.addEventListener("transitionend", onEnd);
+    setTimeout(finish, 320);
   }
 
   function bindLongPress(btn, h, detail) {
@@ -385,11 +368,12 @@
     ensureLayout();
     h.classList.add(HEADER_OFFLINE);
     h.classList.remove("is-island-pulse");
-    void h.offsetHeight;
-    h.classList.add("is-island-pulse");
-    setTimeout(function () {
-      h.classList.remove("is-island-pulse");
-    }, 550);
+    requestAnimationFrame(function () {
+      h.classList.add("is-island-pulse");
+      setTimeout(function () {
+        h.classList.remove("is-island-pulse");
+      }, 480);
+    });
   }
 
   function onOffline() {
@@ -449,7 +433,6 @@
     if (btn) btn.addEventListener("animationend", finish);
     setTimeout(finish, 480);
   }
-
 
   function boot() {
     injectCss();
