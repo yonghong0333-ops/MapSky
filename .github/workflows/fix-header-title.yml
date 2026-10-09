@@ -1,0 +1,132 @@
+name: fix-header-title
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-header-title.yml'
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch renderer.js and style.css
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+
+          p = Path("public/renderer.js")
+          s = p.read_text(encoding="utf-8")
+
+          old = (
+              'if (btn.dataset.tab !== "alerts") tyRestoreMapHome(); // 颱風地圖借放在警特報卡片裡，離開就還給「颱風」分頁\n'
+              '    // 「工具」「設定」「後台管理」都跟城市無關，共用的頁首（城市名稱 + 加入\n'
+              '    // 收藏）不應該留在這幾個畫面上\n'
+              '    const hideHeaderTabs = ["tools", "settings", "admin"];\n'
+              '    const mainHeader = document.querySelector(".main-header");\n'
+              '    if (mainHeader) mainHeader.classList.toggle("hidden", hideHeaderTabs.includes(btn.dataset.tab));\n'
+          )
+          new = (
+              'if (btn.dataset.tab !== "alerts") tyRestoreMapHome(); // 颱風地圖借放在警特報卡片裡，離開就還給「颱風」分頁\n'
+              '    // 頁首列：首頁等「跟城市有關」的分頁顯示城市名 + 星星；\n'
+              '    // 工具／設定／後台管理改顯示該頁標題，並把星星拿掉（星星只在首頁用）。\n'
+              '    syncMainHeaderForTab(btn.dataset.tab);\n'
+          )
+
+          if "function syncMainHeaderForTab" in s and "syncMainHeaderForTab(btn.dataset.tab)" in s:
+              print("tab switch already patched")
+          elif old not in s:
+              raise SystemExit("tab switch block not found")
+          else:
+              s = s.replace(old, new, 1)
+              helper = (
+                  "\n"
+                  "// 依目前分頁同步頁首：城市名+星星（首頁等）或固定標題、隱藏星星（工具／設定／後台）\n"
+                  "function syncMainHeaderForTab(tab) {\n"
+                  "  const cityNameEl = el(\"cityName\");\n"
+                  "  const favBtn = el(\"addFavBtn\");\n"
+                  "  const mainHeader = document.querySelector(\".main-header\");\n"
+                  "  if (!cityNameEl || !mainHeader) return;\n"
+                  "  mainHeader.classList.remove(\"hidden\");\n"
+                  "  const titleMap = { tools: \"工具\", admin: \"後台管理\", settings: \"設定\" };\n"
+                  "  const pageTitle = titleMap[tab];\n"
+                  "  // 面板內自己的大標題會跟頁首重複，這幾個分頁改由頁首顯示標題\n"
+                  "  document.querySelectorAll(\n"
+                  "    \"#toolsPanel > .settings-page > .settings-page-title, \" +\n"
+                  "    \"#adminPanel .settings-page-title, \" +\n"
+                  "    \"#settingsPanel > .settings-page > .settings-page-title\"\n"
+                  "  ).forEach((h) => {\n"
+                  "    h.classList.toggle(\"hidden\", Boolean(pageTitle));\n"
+                  "  });\n"
+                  "  if (pageTitle) {\n"
+                  "    cityNameEl.textContent = pageTitle;\n"
+                  "    if (favBtn) favBtn.classList.add(\"hidden\");\n"
+                  "  } else {\n"
+                  "    cityNameEl.textContent = currentCity ? currentCity.label : \"尚未選擇城市\";\n"
+                  "    if (favBtn) favBtn.classList.remove(\"hidden\");\n"
+                  "    updateFavStar();\n"
+                  "  }\n"
+                  "}\n\n"
+              )
+              marker = "// ---------------- Tabs ----------------\n"
+              if marker not in s:
+                  raise SystemExit("Tabs marker not found")
+              s = s.replace(marker, helper + marker, 1)
+              print("patched tab switch + helper")
+
+          old_select = (
+              'currentCity = { label };\n'
+              '  tyMaybeForceForLocation(); // 警報資料如果比縣市先到，這裡補判斷（函式在下面定義，載入完才會被呼叫）\n'
+              '  el("cityName").textContent = label;\n'
+              '  renderFavorites();'
+          )
+          new_select = (
+              'currentCity = { label };\n'
+              '  tyMaybeForceForLocation(); // 警報資料如果比縣市先到，這裡補判斷（函式在下面定義，載入完才會被呼叫）\n'
+              '  const activeTabBtn = document.querySelector(".tab-btn.active");\n'
+              '  const activeTab = activeTabBtn && activeTabBtn.dataset ? activeTabBtn.dataset.tab : "forecast";\n'
+              '  if (!["tools", "settings", "admin"].includes(activeTab)) {\n'
+              '    el("cityName").textContent = label;\n'
+              '  }\n'
+              '  renderFavorites();'
+          )
+          if '["tools", "settings", "admin"].includes(activeTab)' in s:
+              print("selectCity already patched")
+          elif old_select not in s:
+              raise SystemExit("selectCity block not found")
+          else:
+              s = s.replace(old_select, new_select, 1)
+              print("patched selectCity")
+
+          p.write_text(s, encoding="utf-8")
+          print("renderer size", p.stat().st_size)
+
+          css = Path("public/style.css")
+          c = css.read_text(encoding="utf-8")
+          if ".fav-star-btn.hidden" in c and ".settings-page-title.hidden" in c:
+              print("css already patched")
+          else:
+              anchor = ".main-header.hidden { display: none; }"
+              extra = (
+                  "\n.fav-star-btn.hidden { display: none !important; }\n"
+                  ".settings-page-title.hidden { display: none !important; }"
+              )
+              if anchor in c:
+                  c = c.replace(anchor, anchor + extra, 1)
+              else:
+                  c = c + extra + "\n"
+              css.write_text(c, encoding="utf-8")
+              print("css patched", css.stat().st_size)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/renderer.js public/style.css
+          if git diff --staged --quiet; then
+            echo "no changes"
+          else
+            git commit -m "ui: tools/admin/settings 頁首改顯示頁面標題並隱藏星星"
+            git push
+          fi
