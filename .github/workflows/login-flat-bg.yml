@@ -13,6 +13,7 @@ jobs:
         run: |
           git config user.name "MapSky Bot"
           git config user.email "bot@mapsky.local"
-          git add public/login-bg.jpg public/index.html public/style.css public/web-shim.js
+          git add public/index.html public/style.css public/web-shim.js
+          git add -f public/login-bg.jpg 2>/dev/null || true
           git commit -m "ui(auth): weather bg, no card, terminal MapSky typewriter" || echo "no changes"
           git push origin HEAD:main
