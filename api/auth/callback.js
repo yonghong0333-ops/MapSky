@@ -25,7 +25,7 @@ async function storeExchangeCode(token) {
   return code;
 }
 
-async function exchangeToken(provider, code, redirectUri) {
+async function exchangeToken(provider, code, redirectUri, codeVerifier) {
   const body = {
     client_id: provider.clientId,
     client_secret: provider.clientSecret,
@@ -33,6 +33,7 @@ async function exchangeToken(provider, code, redirectUri) {
     redirect_uri: redirectUri,
     grant_type: "authorization_code",
   };
+  if (codeVerifier) body.code_verifier = codeVerifier;
 
   if (provider.tokenMethod === "GET") {
     // Facebook: 官方文件走 GET + query string 換 token
@@ -413,7 +414,19 @@ module.exports = async function handler(req, res) {
 
   try {
     const redirectUri = redirectUriFor(req, providerId);
-    const tokenJson = await exchangeToken(provider, req.query.code, redirectUri);
+    // PKCE（X / Twitter）
+    let codeVerifier = null;
+    {
+      const pkceRaw = String(cookies.oauth_pkce || "");
+      const dot = pkceRaw.indexOf(".");
+      if (dot > 0) {
+        const pkceState = pkceRaw.slice(0, dot);
+        const ver = pkceRaw.slice(dot + 1);
+        if (pkceState === String(req.query.state || "") && ver) codeVerifier = ver;
+      }
+    }
+
+    const tokenJson = await exchangeToken(provider, req.query.code, redirectUri, codeVerifier);
     const accessToken = tokenJson.access_token;
     if (!accessToken) throw new Error("沒有拿到 access_token");
 
@@ -457,6 +470,7 @@ module.exports = async function handler(req, res) {
         ? serializeCookie("oauth_state", remainingStates.join(","), { maxAge: 600 })
         : serializeCookie("oauth_state", "", { maxAge: 0 }),
       serializeCookie("oauth_provider", "", { maxAge: 0 }),
+      serializeCookie("oauth_pkce", "", { maxAge: 0 }),
       serializeCookie("oauth_desktop", "", { maxAge: 0 }),
     ];
 

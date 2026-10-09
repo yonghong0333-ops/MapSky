@@ -234,6 +234,16 @@ module.exports = async function handler(req, res) {
     ...(provider.extraAuthParams || {}),
   });
 
+  // X / Twitter OAuth 2.0 需要 PKCE
+  let pkceCookie = "";
+  if (provider.pkce) {
+    const codeVerifier = crypto.randomBytes(32).toString("base64url");
+    const codeChallenge = crypto.createHash("sha256").update(codeVerifier).digest("base64url");
+    params.set("code_challenge", codeChallenge);
+    params.set("code_challenge_method", "S256");
+    pkceCookie = serializeCookie("oauth_pkce", `${state}.${codeVerifier}`, { maxAge: 600 });
+  }
+
   const isDesktop = req.query.desktop === "1";
 
   const pending = String(parseCookies(req).oauth_state || "")
@@ -251,11 +261,13 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  res.setHeader("Set-Cookie", [
+  const cookiesOut = [
     serializeCookie("oauth_state", [...pending, entry].join(","), { maxAge: 600 }),
     serializeCookie("oauth_provider", providerId, { maxAge: 600 }),
     serializeCookie("oauth_desktop", "", { maxAge: 0 }),
-  ]);
+  ];
+  if (pkceCookie) cookiesOut.push(pkceCookie);
+  res.setHeader("Set-Cookie", cookiesOut);
   res.writeHead(302, { Location: `${provider.authorizeUrl}?${params.toString()}` });
   res.end();
 };

@@ -346,6 +346,7 @@
   // ---------------- 登入狀態 / 使用者列 ----------------
   const PROVIDER_ICON = {
     google: "login-icons/google.png",
+    x: "login-icons/x.png",
     facebook: "login-icons/facebook.png",
     microsoft: "login-icons/microsoft.png",
     discord: "login-icons/discord.png",

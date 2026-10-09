@@ -43,6 +43,31 @@ const PROVIDERS = {
     extraAuthParams: { access_type: "online", prompt: "select_account" },
     mapProfile: (json) => ({ id: json.sub, name: json.name, avatarUrl: json.picture || null, email: json.email || null }),
   },
+
+  // X (Twitter) OAuth 2.0 — 需 Vercel 環境變數 X_CLIENT_ID / X_CLIENT_SECRET
+  // 並在 X Developer Portal 登記 callback：{SITE_URL}/api/auth/callback?provider=x
+  x: {
+    id: "x",
+    label: "X",
+    clientId: process.env.X_CLIENT_ID || process.env.TWITTER_CLIENT_ID,
+    clientSecret: process.env.X_CLIENT_SECRET || process.env.TWITTER_CLIENT_SECRET,
+    scope: "users.read tweet.read offline.access",
+    pkce: true,
+    tokenAuthStyle: "basic",
+    authorizeUrl: "https://twitter.com/i/oauth2/authorize",
+    tokenUrl: "https://api.twitter.com/2/oauth2/token",
+    profileUrl: "https://api.twitter.com/2/users/me?user.fields=profile_image_url,name,username",
+    mapProfile: (json) => {
+      const d = json && json.data ? json.data : json;
+      return {
+        id: String(d.id),
+        name: d.name || d.username || "X User",
+        avatarUrl: d.profile_image_url || null,
+        email: null,
+      };
+    },
+  },
+
   // Facebook OAuth 已下架（登入畫面不再提供）
   // facebook: { ... },
   microsoft: {
