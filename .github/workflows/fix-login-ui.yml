@@ -1,0 +1,18 @@
+name: Login UI no FB
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/otp/fix_login_ui_no_fb.py
+      - name: Commit
+        run: |
+          git config user.name "MapSky Bot"
+          git config user.email "bot@mapsky.local"
+          git add api/_lib/providers.js public/web-shim.js public/style.css public/index.html
+          git commit -m "ui(auth): redesign login gate, remove Facebook OAuth" || echo "no changes"
+          git push origin HEAD:main
