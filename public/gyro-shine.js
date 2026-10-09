@@ -1,7 +1,7 @@
-/* MAPSKY_GYRO_SHIM_V7 — direct style writes (WebKit conic-gradient CSS var bug) */
-(function mapskyGyroV7() {
-  if (window.__mapskyGyroV7) return;
-  window.__mapskyGyroV7 = true;
+/* MAPSKY_GYRO_SHIM_V8 — thin orbiting rim only (no full-card fill) */
+(function mapskyGyroV8() {
+  if (window.__mapskyGyroV8) return;
+  window.__mapskyGyroV8 = true;
 
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
@@ -19,10 +19,16 @@
       ".current-card.has-gyro-tilt .gyro-color-rim{" +
       "pointer-events:none !important;" +
       "position:absolute !important;" +
-      "left:-3px !important;right:-3px !important;top:-3px !important;bottom:-3px !important;" +
-      "border-radius:25px !important;" +
-      "z-index:0 !important;" +
+      "left:0 !important;right:0 !important;top:0 !important;bottom:0 !important;" +
+      "border-radius:inherit !important;" +
+      "z-index:7 !important;" +
       "opacity:1 !important;" +
+      "padding:2.5px !important;" +
+      "box-sizing:border-box !important;" +
+      "-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);" +
+      "-webkit-mask-composite:xor;" +
+      "mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);" +
+      "mask-composite:exclude;" +
       "}" +
       ".current-card.has-gyro-tilt .gyro-shine-line{" +
       "pointer-events:none !important;position:absolute !important;" +
@@ -85,7 +91,6 @@
       while (d < -180) d += 360;
       curRim += d * 0.5;
 
-      /* DIRECT style — WebKit often ignores CSS-var updates inside conic-gradient */
       rim.style.background =
         "conic-gradient(from " + curRim.toFixed(1) + "deg," +
         "#22d3ee 0deg,#818cf8 72deg,#f472b6 144deg,#38bdf8 216deg,#a78bfa 288deg,#22d3ee 360deg)";
@@ -95,7 +100,7 @@
 
       shine.style.background =
         "radial-gradient(120% 80% at " + curX.toFixed(1) + "% " + curY.toFixed(1) + "%," +
-        "rgba(255,255,255,0.7) 0%,rgba(255,255,255,0.15) 30%,transparent 58%)";
+        "rgba(255,255,255,0.55) 0%,rgba(255,255,255,0.12) 28%,transparent 55%)";
 
       requestAnimationFrame(paint);
     }
@@ -151,7 +156,6 @@
       startListeners();
     }
 
-    /* for native WKWebView: call after user allows motion */
     window.mapskyRequestMotion = requestPerm;
     window.mapskyStartGyro = startListeners;
 
