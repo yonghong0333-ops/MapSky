@@ -5736,9 +5736,8 @@ input::placeholder { color: #94a3b8 !important; }
 /* LOGIN_FLAT_BG_TERMINAL */
 .login-gate {
   background:
-    linear-gradient(180deg, rgba(8, 18, 40, 0.2) 0%, rgba(8, 18, 40, 0.45) 100%),
-    url("login-bg.jpg") center / cover no-repeat,
-    linear-gradient(165deg, #7eb6e8 0%, #a8c8e8 35%, #c5d4e0 55%, #8fa8bc 75%, #6a8499 100%) !important;
+    linear-gradient(180deg, rgba(0, 0, 0, 0.04) 0%, rgba(0, 0, 0, 0.06) 100%),
+    url("login-bg.jpg") center / cover no-repeat !important;
   background-color: #7eb6e8 !important;
 }
 .login-gate-card,
