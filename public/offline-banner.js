@@ -52,13 +52,12 @@
       "transform:translateZ(0);" +
       "}" +
       ".main-header." + HEADER_OFFLINE + "{" +
-      "flex-wrap:wrap !important;" +
       "background:linear-gradient(160deg,rgba(255,247,237,0.94),rgba(255,237,213,0.75) 50%,rgba(254,215,170,0.52)) !important;" +
       "border:1px solid rgba(251,146,60,0.55) !important;" +
       "box-shadow:0 0 0 1px rgba(251,146,60,0.16),0 8px 26px rgba(234,88,12,0.14),inset 0 1px 0 rgba(255,255,255,0.85) !important;" +
       "}" +
       ".main-header #cityName,.main-header h2{" +
-      "flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" +
+      "flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" +
       "}" +
       ".main-header .fav-star-btn{" +
       "margin-left:auto !important;flex-shrink:0;" +
@@ -99,22 +98,23 @@
       "100%{opacity:0;transform:translate3d(36px,0,0) scale(.92)}" +
       "}" +
       ".main-header .offline-island-detail{" +
-      "display:block;width:100%;flex-basis:100%;order:10;box-sizing:border-box;" +
+      "display:block;box-sizing:border-box;order:10;" +
+      "flex:0 0 0;width:0;min-width:0;max-width:0;" +
       "max-height:0;opacity:0;overflow:hidden;" +
-      "margin-top:0;padding-top:0;" +
-      "border-top:1px solid transparent;" +
+      "margin:0;padding:0;border:0 solid transparent;" +
       "font-size:11px;font-weight:700;color:#c2410c;line-height:1.35;" +
       "pointer-events:none;" +
-      "transition:max-height .28s ease,opacity .22s ease,margin-top .28s ease,padding-top .28s ease,border-color .22s ease;" +
-      "will-change:max-height,opacity;" +
+      "transition:max-height .28s ease,opacity .22s ease,margin .28s ease,padding .28s ease;" +
       "}" +
       ".main-header." + HEADER_DETAIL + "{" +
+      "flex-wrap:wrap !important;" +
       "padding-bottom:10px !important;" +
       "}" +
       ".main-header." + HEADER_DETAIL + " .offline-island-detail{" +
+      "flex:1 1 100%;width:100%;min-width:100%;max-width:100%;" +
       "max-height:52px;opacity:1;" +
       "margin-top:8px;padding-top:8px;" +
-      "border-top-color:rgba(251,146,60,0.28);" +
+      "border-top:1px solid rgba(251,146,60,0.28);" +
       "pointer-events:auto;" +
       "}" +
       ".main-header .offline-island-detail .od-title{font-size:12px;}" +
