@@ -1,0 +1,47 @@
+name: fix-x-logo
+on:
+  workflow_dispatch:
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore and patch
+        run: |
+          set -e
+          git show 7d88fa9055e0fa3e462a2a71a2e8ac116b3b0190:public/web-shim.js > public/web-shim.js
+          wc -c public/web-shim.js
+          python3 << 'ENDSCRIPT'
+          from pathlib import Path
+          p = Path("public/web-shim.js")
+          t = p.read_text(encoding="utf-8")
+          print("size", len(t))
+          if len(t) < 50000:
+              raise SystemExit("too small")
+          # prefer PROVIDER_ICON (png) over X_SVG
+          old1 = 'if (p.id === "x" && typeof X_SVG !== "undefined") {\n          icon = X_SVG;\n        } else if (PROVIDER_ICON[p.id]) {'
+          new1 = 'if (PROVIDER_ICON[p.id]) {'
+          if old1 not in t:
+              raise SystemExit("pattern1 missing")
+          t = t.replace(old1, new1, 1)
+          # add comment
+          t = t.replace(
+              "// 一律用 <img> 官方圖檔，原生 Liquid Glass 才能用 URL 下載（inline SVG 無法當 UIImage）",
+              "// 一律用 <img> 官方圖檔，原生 Liquid Glass 才能用 URL 下載（inline SVG 無法當 UIImage）\n        // X 直接用 public/login-icons/x.png",
+              1,
+          )
+          p.write_text(t, encoding="utf-8")
+          print("patched", p.stat().st_size)
+          ENDSCRIPT
+      - name: Commit
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/web-shim.js
+          git status
+          git commit -m "ui(auth): prefer public/login-icons/x.png for X button" || echo no-change
+          git push
