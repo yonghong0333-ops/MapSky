@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 const { PROVIDERS, isConfigured, redirectUriFor, baseUrl } = require("../_lib/providers");
 const { parseCookies, serializeCookie } = require("../_lib/cookies");
-const { getRedisClient } = require("../_lib/redis-client");
+const { getRedisClient, inspectRedisConfig } = require("../_lib/redis-client");
 const { sign } = require("../_lib/jwt");
 const { resolveLoginIdentity } = require("../_lib/identity");
 const { sendMagicLinkEmail } = require("../_lib/mailer");
@@ -200,6 +200,22 @@ function sendExchangeError(res, message) {
 }
 
 module.exports = async function handler(req, res) {
+  if (String(req.query.redisShape || "") === "1") {
+    const info = inspectRedisConfig();
+    let ping = "skipped";
+    if (info.connectable) {
+      try {
+        const client = await getRedisClient();
+        if (!client) ping = "no-client";
+        else ping = (await client.ping()) === "PONG" ? "ok" : "unexpected";
+      } catch (e) {
+        ping = "fail";
+      }
+    }
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).json({ ...info, ping });
+  }
+
   if (req.method === "POST" && req.query.provider === "email") {
     if (req.query.action === "verify-code") {
       return handleVerifyOtp(req, res);
