@@ -203,6 +203,7 @@ module.exports = async function handler(req, res) {
   if (String(req.query.redisShape || "") === "1") {
     const info = inspectRedisConfig();
     let ping = "skipped";
+    let errorInfo = null;
     if (info.connectable) {
       try {
         const client = await getRedisClient();
@@ -210,10 +211,15 @@ module.exports = async function handler(req, res) {
         else ping = (await client.ping()) === "PONG" ? "ok" : "unexpected";
       } catch (e) {
         ping = "fail";
+        // 診斷用：遮掉網址與主機名稱，避免洩漏連線資訊
+        errorInfo = String((e && (e.code ? e.code + ": " : "") + (e.message || e)) || "")
+          .replace(/rediss?:\/\/\S+/gi, "[url]")
+          .replace(/\b[a-z0-9-]+(\.[a-z0-9-]+)+\b/gi, "[host]")
+          .slice(0, 200);
       }
     }
     res.setHeader("Cache-Control", "no-store");
-    return res.status(200).json({ ...info, ping });
+    return res.status(200).json({ ...info, ping, error: errorInfo });
   }
 
   if (req.method === "POST" && req.query.provider === "email") {
