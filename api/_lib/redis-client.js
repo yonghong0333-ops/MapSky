@@ -158,12 +158,17 @@ function getRedisClient() {
     try {
       client = createClient({
         url: picked.url,
-        socket: { connectTimeout: 8000 },
+        socket: {
+          connectTimeout: 5000,
+          // 連不上時最多重試 2 次就放棄並回報錯誤，避免函式一直卡到逾時（504）
+          reconnectStrategy: (retries) => (retries >= 2 ? new Error("Redis 連線失敗（已重試 2 次）") : 300),
+        },
       });
     } catch (e) {
       throw new Error(redisUrlError(picked.issue === "ok" ? "unparseable" : picked.issue));
     }
     client.on("error", (err) => console.error("Redis Client Error", err && err.message ? err.message : "error"));
+    client.on("end", () => { if (clientUrl === picked.url) { clientPromise = null; clientUrl = null; } });
     const url = picked.url;
     clientPromise = client.connect().then(() => client).catch((err) => {
       if (clientPromise && clientUrl === url) {
