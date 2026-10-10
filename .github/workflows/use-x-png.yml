@@ -1,6 +1,9 @@
 name: use-x-png
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/use-x-png.yml'
 permissions:
   contents: write
 jobs:
@@ -49,5 +52,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add public/web-shim.js
-          git commit -m "ui(auth): use public/login-icons/x.png for X login button"
+          git commit -m "ui(auth): use public/login-icons/x.png for X login button" || echo "no changes"
           git push
