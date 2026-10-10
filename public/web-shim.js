@@ -2297,7 +2297,7 @@ const X_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width
       return;
     }
 
-    // 未登入：Google 預設顯示，其他收在「更多登入方式」
+    // 未登入：Google、X 預設顯示，其他收在「更多登入方式」
     endLoginGateBoot();
     {
       const b = el("loginGateBoot");
@@ -2312,8 +2312,8 @@ const X_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width
       statusEl.textContent = "";
       statusEl.classList.remove("login-gate-status--loading");
     }
-    const primaryIds = ["google"];
-    const primaryProviders = (providers || []).filter((p) => primaryIds.includes(p.id));
+    const primaryIds = ["google", "x"];
+    const primaryProviders = primaryIds.map((id) => (providers || []).find((p) => p.id === id)).filter(Boolean);
     const extraProviders = (providers || []).filter((p) => !primaryIds.includes(p.id));
     if (buttonsEl) {
       buttonsEl.innerHTML = buildGateButtons(primaryProviders);
