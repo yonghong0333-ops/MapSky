@@ -463,3 +463,13 @@
   s.setAttribute("data-mapsky-gyro", "1");
   document.head.appendChild(s);
 })();
+
+/* load login keyboard compact */
+(function loadLoginKb() {
+  if (document.querySelector("script[data-mapsky-login-kb]")) return;
+  var s = document.createElement("script");
+  s.src = "login-kb.js?v=1";
+  s.async = true;
+  s.setAttribute("data-mapsky-login-kb", "1");
+  document.head.appendChild(s);
+})();
