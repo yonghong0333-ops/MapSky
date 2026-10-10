@@ -6,6 +6,15 @@ const { createClient } = require("redis");
 
 let clientPromise = null;
 let clientUrl = null;
+let lastRedisError = "";
+
+function sanitizeErr(err) {
+  const raw = String((err && (err.code ? err.code + ": " : "") + (err.message || err)) || "");
+  return raw
+    .replace(/rediss?:\/\/\S+/gi, "[url]")
+    .replace(/\b[a-z0-9-]+(\.[a-z0-9-]+)+\b/gi, "[host]")
+    .slice(0, 160);
+}
 
 const REDIS_HINT =
   "請到 Upstash 開啟 Redis，按 Connect，複製「Redis URL」（rediss://default:…@….upstash.io:6379）。" +
@@ -137,7 +146,11 @@ function pickRedisUrl() {
 
 function inspectRedisConfig() {
   const picked = pickRedisUrl();
+  let port = null;
+  try { port = picked.url ? new URL(picked.url).port || null : null; } catch {}
   return {
+    port,
+    forceTls: String(process.env.REDIS_FORCE_TLS || "").trim() === "1",
     configured: picked.configured,
     connectable: Boolean(picked.url),
     protocol: picked.protocol,
@@ -161,13 +174,13 @@ function getRedisClient() {
         socket: {
           connectTimeout: 5000,
           // 連不上時最多重試 2 次就放棄並回報錯誤，避免函式一直卡到逾時（504）
-          reconnectStrategy: (retries) => (retries >= 2 ? new Error("Redis 連線失敗（已重試 2 次）") : 300),
+          reconnectStrategy: (retries) => (retries >= 2 ? new Error("Redis 連線失敗（已重試 2 次）；底層錯誤：" + (lastRedisError || "無")) : 300),
         },
       });
     } catch (e) {
       throw new Error(redisUrlError(picked.issue === "ok" ? "unparseable" : picked.issue));
     }
-    client.on("error", (err) => console.error("Redis Client Error", err && err.message ? err.message : "error"));
+    client.on("error", (err) => { lastRedisError = sanitizeErr(err); console.error("Redis Client Error", err && err.message ? err.message : "error"); });
     client.on("end", () => { if (clientUrl === picked.url) { clientPromise = null; clientUrl = null; } });
     const url = picked.url;
     clientPromise = client.connect().then(() => client).catch((err) => {
