@@ -1,0 +1,193 @@
+name: patch-login-kb
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch keyboard compact login
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+
+          # --- web-shim.js ---
+          p = Path("public/web-shim.js")
+          t = p.read_text(encoding="utf-8")
+          old = '''const loginCard = emailInput.closest(".login-gate-card");
+    if (loginCard && !loginCard.dataset.kbLift) {
+      loginCard.dataset.kbLift = "1";
+      const keyboardHeight = () => {
+        const vv = window.visualViewport;
+        const inner = window.innerHeight || 0;
+        let reported = 0;
+        if (vv && inner) {
+          reported = Math.round(inner - vv.height - (vv.offsetTop || 0));
+        }
+        if (reported > 80) return reported;
+        // iOS 的鍵盤（包含 Liquid Glass）是蓋在網頁上，常常不縮小版面。
+        return Math.round(Math.min(360, inner * 0.44));
+      };
+      const place = () => {
+        if (document.activeElement !== emailInput) return;
+        loginCard.classList.add("is-kb-lift");
+        loginCard.style.transition = "none";
+        loginCard.style.transform = "none";
+        const rect = emailInput.getBoundingClientRect();
+        const visibleBottom = window.innerHeight - keyboardHeight() - 8;
+        const shift = Math.max(0, Math.ceil(rect.bottom + 12 - visibleBottom));
+        loginCard.style.transform = shift ? "translate3d(0," + -shift + "px,0)" : "";
+        requestAnimationFrame(() => {
+          loginCard.style.transition = "";
+        });
+      };
+      const drop = () => {
+        setTimeout(() => {
+          if (document.activeElement === emailInput) return;
+          loginCard.style.transform = "";
+          loginCard.classList.remove("is-kb-lift");
+        }, 80);
+      };
+      emailInput.addEventListener("focus", () => {
+        place();
+        setTimeout(place, 80);
+        setTimeout(place, 320);
+      });
+      emailInput.addEventListener("blur", drop);
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", place);
+        window.visualViewport.addEventListener("scroll", place);
+      }
+    }'''
+
+          new = '''const loginCard = emailInput.closest(".login-gate-card");
+    const loginGate = el("loginGate");
+    if (loginCard && !loginCard.dataset.kbLift) {
+      loginCard.dataset.kbLift = "1";
+      const keyboardHeight = () => {
+        const vv = window.visualViewport;
+        const inner = window.innerHeight || 0;
+        let reported = 0;
+        if (vv && inner) {
+          reported = Math.round(inner - vv.height - (vv.offsetTop || 0));
+        }
+        if (reported > 80) return reported;
+        // iOS 的鍵盤（包含 Liquid Glass）是蓋在網頁上，常常不縮小版面。
+        return Math.round(Math.min(360, inner * 0.44));
+      };
+      const place = () => {
+        if (document.activeElement !== emailInput) return;
+        // 標題／副標題／整體內容一併收緊並上移，避免被鍵盤擋到
+        if (loginGate) loginGate.classList.add("login-gate--kb");
+        loginCard.classList.add("is-kb-lift");
+        loginCard.style.transition = "none";
+        loginCard.style.transform = "none";
+        // 等標題收合後再量測位置
+        const measure = () => {
+          if (document.activeElement !== emailInput) return;
+          const rect = emailInput.getBoundingClientRect();
+          const visibleBottom = window.innerHeight - keyboardHeight() - 12;
+          const shift = Math.max(0, Math.ceil(rect.bottom + 16 - visibleBottom));
+          loginCard.style.transform = shift ? "translate3d(0," + -shift + "px,0)" : "";
+        };
+        requestAnimationFrame(() => {
+          measure();
+          requestAnimationFrame(() => {
+            measure();
+            loginCard.style.transition = "";
+          });
+        });
+      };
+      const drop = () => {
+        setTimeout(() => {
+          if (document.activeElement === emailInput) return;
+          loginCard.style.transform = "";
+          loginCard.classList.remove("is-kb-lift");
+          if (loginGate) loginGate.classList.remove("login-gate--kb");
+        }, 80);
+      };
+      emailInput.addEventListener("focus", () => {
+        if (loginGate) loginGate.classList.add("login-gate--kb");
+        place();
+        setTimeout(place, 80);
+        setTimeout(place, 280);
+        setTimeout(place, 480);
+      });
+      emailInput.addEventListener("blur", drop);
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", place);
+        window.visualViewport.addEventListener("scroll", place);
+      }
+    }'''
+
+          if old not in t:
+              raise SystemExit("keyboard block not found in web-shim.js")
+          p.write_text(t.replace(old, new, 1), encoding="utf-8")
+          print("web-shim patched")
+
+          # --- style.css: append kb compact rules ---
+          css = Path("public/style.css")
+          c = css.read_text(encoding="utf-8")
+          marker = "/* LOGIN_KB_COMPACT */"
+          block = '''
+/* LOGIN_KB_COMPACT */
+/* 點電子郵件、鍵盤彈出：標題與副標題往上收起隱藏；登入按鈕／更多／輸入框一併上移 */
+.login-gate--kb .login-gate-title,
+.login-gate--kb .login-gate-title--terminal,
+.login-gate--kb .login-gate-tagline,
+.login-gate--kb .login-gate-tagline--terminal {
+  max-height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  transform: translateY(-18px) scale(0.96);
+  pointer-events: none !important;
+  transition: max-height 0.28s ease, opacity 0.22s ease, margin 0.28s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+.login-gate .login-gate-title,
+.login-gate .login-gate-title--terminal,
+.login-gate .login-gate-tagline,
+.login-gate .login-gate-tagline--terminal {
+  max-height: 80px;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: max-height 0.32s ease, opacity 0.28s ease, margin 0.32s ease, transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.login-gate-card.is-kb-lift {
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1) !important;
+  will-change: transform;
+}
+.login-gate--kb .login-gate-card {
+  padding-top: 8px !important;
+  padding-bottom: 16px !important;
+}
+.login-gate--kb .login-gate-status {
+  margin-bottom: 6px !important;
+}
+.login-gate--kb .login-gate-buttons {
+  gap: 8px !important;
+}
+.login-gate--kb .login-gate-more-toggle {
+  margin-top: 6px !important;
+}
+'''
+          if marker in c:
+              # replace existing block roughly
+              import re
+              c = re.sub(r"/\* LOGIN_KB_COMPACT \*/[\s\S]*?(?=\Z|/\* [A-Z_]+ \*/)", block + "\n", c, count=1)
+          else:
+              c = c.rstrip() + "\n" + block
+          css.write_text(c, encoding="utf-8")
+          print("style.css patched")
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/web-shim.js public/style.css
+          git commit -m "ui(login): hide title/tagline when keyboard opens; lift form"
+          git push
