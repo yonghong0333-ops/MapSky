@@ -44,13 +44,15 @@ const PROVIDERS = {
     mapProfile: (json) => ({ id: json.sub, name: json.name, avatarUrl: json.picture || null, email: json.email || null }),
   },
 
-  // X (Twitter) OAuth 2.0 — 需 Vercel 環境變數 X_CLIENT_ID / X_CLIENT_SECRET
-  // 並在 X Developer Portal 登記 callback：{SITE_URL}/api/auth/callback?provider=x
+  // X (Twitter) OAuth 2.0 — Vercel 環境變數 X_CLIENT_ID / X_CLIENT_SECRET
+  // Developer Portal 的 Callback URL 必須完全一致：
+  // https://mapskyapp.vercel.app/api/auth/callback/x
   x: {
     id: "x",
     label: "X",
     clientId: process.env.X_CLIENT_ID || process.env.TWITTER_CLIENT_ID,
     clientSecret: process.env.X_CLIENT_SECRET || process.env.TWITTER_CLIENT_SECRET,
+    redirectPath: "/api/auth/callback/x",
     scope: "users.read tweet.read offline.access",
     pkce: true,
     tokenAuthStyle: "basic",

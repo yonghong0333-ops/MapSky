@@ -5,6 +5,10 @@
     {
       "source": "/api/auth/callback/microsoft",
       "destination": "/api/auth/callback?provider=microsoft"
+    },
+    {
+      "source": "/api/auth/callback/x",
+      "destination": "/api/auth/callback?provider=x"
     }
   ],
   "headers": [
