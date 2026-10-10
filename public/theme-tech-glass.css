@@ -506,3 +506,28 @@ input[type="search"],
   background: rgba(15, 23, 42, 0.08) !important;
   color: #0f172a !important;
 }
+
+/* 信箱列的毛玻璃會讓 iOS 在收起鍵盤後把已輸入文字畫沒。模糊拿掉，字改白、稍粗。 */
+.login-gate-magic-row {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+#loginGateMagicEmail {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-weight: 600 !important;
+  font-size: 16px !important;
+  caret-color: #ffffff !important;
+  opacity: 1 !important;
+}
+#loginGateMagicEmail::placeholder {
+  color: rgba(255, 255, 255, 0.62) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.62) !important;
+  font-weight: 500 !important;
+}
+#loginGateMagicEmail:-webkit-autofill,
+#loginGateMagicEmail:-webkit-autofill:hover,
+#loginGateMagicEmail:-webkit-autofill:focus {
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff;
+}

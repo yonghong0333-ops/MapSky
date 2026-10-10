@@ -1948,6 +1948,17 @@ const X_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width
     if (!form || !emailInput || !submitBtn || !labelEl || form.dataset.bound) return;
     form.dataset.bound = "1";
 
+    // iOS 點空白收起鍵盤時，輸入框文字層有時不會重畫。把同一個值寫回去強制重繪。
+    emailInput.addEventListener("blur", () => {
+      const v = emailInput.value;
+      if (!v) return;
+      setTimeout(() => {
+        if (document.activeElement === emailInput) return;
+        emailInput.value = "";
+        emailInput.value = v;
+      }, 0);
+    });
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (submitBtn.disabled) return;
