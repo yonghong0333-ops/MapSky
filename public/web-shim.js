@@ -1962,31 +1962,41 @@ const X_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width
     const loginCard = emailInput.closest(".login-gate-card");
     if (loginCard && !loginCard.dataset.kbLift) {
       loginCard.dataset.kbLift = "1";
-      let shift = 0;
+      const keyboardHeight = () => {
+        const vv = window.visualViewport;
+        const inner = window.innerHeight || 0;
+        let reported = 0;
+        if (vv && inner) {
+          reported = Math.round(inner - vv.height - (vv.offsetTop || 0));
+        }
+        if (reported > 80) return reported;
+        // iOS 的鍵盤（包含 Liquid Glass）是蓋在網頁上，常常不縮小版面。
+        return Math.round(Math.min(360, inner * 0.44));
+      };
       const place = () => {
         if (document.activeElement !== emailInput) return;
-        const vv = window.visualViewport;
-        if (!vv) return;
+        loginCard.classList.add("is-kb-lift");
+        loginCard.style.transition = "none";
+        loginCard.style.transform = "none";
         const rect = emailInput.getBoundingClientRect();
-        const limit = Math.min(vv.offsetTop + vv.height, vv.height);
-        const overlap = rect.bottom + 22 - limit;
-        const next = Math.max(0, Math.round(shift + overlap));
-        if (next === shift) return;
-        shift = next;
+        const visibleBottom = window.innerHeight - keyboardHeight() - 8;
+        const shift = Math.max(0, Math.ceil(rect.bottom + 12 - visibleBottom));
         loginCard.style.transform = shift ? "translate3d(0," + -shift + "px,0)" : "";
+        requestAnimationFrame(() => {
+          loginCard.style.transition = "";
+        });
       };
       const drop = () => {
         setTimeout(() => {
           if (document.activeElement === emailInput) return;
-          shift = 0;
           loginCard.style.transform = "";
           loginCard.classList.remove("is-kb-lift");
-        }, 60);
+        }, 80);
       };
       emailInput.addEventListener("focus", () => {
-        loginCard.classList.add("is-kb-lift");
         place();
-        setTimeout(place, 280);
+        setTimeout(place, 80);
+        setTimeout(place, 320);
       });
       emailInput.addEventListener("blur", drop);
       if (window.visualViewport) {
