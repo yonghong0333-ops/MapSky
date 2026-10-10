@@ -114,13 +114,23 @@ function analyzeRedisRaw(raw) {
   return tryBuild(cleaned.s, cleaned.salvage);
 }
 
+
+// 整合自動產生的 REDIS_URL 在 Vercel 上無法手動編輯。
+// 若資料庫要求加密連線，可另外新增環境變數 REDIS_FORCE_TLS=1，
+// 這裡會把 redis:// 開頭改成 rediss://（預設不啟用，行為不變）。
+function applyTlsOverride(url) {
+  if (!url) return url;
+  if (String(process.env.REDIS_FORCE_TLS || "").trim() !== "1") return url;
+  return /^redis:\/\//i.test(url) ? url.replace(/^redis:\/\//i, "rediss://") : url;
+}
+
 function pickRedisUrl() {
   const hasRedis = Boolean(String(process.env.REDIS_URL || "").trim());
   const hasKv = Boolean(String(process.env.KV_URL || "").trim());
   const primary = analyzeRedisRaw(process.env.REDIS_URL);
-  if (primary.url) return { configured: true, source: "REDIS_URL", ...primary };
+  if (primary.url) return { configured: true, source: "REDIS_URL", ...primary, url: applyTlsOverride(primary.url), protocol: applyTlsOverride(primary.url).startsWith("rediss") ? "rediss" : primary.protocol };
   const fallback = analyzeRedisRaw(process.env.KV_URL);
-  if (fallback.url) return { configured: true, source: "KV_URL", ...fallback, salvage: "fallback-kv" };
+  if (fallback.url) return { configured: true, source: "KV_URL", ...fallback, salvage: "fallback-kv", url: applyTlsOverride(fallback.url), protocol: applyTlsOverride(fallback.url).startsWith("rediss") ? "rediss" : fallback.protocol };
   const failed = hasRedis ? primary : hasKv ? fallback : primary;
   return { configured: hasRedis || hasKv, source: null, ...failed, url: null };
 }
