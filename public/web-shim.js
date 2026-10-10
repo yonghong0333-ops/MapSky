@@ -1959,6 +1959,42 @@ const X_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width
       }, 0);
     });
 
+    const loginCard = emailInput.closest(".login-gate-card");
+    if (loginCard && !loginCard.dataset.kbLift) {
+      loginCard.dataset.kbLift = "1";
+      let shift = 0;
+      const place = () => {
+        if (document.activeElement !== emailInput) return;
+        const vv = window.visualViewport;
+        if (!vv) return;
+        const rect = emailInput.getBoundingClientRect();
+        const limit = Math.min(vv.offsetTop + vv.height, vv.height);
+        const overlap = rect.bottom + 22 - limit;
+        const next = Math.max(0, Math.round(shift + overlap));
+        if (next === shift) return;
+        shift = next;
+        loginCard.style.transform = shift ? "translate3d(0," + -shift + "px,0)" : "";
+      };
+      const drop = () => {
+        setTimeout(() => {
+          if (document.activeElement === emailInput) return;
+          shift = 0;
+          loginCard.style.transform = "";
+          loginCard.classList.remove("is-kb-lift");
+        }, 60);
+      };
+      emailInput.addEventListener("focus", () => {
+        loginCard.classList.add("is-kb-lift");
+        place();
+        setTimeout(place, 280);
+      });
+      emailInput.addEventListener("blur", drop);
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", place);
+        window.visualViewport.addEventListener("scroll", place);
+      }
+    }
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (submitBtn.disabled) return;

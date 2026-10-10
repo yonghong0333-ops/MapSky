@@ -531,3 +531,6 @@ input[type="search"],
   -webkit-text-fill-color: #ffffff !important;
   caret-color: #ffffff;
 }
+.login-gate-card.is-kb-lift {
+  transition: transform 0.22s ease;
+}
