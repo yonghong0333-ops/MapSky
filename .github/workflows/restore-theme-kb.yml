@@ -1,0 +1,101 @@
+name: restore-theme-kb
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore theme and inject login-kb
+        run: |
+          set -e
+          # restore theme from last good commit before PLACEHOLDER
+          GOOD=$(git log --all --pretty=format:%H -- public/theme-tech-glass.css | while read c; do
+            sz=$(git cat-file -s "$c:public/theme-tech-glass.css" 2>/dev/null || echo 0)
+            if [ "$sz" -gt 5000 ]; then echo "$c"; break; fi
+          done)
+          echo "GOOD=$GOOD"
+          test -n "$GOOD"
+          git show "$GOOD:public/theme-tech-glass.css" > public/theme-tech-glass.css
+          wc -c public/theme-tech-glass.css
+
+          python3 << 'PY'
+          from pathlib import Path
+          css = Path("public/theme-tech-glass.css")
+          c = css.read_text(encoding="utf-8")
+          if "LOGIN_KB_COMPACT" not in c:
+              c = c.rstrip() + """
+
+/* LOGIN_KB_COMPACT — 鍵盤開啟時標題/副標題收起，表單整體上移 */
+.login-gate .login-gate-title,
+.login-gate .login-gate-title--terminal,
+.login-gate .login-gate-tagline,
+.login-gate .login-gate-tagline--terminal {
+  max-height: 90px;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.25s ease, margin 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.login-gate--kb .login-gate-title,
+.login-gate--kb .login-gate-title--terminal,
+.login-gate--kb .login-gate-tagline,
+.login-gate--kb .login-gate-tagline--terminal {
+  max-height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  transform: translateY(-20px) scale(0.96);
+  pointer-events: none !important;
+}
+.login-gate-card.is-kb-lift {
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1) !important;
+  will-change: transform;
+}
+.login-gate--kb .login-gate-card {
+  padding-top: 6px !important;
+  padding-bottom: 14px !important;
+}
+.login-gate--kb .login-gate-status {
+  margin-bottom: 4px !important;
+}
+.login-gate--kb .login-gate-buttons {
+  gap: 8px !important;
+}
+.login-gate--kb .login-gate-more-toggle {
+  margin-top: 4px !important;
+}
+"""
+          css.write_text(c, encoding="utf-8")
+          print("theme size", css.stat().st_size)
+
+          # inject script into index.html if missing
+          idx = Path("public/index.html")
+          html = idx.read_text(encoding="utf-8")
+          if "login-kb.js" not in html:
+              needle = '<script src="offline-banner.js"></script>'
+              insert = needle + '\n<script src="login-kb.js"></script>'
+              if needle not in html:
+                  needle = '<script src="web-shim.js"></script>'
+                  insert = needle + '\n<script src="login-kb.js"></script>'
+              if needle not in html:
+                  raise SystemExit("script inject point not found")
+              html = html.replace(needle, insert, 1)
+              idx.write_text(html, encoding="utf-8")
+              print("index.html injected")
+          else:
+              print("login-kb already in index")
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/theme-tech-glass.css public/index.html
+          git status
+          git commit -m "ui(login): restore theme + hide title on keyboard"
+          git push
