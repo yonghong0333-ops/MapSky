@@ -1,5 +1,36 @@
-/* login-kb.js — 點電子郵件時標題/副標題上移隱藏，鍵盤收起後還原 */
+/* login-kb.js — 點電子郵件：標題/副標題上移隱藏，更多登入一併上移；鍵盤收起還原 */
 (function () {
+  var STYLE_ID = "mapsky-login-kb-css";
+
+  function injectCss() {
+    if (document.getElementById(STYLE_ID)) return;
+    var s = document.createElement("style");
+    s.id = STYLE_ID;
+    s.textContent =
+      ".login-gate .login-gate-title," +
+      ".login-gate .login-gate-title--terminal," +
+      ".login-gate .login-gate-tagline," +
+      ".login-gate .login-gate-tagline--terminal{" +
+      "max-height:90px;opacity:1;transform:translateY(0) scale(1);overflow:hidden;" +
+      "transition:max-height .3s ease,opacity .25s ease,margin .3s ease,transform .3s cubic-bezier(.22,1,.36,1);" +
+      "}" +
+      ".login-gate--kb .login-gate-title," +
+      ".login-gate--kb .login-gate-title--terminal," +
+      ".login-gate--kb .login-gate-tagline," +
+      ".login-gate--kb .login-gate-tagline--terminal{" +
+      "max-height:0!important;min-height:0!important;margin:0!important;padding:0!important;" +
+      "opacity:0!important;transform:translateY(-20px) scale(.96);pointer-events:none!important;" +
+      "}" +
+      ".login-gate-card.is-kb-lift{" +
+      "transition:transform .32s cubic-bezier(.22,1,.36,1)!important;will-change:transform;" +
+      "}" +
+      ".login-gate--kb .login-gate-card{padding-top:6px!important;padding-bottom:14px!important;}" +
+      ".login-gate--kb .login-gate-status{margin-bottom:4px!important;}" +
+      ".login-gate--kb .login-gate-buttons{gap:8px!important;}" +
+      ".login-gate--kb .login-gate-more-toggle{margin-top:4px!important;}";
+    document.head.appendChild(s);
+  }
+
   function ready(fn) {
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", fn);
@@ -9,6 +40,7 @@
   }
 
   ready(function () {
+    injectCss();
     var emailInput = document.getElementById("loginGateMagicEmail");
     var loginGate = document.getElementById("loginGate");
     var loginCard = emailInput && emailInput.closest(".login-gate-card");
@@ -31,7 +63,6 @@
       if (document.activeElement !== emailInput) return;
       loginGate.classList.add("login-gate--kb");
       loginCard.classList.add("is-kb-lift");
-      // 先收合標題再量測，避免按鈕蓋住標題
       requestAnimationFrame(function () {
         if (document.activeElement !== emailInput) return;
         loginCard.style.transition = "none";
