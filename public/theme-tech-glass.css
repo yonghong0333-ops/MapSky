@@ -534,3 +534,68 @@ input[type="search"],
 .login-gate-card.is-kb-lift {
   transition: transform 0.22s ease;
 }
+/* LOGIN_BUTTON_TEXT_ACTUALLY_WHITE
+   iOS paints text inside a backdrop-filter element with the card's dark color,
+   even when color is set to white. Blur moves to ::before; the label stays outside that layer. */
+#loginGateButtons .login-gate-btn,
+#loginGateButtonsExtra .login-gate-btn,
+a.login-gate-btn,
+.login-gate-btn {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+#loginGateButtons .login-gate-btn span,
+#loginGateButtonsExtra .login-gate-btn span,
+.login-gate-btn span {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+.login-gate-btn::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  border-radius: inherit !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.05) 46%, transparent 62%),
+    linear-gradient(165deg, rgba(255,255,255,0.34) 0%, rgba(255,255,255,0.12) 100%) !important;
+  backdrop-filter: blur(22px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(160%) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.55) !important;
+}
+.login-gate-btn > * {
+  position: relative !important;
+  z-index: 2 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+.login-gate-btn::after {
+  position: relative !important;
+  z-index: 2 !important;
+  border-right-color: #ffffff !important;
+  border-bottom-color: #ffffff !important;
+}
+#loginGateMagicEmail,
+.login-gate-magic-input {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: rgba(8, 16, 32, 0.38) !important;
+  border: 1px solid rgba(255,255,255,0.42) !important;
+  caret-color: #ffffff !important;
+}
+#loginGateMagicEmail::placeholder,
+.login-gate-magic-input::placeholder {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 1 !important;
+}
