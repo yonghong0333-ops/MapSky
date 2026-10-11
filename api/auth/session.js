@@ -21,7 +21,6 @@ const {
 
 module.exports = async function handler(req, res) {
 
-  // ---- AI 對話雲端紀錄（需登入）----
   if (req.query.action === "ai-chats" || req.query.action === "ai-chat-get" ||
       req.query.action === "ai-chat-save" || req.query.action === "ai-chat-delete") {
     const cookies = parseCookies(req);
@@ -77,10 +76,6 @@ module.exports = async function handler(req, res) {
     if (req.method !== "POST") {
       return res.status(405).json({ ok: false, error: "Method not allowed" });
     }
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) {
-      return res.status(500).json({ ok: false, error: "GEMINI_API_KEY not set" });
-    }
     let body = req.body;
     if (typeof body === "string") {
       try { body = JSON.parse(body); } catch { body = {}; }
@@ -97,28 +92,8 @@ module.exports = async function handler(req, res) {
     if (hasImage && imageData.length > 5.5 * 1024 * 1024) {
       return res.status(400).json({ ok: false, error: "圖片太大，請選較小的照片" });
     }
-    const history = Array.isArray(body.history) ? body.history : [];
-    const contents = [];
-    for (const h of history.slice(-20)) {
-      if (!h || !h.text) continue;
-      const role = h.role === "model" ? "model" : "user";
-      contents.push({ role, parts: [{ text: String(h.text) }] });
-    }
-    const userParts = [];
-    if (hasImage) {
-      userParts.push({
-        inlineData: {
-          mimeType: imageMime || "image/jpeg",
-          data: imageData,
-        },
-      });
-    }
-    userParts.push({
-      text: message || (hasImage ? "請描述這張圖片的內容，並用繁體中文回答。" : ""),
-    });
-    contents.push({ role: "user", parts: userParts });
 
-    const ALLOWED_MODELS = [
+    const GEMINI_MODELS = [
       "gemini-2.5-flash",
       "gemini-2.0-flash",
       "gemini-flash-latest",
@@ -127,85 +102,215 @@ module.exports = async function handler(req, res) {
       "gemini-2.5-pro",
       "gemini-3-flash-preview",
     ];
-    const envDefault = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-    const clientModel =
-      typeof body.model === "string" ? body.model.trim() : "";
-    const preferred =
-      clientModel && ALLOWED_MODELS.indexOf(clientModel) !== -1
-        ? clientModel
-        : envDefault;
-    const models = [preferred]
-      .concat(ALLOWED_MODELS)
-      .filter((m, i, arr) => m && arr.indexOf(m) === i);
+    const GROQ_MODELS = [
+      "llama-3.3-70b-versatile",
+      "llama-3.1-8b-instant",
+      "llama-3.1-70b-versatile",
+      "gemma2-9b-it",
+      "mixtral-8x7b-32768",
+      "qwen/qwen3-32b",
+    ];
+    const GROQ_VISION = "meta-llama/llama-4-scout-17b-16e-instruct";
 
-    const payload = {
-      contents,
-      systemInstruction: {
-        parts: [
-          {
-            text:
-              "你是 MapSky 的 AI 助手，協助使用者了解台灣天氣、警特報與 App 使用。" +
-              "請用繁體中文回答，語氣清楚簡潔。若不確定請誠實說明。",
+    const ALLOWED = GEMINI_MODELS.concat(GROQ_MODELS);
+    const envDefault = process.env.AI_DEFAULT_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const clientModel = typeof body.model === "string" ? body.model.trim() : "";
+    let preferred =
+      clientModel && ALLOWED.indexOf(clientModel) !== -1 ? clientModel : envDefault;
+    if (ALLOWED.indexOf(preferred) === -1) preferred = "gemini-2.5-flash";
+
+    const isGroqModel = (m) =>
+      GROQ_MODELS.indexOf(m) !== -1 ||
+      String(m).startsWith("llama") ||
+      String(m).startsWith("gemma") ||
+      String(m).startsWith("mixtral") ||
+      String(m).startsWith("qwen") ||
+      String(m).indexOf("llama") !== -1;
+
+    const systemText =
+      "你是 MapSky 的 AI 助手，協助使用者了解台灣天氣、警特報與 App 使用。" +
+      "請用繁體中文回答，語氣清楚簡潔。若不確定請誠實說明。";
+
+    async function callGroq(model) {
+      const key = process.env.GROQ_API_KEY;
+      if (!key) throw new Error("GROQ_API_KEY not set");
+      let useModel = model;
+      if (hasImage) useModel = GROQ_VISION;
+      const messages = [{ role: "system", content: systemText }];
+      const history = Array.isArray(body.history) ? body.history : [];
+      for (const h of history.slice(-20)) {
+        if (!h || !h.text) continue;
+        messages.push({
+          role: h.role === "model" ? "assistant" : "user",
+          content: String(h.text),
+        });
+      }
+      if (hasImage) {
+        messages.push({
+          role: "user",
+          content: [
+            {
+              type: "image_url",
+              image_url: {
+                url: "data:" + (imageMime || "image/jpeg") + ";base64," + imageData,
+              },
+            },
+            {
+              type: "text",
+              text: message || "請描述這張圖片的內容，並用繁體中文回答。",
+            },
+          ],
+        });
+      } else {
+        messages.push({ role: "user", content: message });
+      }
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + key,
+        },
+        body: JSON.stringify({
+          model: useModel,
+          messages,
+          temperature: 0.7,
+          max_tokens: 2048,
+        }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const msg =
+          (data && data.error && data.error.message) || "Groq request failed";
+        const err = new Error(msg);
+        err.status = r.status;
+        err.busy =
+          r.status === 429 ||
+          r.status === 503 ||
+          /rate limit|overloaded|unavailable/i.test(msg);
+        throw err;
+      }
+      const text =
+        data &&
+        data.choices &&
+        data.choices[0] &&
+        data.choices[0].message &&
+        data.choices[0].message.content;
+      return { text: text || "", model: useModel, provider: "groq" };
+    }
+
+    async function callGemini(model) {
+      const key = process.env.GEMINI_API_KEY;
+      if (!key) throw new Error("GEMINI_API_KEY not set");
+      const history = Array.isArray(body.history) ? body.history : [];
+      const contents = [];
+      for (const h of history.slice(-20)) {
+        if (!h || !h.text) continue;
+        contents.push({
+          role: h.role === "model" ? "model" : "user",
+          parts: [{ text: String(h.text) }],
+        });
+      }
+      const userParts = [];
+      if (hasImage) {
+        userParts.push({
+          inlineData: {
+            mimeType: imageMime || "image/jpeg",
+            data: imageData,
           },
-        ],
-      },
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 2048,
-      },
-    };
-
-    let lastError = "Gemini request failed";
-    for (const model of models) {
+        });
+      }
+      userParts.push({
+        text:
+          message ||
+          (hasImage ? "請描述這張圖片的內容，並用繁體中文回答。" : ""),
+      });
+      contents.push({ role: "user", parts: userParts });
+      const payload = {
+        contents,
+        systemInstruction: { parts: [{ text: systemText }] },
+        generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
+      };
       const url =
         "https://generativelanguage.googleapis.com/v1beta/models/" +
         encodeURIComponent(model) +
         ":generateContent";
+      const r = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": key,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const msg =
+          (data && data.error && data.error.message) || "Gemini request failed";
+        const err = new Error(msg);
+        err.status = r.status;
+        err.busy =
+          r.status === 429 ||
+          r.status === 503 ||
+          /high demand|quota|unavailable|not found|no longer available/i.test(msg);
+        throw err;
+      }
+      const parts =
+        data &&
+        data.candidates &&
+        data.candidates[0] &&
+        data.candidates[0].content &&
+        data.candidates[0].content.parts;
+      const text = Array.isArray(parts)
+        ? parts.map((p) => (p && p.text) || "").join("")
+        : "";
+      return { text: text || "", model, provider: "gemini" };
+    }
+
+    const tryList = [];
+    const pushUnique = (m) => {
+      if (m && tryList.indexOf(m) === -1) tryList.push(m);
+    };
+    pushUnique(preferred);
+    if (isGroqModel(preferred)) {
+      GROQ_MODELS.forEach(pushUnique);
+      if (process.env.GEMINI_API_KEY) GEMINI_MODELS.forEach(pushUnique);
+    } else {
+      GEMINI_MODELS.forEach(pushUnique);
+      if (process.env.GROQ_API_KEY) GROQ_MODELS.forEach(pushUnique);
+    }
+
+    let lastError = "AI request failed";
+    for (const model of tryList) {
       try {
-        const r = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": key,
-          },
-          body: JSON.stringify(payload),
+        const useGroq = isGroqModel(model);
+        if (useGroq && !process.env.GROQ_API_KEY) continue;
+        if (!useGroq && !process.env.GEMINI_API_KEY) continue;
+        const result = useGroq ? await callGroq(model) : await callGemini(model);
+        return res.status(200).json({
+          ok: true,
+          text: result.text,
+          model: result.model,
+          provider: result.provider,
         });
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok) {
-          const msg =
-            (data && data.error && data.error.message) ||
-            "Gemini request failed";
-          lastError = msg;
-          const busy =
-            r.status === 429 ||
-            r.status === 503 ||
-            /high demand|quota|unavailable|not found|no longer available/i.test(
-              msg
-            );
-          if (busy) continue;
-          const zh =
-            /high demand/i.test(msg)
-              ? "目前 AI 服務較忙碌，請稍後再試。"
-              : msg;
-          return res.status(r.status).json({ ok: false, error: zh, model });
-        }
-        const parts =
-          data &&
-          data.candidates &&
-          data.candidates[0] &&
-          data.candidates[0].content &&
-          data.candidates[0].content.parts;
-        const text = Array.isArray(parts)
-          ? parts.map((p) => (p && p.text) || "").join("")
-          : "";
-        return res.status(200).json({ ok: true, text: text || "", model });
       } catch (e) {
         lastError = String((e && e.message) || e);
-        continue;
+        if (e && e.busy) continue;
+        if (/not set/i.test(lastError)) continue;
+        const zh = /high demand|rate limit/i.test(lastError)
+          ? "目前 AI 服務較忙碌，請稍後再試。"
+          : lastError;
+        return res
+          .status((e && e.status) || 502)
+          .json({ ok: false, error: zh, model });
       }
     }
 
-    const zh = /high demand/i.test(lastError)
+    if (!process.env.GEMINI_API_KEY && !process.env.GROQ_API_KEY) {
+      return res
+        .status(500)
+        .json({ ok: false, error: "請設定 GEMINI_API_KEY 或 GROQ_API_KEY" });
+    }
+    const zh = /high demand|rate limit/i.test(lastError)
       ? "目前 AI 服務較忙碌，請稍後再試。"
       : lastError;
     return res.status(503).json({ ok: false, error: zh });
