@@ -36,8 +36,12 @@
     .icon-btn { width: 40px; height: 40px; border: none; border-radius: 50%; background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.85); font-size: 18px; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
     #input { flex: 1; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.06); color: #fff; border-radius: 22px; padding: 11px 16px; font-size: 16px; outline: none; min-width: 0; }
     #input:focus { border-color: rgba(37, 99, 235, 0.7); }
-    #send { width: 44px; height: 44px; border: none; border-radius: 50%; background: #2563eb; color: #fff; font-size: 18px; cursor: pointer; flex-shrink: 0; }
+    .send-wrap { position: relative; width: 44px; height: 44px; flex-shrink: 0; }
+    #send, #cancel { position: absolute; inset: 0; width: 44px; height: 44px; border: none; border-radius: 50%; font-size: 18px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+    #send { background: #2563eb; color: #fff; z-index: 1; }
     #send:disabled { opacity: 0.45; cursor: default; }
+    #cancel { background: #dc2626; color: #fff; z-index: 2; font-size: 16px; font-weight: 700; display: none; }
+    #cancel.show { display: inline-flex; }
     .hidden-file { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
     .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); opacity: 0; pointer-events: none; transition: opacity 0.2s ease; z-index: 40; }
     .drawer-overlay.open { opacity: 1; pointer-events: auto; }
@@ -89,7 +93,10 @@
     <button type="button" class="icon-btn" id="btnCamera" aria-label="拍照" title="拍照">📷</button>
     <button type="button" class="icon-btn" id="btnGallery" aria-label="相簿" title="相簿／檔案">🖼</button>
     <input id="input" type="text" placeholder="輸入訊息…" autocomplete="off" enterkeyhint="send" />
-    <button type="submit" id="send" aria-label="送出">↑</button>
+    <div class="send-wrap">
+      <button type="submit" id="send" aria-label="送出">↑</button>
+      <button type="button" id="cancel" aria-label="取消">✕</button>
+    </div>
     <input class="hidden-file" id="fileCamera" type="file" accept="image/*" capture="environment" />
     <input class="hidden-file" id="fileGallery" type="file" accept="image/*,.pdf,.txt,.md,.csv" />
   </form>
@@ -125,6 +132,21 @@
     let currentChatId = null;
     let cloudEnabled = false;
     let chatsCache = [];
+    let activeAbort = null;
+    const cancelBtn = document.getElementById("cancel");
+
+    function setBusy(busy) {
+      sendBtn.disabled = busy;
+      if (busy) cancelBtn.classList.add("show");
+      else cancelBtn.classList.remove("show");
+    }
+    function cancelRequest() {
+      if (activeAbort) { try { activeAbort.abort(); } catch (e) {} activeAbort = null; }
+      setBusy(false);
+    }
+    cancelBtn.addEventListener("click", function (e) {
+      e.preventDefault(); e.stopPropagation(); cancelRequest();
+    });
 
     function uid() { return "c_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8); }
     function openDrawer() { drawer.classList.add("open"); drawerOverlay.classList.add("open"); refreshChatList(); }
@@ -302,7 +324,15 @@
     async function askGemini(message, image) {
       const body = { message: message || "", history: history, model: modelSelect.value };
       if (image && image.data) body.image = { mimeType: image.mimeType, data: image.data };
-      const res = await fetch("/api/auth/session?action=ai-chat", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(body) });
+      if (activeAbort) { try { activeAbort.abort(); } catch (e) {} }
+      activeAbort = typeof AbortController !== "undefined" ? new AbortController() : null;
+      const res = await fetch("/api/auth/session?action=ai-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(body),
+        signal: activeAbort ? activeAbort.signal : undefined,
+      });
       const data = await res.json().catch(function () { return {}; });
       if (!res.ok || !data.ok) throw new Error(data.error || ("HTTP " + res.status));
       return data.text || "";
@@ -330,7 +360,7 @@
       clearAttach();
       addBubble("user", message || (previewUrl ? "（圖片）" : ""), previewUrl);
       history.push({ role: "user", text: message || "（使用者傳送了一張圖片）" });
-      sendBtn.disabled = true;
+      setBusy(true);
       const thinking = addBubble("system", "思考中…");
       try {
         const text = await askGemini(message, image);
@@ -338,9 +368,19 @@
         await persistCurrent();
         if (window.MapSkyAI) window.MapSkyAI.postToNative("ai-reply", { text: text });
       } catch (err) {
-        thinking.remove(); addBubble("error", String(err.message || err));
-        if (window.MapSkyAI) window.MapSkyAI.postToNative("ai-error", { message: String(err.message || err) });
-      } finally { sendBtn.disabled = false; input.focus(); }
+        thinking.remove();
+        const aborted = err && (err.name === "AbortError" || /abort/i.test(String(err.message || "")));
+        if (aborted) {
+          addBubble("system", "已取消");
+        } else {
+          addBubble("error", String(err.message || err));
+          if (window.MapSkyAI) window.MapSkyAI.postToNative("ai-error", { message: String(err.message || err) });
+        }
+      } finally {
+        activeAbort = null;
+        setBusy(false);
+        input.focus();
+      }
     });
 
     window.MapSkyAI = {
