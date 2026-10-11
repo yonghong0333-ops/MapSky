@@ -9,218 +9,62 @@
   <title>MapSky AI</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      height: 100%;
-      width: 100%;
-      background: #0f172a;
-      color: rgba(255, 255, 255, 0.9);
-      font-family: -apple-system, "Segoe UI", "Noto Sans TC", sans-serif;
-      -webkit-font-smoothing: antialiased;
-    }
-    body {
-      display: flex;
-      flex-direction: column;
-      padding:
-        env(safe-area-inset-top, 0)
-        env(safe-area-inset-right, 0)
-        0
-        env(safe-area-inset-left, 0);
-    }
-    header {
-      flex-shrink: 0;
-      padding: 14px 16px 10px;
-      text-align: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-    header .label {
-      font-size: 11px;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.4);
-    }
-    header .title {
-      font-size: 18px;
-      font-weight: 700;
-      margin-top: 2px;
-    }
-    #messages {
-      flex: 1;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .bubble {
-      max-width: 88%;
-      padding: 10px 14px;
-      border-radius: 16px;
-      font-size: 15px;
-      line-height: 1.55;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    .bubble.user {
-      align-self: flex-end;
-      background: #2563eb;
-      color: #fff;
-      border-bottom-right-radius: 6px;
-    }
-    .bubble.model {
-      align-self: flex-start;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-bottom-left-radius: 6px;
-    }
-    .bubble.error {
-      align-self: center;
-      background: rgba(220, 38, 38, 0.2);
-      border: 1px solid rgba(220, 38, 38, 0.4);
-      color: #fecaca;
-      font-size: 13px;
-    }
-    .bubble.system {
-      align-self: center;
-      font-size: 13px;
-      color: rgba(255, 255, 255, 0.45);
-      background: transparent;
-      padding: 4px 8px;
-    }
-    .bubble img.preview {
-      display: block;
-      max-width: 220px;
-      max-height: 220px;
-      border-radius: 12px;
-      margin-bottom: 8px;
-      object-fit: cover;
-    }
-    .attach-preview {
-      display: none;
-      flex-shrink: 0;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 12px 0;
-      background: rgba(15, 23, 42, 0.95);
-    }
+    html, body { height: 100%; width: 100%; background: #0f172a; color: rgba(255, 255, 255, 0.9); font-family: -apple-system, "Segoe UI", "Noto Sans TC", sans-serif; -webkit-font-smoothing: antialiased; }
+    body { display: flex; flex-direction: column; padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) 0 env(safe-area-inset-left, 0); }
+    header { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+    header .titles { flex: 1; text-align: center; min-width: 0; }
+    header .label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.4); }
+    header .title { font-size: 17px; font-weight: 700; }
+    .hdr-btn { width: 40px; height: 40px; border: none; border-radius: 12px; background: rgba(255, 255, 255, 0.08); color: #fff; font-size: 18px; cursor: pointer; flex-shrink: 0; }
+    #messages { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .bubble { max-width: 88%; padding: 10px 14px; border-radius: 16px; font-size: 15px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+    .bubble.user { align-self: flex-end; background: #2563eb; color: #fff; border-bottom-right-radius: 6px; }
+    .bubble.model { align-self: flex-start; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom-left-radius: 6px; }
+    .bubble.error { align-self: center; background: rgba(220, 38, 38, 0.2); border: 1px solid rgba(220, 38, 38, 0.4); color: #fecaca; font-size: 13px; }
+    .bubble.system { align-self: center; font-size: 13px; color: rgba(255, 255, 255, 0.45); background: transparent; padding: 4px 8px; }
+    .bubble img.preview { display: block; max-width: 220px; max-height: 220px; border-radius: 12px; margin-bottom: 8px; object-fit: cover; }
+    .attach-preview { display: none; flex-shrink: 0; align-items: center; gap: 10px; padding: 8px 12px 0; background: rgba(15, 23, 42, 0.95); }
     .attach-preview.show { display: flex; }
-    .attach-preview img {
-      width: 56px;
-      height: 56px;
-      border-radius: 10px;
-      object-fit: cover;
-      border: 1px solid rgba(255,255,255,0.15);
-    }
-    .attach-preview .meta {
-      flex: 1;
-      font-size: 12px;
-      color: rgba(255,255,255,0.55);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .attach-preview button {
-      border: none;
-      background: rgba(255,255,255,0.1);
-      color: #fff;
-      border-radius: 999px;
-      width: 28px;
-      height: 28px;
-      font-size: 14px;
-      cursor: pointer;
-    }
-    .model-bar {
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px 0;
-      background: rgba(15, 23, 42, 0.95);
-    }
-    .model-bar label {
-      font-size: 12px;
-      color: rgba(255, 255, 255, 0.45);
-      flex-shrink: 0;
-    }
-    #modelSelect {
-      flex: 1;
-      min-width: 0;
-      appearance: none;
-      -webkit-appearance: none;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      background: rgba(255, 255, 255, 0.06) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='rgba(255,255,255,0.5)' d='M1 1l5 5 5-5'/%3E%3C/svg%3E") no-repeat right 12px center;
-      color: rgba(255, 255, 255, 0.9);
-      border-radius: 12px;
-      padding: 8px 32px 8px 12px;
-      font-size: 13px;
-      outline: none;
-    }
-    #modelSelect:focus {
-      border-color: rgba(37, 99, 235, 0.7);
-    }
-    #modelSelect option {
-      background: #0f172a;
-      color: #fff;
-    }
-    .composer {
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 10px calc(78px + env(safe-area-inset-bottom, 0px));
-      border-top: none;
-      background: rgba(15, 23, 42, 0.95);
-    }
-    .icon-btn {
-      width: 40px;
-      height: 40px;
-      border: none;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.08);
-      color: rgba(255, 255, 255, 0.85);
-      font-size: 18px;
-      cursor: pointer;
-      flex-shrink: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-    #input {
-      flex: 1;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      background: rgba(255, 255, 255, 0.06);
-      color: #fff;
-      border-radius: 22px;
-      padding: 11px 16px;
-      font-size: 16px;
-      outline: none;
-      min-width: 0;
-    }
-    #input:focus {
-      border-color: rgba(37, 99, 235, 0.7);
-    }
-    #send {
-      width: 44px;
-      height: 44px;
-      border: none;
-      border-radius: 50%;
-      background: #2563eb;
-      color: #fff;
-      font-size: 18px;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
-    #send:disabled {
-      opacity: 0.45;
-      cursor: default;
-    }
+    .attach-preview img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.15); }
+    .attach-preview .meta { flex: 1; font-size: 12px; color: rgba(255,255,255,0.55); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .attach-preview button { border: none; background: rgba(255,255,255,0.1); color: #fff; border-radius: 999px; width: 28px; height: 28px; font-size: 14px; cursor: pointer; }
+    .model-bar { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 8px 12px 0; background: rgba(15, 23, 42, 0.95); }
+    .model-bar label { font-size: 12px; color: rgba(255, 255, 255, 0.45); flex-shrink: 0; }
+    #modelSelect { flex: 1; min-width: 0; appearance: none; -webkit-appearance: none; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.9); border-radius: 12px; padding: 8px 12px; font-size: 13px; outline: none; }
+    #modelSelect option { background: #0f172a; color: #fff; }
+    .composer { flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 8px 10px calc(78px + env(safe-area-inset-bottom, 0px)); background: rgba(15, 23, 42, 0.95); }
+    .icon-btn { width: 40px; height: 40px; border: none; border-radius: 50%; background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.85); font-size: 18px; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+    #input { flex: 1; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.06); color: #fff; border-radius: 22px; padding: 11px 16px; font-size: 16px; outline: none; min-width: 0; }
+    #input:focus { border-color: rgba(37, 99, 235, 0.7); }
+    #send { width: 44px; height: 44px; border: none; border-radius: 50%; background: #2563eb; color: #fff; font-size: 18px; cursor: pointer; flex-shrink: 0; }
+    #send:disabled { opacity: 0.45; cursor: default; }
     .hidden-file { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+    .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); opacity: 0; pointer-events: none; transition: opacity 0.2s ease; z-index: 40; }
+    .drawer-overlay.open { opacity: 1; pointer-events: auto; }
+    .drawer { position: fixed; top: 0; left: 0; bottom: 0; width: min(86vw, 320px); background: #111827; border-right: 1px solid rgba(255,255,255,0.08); transform: translateX(-105%); transition: transform 0.22s ease; z-index: 50; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0); padding-bottom: env(safe-area-inset-bottom, 0); }
+    .drawer.open { transform: translateX(0); }
+    .drawer-head { display: flex; align-items: center; gap: 8px; padding: 14px 14px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .drawer-head h3 { flex: 1; font-size: 16px; font-weight: 700; }
+    .drawer-cloud { font-size: 11px; color: rgba(255,255,255,0.4); padding: 0 14px 8px; }
+    .drawer-cloud.on { color: #34d399; }
+    .drawer-list { flex: 1; overflow-y: auto; padding: 6px 8px 16px; }
+    .chat-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 12px 10px; border: none; border-radius: 12px; background: transparent; color: rgba(255,255,255,0.88); cursor: pointer; margin-bottom: 4px; }
+    .chat-item:active, .chat-item.active { background: rgba(37, 99, 235, 0.25); }
+    .chat-item .info { flex: 1; min-width: 0; }
+    .chat-item .t { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chat-item .s { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+    .chat-item .del { width: 32px; height: 32px; border: none; border-radius: 8px; background: rgba(220, 38, 38, 0.15); color: #fca5a5; font-size: 14px; cursor: pointer; flex-shrink: 0; }
+    .drawer-empty { text-align: center; color: rgba(255,255,255,0.35); font-size: 13px; padding: 32px 16px; }
   </style>
 </head>
 <body>
   <header>
-    <div class="label">MapSky</div>
-    <div class="title">AI 助手</div>
+    <button type="button" class="hdr-btn" id="btnDrawer" aria-label="對話列表">☰</button>
+    <div class="titles">
+      <div class="label">MapSky</div>
+      <div class="title" id="headerTitle">AI 助手</div>
+    </div>
+    <button type="button" class="hdr-btn" id="btnNewChat" aria-label="新對話">＋</button>
   </header>
   <div id="messages">
     <div class="bubble system">可以問天氣、警特報，也可拍照或上傳圖片詢問</div>
@@ -249,6 +93,16 @@
     <input class="hidden-file" id="fileCamera" type="file" accept="image/*" capture="environment" />
     <input class="hidden-file" id="fileGallery" type="file" accept="image/*,.pdf,.txt,.md,.csv" />
   </form>
+  <div class="drawer-overlay" id="drawerOverlay"></div>
+  <aside class="drawer" id="drawer">
+    <div class="drawer-head">
+      <h3>對話</h3>
+      <button type="button" class="hdr-btn" id="btnDrawerNew" aria-label="新對話">＋</button>
+      <button type="button" class="hdr-btn" id="btnDrawerClose" aria-label="關閉">←</button>
+    </div>
+    <div class="drawer-cloud" id="cloudHint">本機儲存 · 登入後可同步雲端</div>
+    <div class="drawer-list" id="chatList"></div>
+  </aside>
   <script>
     const messagesEl = document.getElementById("messages");
     const form = document.getElementById("form");
@@ -260,45 +114,148 @@
     const attachThumb = document.getElementById("attachThumb");
     const attachMeta = document.getElementById("attachMeta");
     const attachClear = document.getElementById("attachClear");
-    const history = [];
+    const modelSelect = document.getElementById("modelSelect");
+    const drawer = document.getElementById("drawer");
+    const drawerOverlay = document.getElementById("drawerOverlay");
+    const chatListEl = document.getElementById("chatList");
+    const cloudHint = document.getElementById("cloudHint");
+    const headerTitle = document.getElementById("headerTitle");
+    let history = [];
     let pendingImage = null;
+    let currentChatId = null;
+    let cloudEnabled = false;
+    let chatsCache = [];
+
+    function uid() { return "c_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8); }
+    function openDrawer() { drawer.classList.add("open"); drawerOverlay.classList.add("open"); refreshChatList(); }
+    function closeDrawer() { drawer.classList.remove("open"); drawerOverlay.classList.remove("open"); }
 
     function addBubble(role, text, imgUrl) {
       const div = document.createElement("div");
       div.className = "bubble " + role;
-      if (imgUrl) {
-        const img = document.createElement("img");
-        img.className = "preview";
-        img.src = imgUrl;
-        img.alt = "附圖";
-        div.appendChild(img);
-      }
-      if (text) {
-        const span = document.createElement("div");
-        span.textContent = text;
-        div.appendChild(span);
-      }
+      if (imgUrl) { const img = document.createElement("img"); img.className = "preview"; img.src = imgUrl; img.alt = "附圖"; div.appendChild(img); }
+      if (text) { const span = document.createElement("div"); span.textContent = text; div.appendChild(span); }
       messagesEl.appendChild(div);
       messagesEl.scrollTop = messagesEl.scrollHeight;
       return div;
     }
-
+    function clearMessages() { messagesEl.innerHTML = ""; }
     function clearAttach() {
-      pendingImage = null;
-      attachPreview.classList.remove("show");
-      attachThumb.removeAttribute("src");
-      attachMeta.textContent = "";
-      fileCamera.value = "";
-      fileGallery.value = "";
+      pendingImage = null; attachPreview.classList.remove("show"); attachThumb.removeAttribute("src");
+      attachMeta.textContent = ""; fileCamera.value = ""; fileGallery.value = "";
+    }
+    function localKey() { return "mapsky_ai_chats_v1"; }
+    function loadLocalChats() {
+      try { const raw = localStorage.getItem(localKey()); if (!raw) return []; const list = JSON.parse(raw); return Array.isArray(list) ? list : []; } catch { return []; }
+    }
+    function saveLocalChats(list) { try { localStorage.setItem(localKey(), JSON.stringify(list.slice(0, 40))); } catch {} }
+
+    async function api(path, opts) {
+      const res = await fetch(path, Object.assign({ credentials: "same-origin", headers: { "Content-Type": "application/json" } }, opts || {}));
+      const data = await res.json().catch(function () { return {}; });
+      return { res: res, data: data };
+    }
+
+    async function detectCloud() {
+      try {
+        const r = await api("/api/auth/session?action=ai-chats", { method: "GET" });
+        if (r.res.ok && r.data.ok) {
+          cloudEnabled = true; cloudHint.textContent = "雲端同步已開啟"; cloudHint.classList.add("on");
+          chatsCache = r.data.chats || []; return;
+        }
+      } catch {}
+      cloudEnabled = false; cloudHint.textContent = "本機儲存 · 登入後可同步雲端"; cloudHint.classList.remove("on");
+      chatsCache = loadLocalChats().map(function (c) {
+        return { id: c.id, title: c.title || "新對話", updatedAt: c.updatedAt || 0, messageCount: (c.messages || []).length };
+      });
+    }
+
+    function formatTime(ts) {
+      if (!ts) return "";
+      const d = new Date(ts); const now = new Date();
+      if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
+      return (d.getMonth() + 1) + "/" + d.getDate();
+    }
+
+    function renderChatList() {
+      chatListEl.innerHTML = "";
+      if (!chatsCache.length) {
+        chatListEl.innerHTML = '<div class="drawer-empty">尚無對話<br/>送出第一則訊息後會出現在這裡</div>';
+        return;
+      }
+      chatsCache.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); }).forEach(function (c) {
+        const row = document.createElement("div");
+        row.className = "chat-item" + (c.id === currentChatId ? " active" : "");
+        row.innerHTML = '<div class="info"><div class="t"></div><div class="s"></div></div><button type="button" class="del" aria-label="刪除">🗑</button>';
+        row.querySelector(".t").textContent = c.title || "新對話";
+        row.querySelector(".s").textContent = formatTime(c.updatedAt) + (c.messageCount ? " · " + c.messageCount + " 則" : "");
+        row.querySelector(".info").addEventListener("click", function () { loadChat(c.id); });
+        row.querySelector(".del").addEventListener("click", function (e) { e.stopPropagation(); deleteChat(c.id); });
+        chatListEl.appendChild(row);
+      });
+    }
+
+    async function refreshChatList() {
+      if (cloudEnabled) {
+        try { const r = await api("/api/auth/session?action=ai-chats", { method: "GET" }); if (r.res.ok && r.data.ok) chatsCache = r.data.chats || []; } catch {}
+      } else {
+        chatsCache = loadLocalChats().map(function (c) {
+          return { id: c.id, title: c.title || "新對話", updatedAt: c.updatedAt || 0, messageCount: (c.messages || []).length };
+        });
+      }
+      renderChatList();
+    }
+
+    async function persistCurrent() {
+      if (!currentChatId || !history.length) return;
+      const title = (history.find(function (m) { return m.role === "user"; }) || {}).text || "新對話";
+      const chat = { id: currentChatId, title: String(title).slice(0, 40), updatedAt: Date.now(), messages: history.slice(-60) };
+      if (cloudEnabled) {
+        try { await api("/api/auth/session?action=ai-chat-save", { method: "POST", body: JSON.stringify(chat) }); } catch {}
+      } else {
+        const list = loadLocalChats().filter(function (c) { return c.id !== chat.id; });
+        list.unshift(chat); saveLocalChats(list);
+      }
+    }
+
+    async function loadChat(id) {
+      let chat = null;
+      if (cloudEnabled) {
+        const r = await api("/api/auth/session?action=ai-chat-get&id=" + encodeURIComponent(id), { method: "GET" });
+        if (r.res.ok && r.data.ok) chat = r.data.chat;
+      } else {
+        chat = loadLocalChats().find(function (c) { return c.id === id; }) || null;
+      }
+      if (!chat) return;
+      currentChatId = chat.id;
+      history = Array.isArray(chat.messages) ? chat.messages.slice() : [];
+      clearMessages();
+      if (!history.length) addBubble("system", "可以問天氣、警特報，也可拍照或上傳圖片詢問");
+      else history.forEach(function (m) { addBubble(m.role === "model" ? "model" : "user", m.text); });
+      headerTitle.textContent = (chat.title || "AI 助手").slice(0, 16);
+      closeDrawer();
+    }
+
+    async function deleteChat(id) {
+      if (!confirm("刪除這個對話？")) return;
+      if (cloudEnabled) {
+        await api("/api/auth/session?action=ai-chat-delete", { method: "POST", body: JSON.stringify({ id: id }) });
+      } else {
+        saveLocalChats(loadLocalChats().filter(function (c) { return c.id !== id; }));
+      }
+      if (currentChatId === id) newChat();
+      await refreshChatList();
+    }
+
+    function newChat() {
+      currentChatId = uid(); history = []; clearMessages(); clearAttach();
+      addBubble("system", "可以問天氣、警特報，也可拍照或上傳圖片詢問");
+      headerTitle.textContent = "新對話"; closeDrawer();
     }
 
     function setPendingFromFile(file) {
       if (!file) return;
-      const isImage = (file.type || "").startsWith("image/");
-      if (!isImage) {
-        addBubble("error", "目前僅支援圖片（拍照／相簿）。文字檔稍後再支援。");
-        return;
-      }
+      if (!(file.type || "").startsWith("image/")) { addBubble("error", "目前僅支援圖片（拍照／相簿）。"); return; }
       const reader = new FileReader();
       reader.onload = function () {
         const dataUrl = String(reader.result || "");
@@ -307,100 +264,59 @@
         const raw = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
         const mimeMatch = /data:([^;]+);base64/.exec(header);
         const mimeType = (mimeMatch && mimeMatch[1]) || file.type || "image/jpeg";
-        const tooBig = raw.length > 4 * 1024 * 1024;
-        if (tooBig) {
-          compressImage(dataUrl, 1280, 0.82).then(function (compressed) {
-            applyPending(compressed.mimeType, compressed.data, file.name, compressed.previewUrl);
-          }).catch(function () {
-            addBubble("error", "圖片太大，請換一張較小的照片");
-          });
+        if (raw.length > 4 * 1024 * 1024) {
+          compressImage(dataUrl, 1280, 0.82).then(function (c) { applyPending(c.mimeType, c.data, file.name, c.previewUrl); })
+            .catch(function () { addBubble("error", "圖片太大，請換一張較小的照片"); });
           return;
         }
         applyPending(mimeType, raw, file.name, dataUrl);
       };
       reader.readAsDataURL(file);
     }
-
     function applyPending(mimeType, data, name, previewUrl) {
       pendingImage = { mimeType: mimeType, data: data, name: name || "image", previewUrl: previewUrl };
-      attachThumb.src = previewUrl;
-      attachMeta.textContent = name || "已選取圖片";
-      attachPreview.classList.add("show");
+      attachThumb.src = previewUrl; attachMeta.textContent = name || "已選取圖片"; attachPreview.classList.add("show");
     }
-
     function compressImage(dataUrl, maxSide, quality) {
       return new Promise(function (resolve, reject) {
         const img = new Image();
         img.onload = function () {
-          let w = img.width;
-          let h = img.height;
+          let w = img.width, h = img.height;
           const scale = Math.min(1, maxSide / Math.max(w, h));
-          w = Math.round(w * scale);
-          h = Math.round(h * scale);
-          const canvas = document.createElement("canvas");
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(img, 0, 0, w, h);
+          w = Math.round(w * scale); h = Math.round(h * scale);
+          const canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
           const out = canvas.toDataURL("image/jpeg", quality);
-          const comma = out.indexOf(",");
-          resolve({
-            mimeType: "image/jpeg",
-            data: out.slice(comma + 1),
-            previewUrl: out,
-          });
+          resolve({ mimeType: "image/jpeg", data: out.slice(out.indexOf(",") + 1), previewUrl: out });
         };
-        img.onerror = reject;
-        img.src = dataUrl;
+        img.onerror = reject; img.src = dataUrl;
       });
     }
 
-    const modelSelect = document.getElementById("modelSelect");
     try {
       const saved = localStorage.getItem("mapsky_ai_model");
-      if (saved) {
-        for (let i = 0; i < modelSelect.options.length; i++) {
-          if (modelSelect.options[i].value === saved) {
-            modelSelect.selectedIndex = i;
-            break;
-          }
-        }
-      }
+      if (saved) for (let i = 0; i < modelSelect.options.length; i++) if (modelSelect.options[i].value === saved) { modelSelect.selectedIndex = i; break; }
     } catch (e) {}
-    modelSelect.addEventListener("change", function () {
-      try { localStorage.setItem("mapsky_ai_model", modelSelect.value); } catch (e) {}
-    });
+    modelSelect.addEventListener("change", function () { try { localStorage.setItem("mapsky_ai_model", modelSelect.value); } catch (e) {} });
 
     async function askGemini(message, image) {
       const body = { message: message || "", history: history, model: modelSelect.value };
-      if (image && image.data) {
-        body.image = { mimeType: image.mimeType, data: image.data };
-      }
-      const res = await fetch("/api/auth/session?action=ai-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify(body),
-      });
+      if (image && image.data) body.image = { mimeType: image.mimeType, data: image.data };
+      const res = await fetch("/api/auth/session?action=ai-chat", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(body) });
       const data = await res.json().catch(function () { return {}; });
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || ("HTTP " + res.status));
-      }
+      if (!res.ok || !data.ok) throw new Error(data.error || ("HTTP " + res.status));
       return data.text || "";
     }
 
-    document.getElementById("btnCamera").addEventListener("click", function () {
-      fileCamera.click();
-    });
-    document.getElementById("btnGallery").addEventListener("click", function () {
-      fileGallery.click();
-    });
-    fileCamera.addEventListener("change", function () {
-      if (fileCamera.files && fileCamera.files[0]) setPendingFromFile(fileCamera.files[0]);
-    });
-    fileGallery.addEventListener("change", function () {
-      if (fileGallery.files && fileGallery.files[0]) setPendingFromFile(fileGallery.files[0]);
-    });
+    document.getElementById("btnDrawer").addEventListener("click", openDrawer);
+    document.getElementById("btnDrawerClose").addEventListener("click", closeDrawer);
+    drawerOverlay.addEventListener("click", closeDrawer);
+    document.getElementById("btnNewChat").addEventListener("click", newChat);
+    document.getElementById("btnDrawerNew").addEventListener("click", newChat);
+    document.getElementById("btnCamera").addEventListener("click", function () { fileCamera.click(); });
+    document.getElementById("btnGallery").addEventListener("click", function () { fileGallery.click(); });
+    fileCamera.addEventListener("change", function () { if (fileCamera.files && fileCamera.files[0]) setPendingFromFile(fileCamera.files[0]); });
+    fileGallery.addEventListener("change", function () { if (fileGallery.files && fileGallery.files[0]) setPendingFromFile(fileGallery.files[0]); });
     attachClear.addEventListener("click", clearAttach);
 
     form.addEventListener("submit", async function (e) {
@@ -408,61 +324,52 @@
       const message = (input.value || "").trim();
       const image = pendingImage;
       if ((!message && !image) || sendBtn.disabled) return;
-
+      if (!currentChatId) currentChatId = uid();
       input.value = "";
       const previewUrl = image ? image.previewUrl : null;
       clearAttach();
       addBubble("user", message || (previewUrl ? "（圖片）" : ""), previewUrl);
       history.push({ role: "user", text: message || "（使用者傳送了一張圖片）" });
       sendBtn.disabled = true;
-
       const thinking = addBubble("system", "思考中…");
       try {
         const text = await askGemini(message, image);
-        thinking.remove();
-        addBubble("model", text);
-        history.push({ role: "model", text: text });
-        if (window.MapSkyAI) {
-          window.MapSkyAI.postToNative("ai-reply", { text: text });
-        }
+        thinking.remove(); addBubble("model", text); history.push({ role: "model", text: text });
+        await persistCurrent();
+        if (window.MapSkyAI) window.MapSkyAI.postToNative("ai-reply", { text: text });
       } catch (err) {
-        thinking.remove();
-        addBubble("error", String(err.message || err));
-        if (window.MapSkyAI) {
-          window.MapSkyAI.postToNative("ai-error", { message: String(err.message || err) });
-        }
-      } finally {
-        sendBtn.disabled = false;
-        input.focus();
-      }
+        thinking.remove(); addBubble("error", String(err.message || err));
+        if (window.MapSkyAI) window.MapSkyAI.postToNative("ai-error", { message: String(err.message || err) });
+      } finally { sendBtn.disabled = false; input.focus(); }
     });
 
     window.MapSkyAI = {
-      version: 3,
-      ready: true,
-      history: history,
+      version: 4, ready: true, history: history,
       postToNative: function (type, payload) {
         try {
           if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.mapsky) {
-            window.webkit.messageHandlers.mapsky.postMessage({ type: type, payload: payload || null });
-            return true;
+            window.webkit.messageHandlers.mapsky.postMessage({ type: type, payload: payload || null }); return true;
           }
         } catch (e) {}
         return false;
       },
       chat: async function (message, image) {
+        if (!currentChatId) currentChatId = uid();
         const text = String(message || "").trim();
-        const reply = await askGemini(text, image || null);
-        addBubble("user", text || (image ? "（圖片）" : ""));
         history.push({ role: "user", text: text || "（使用者傳送了一張圖片）" });
-        addBubble("model", reply);
-        history.push({ role: "model", text: reply });
+        addBubble("user", text || (image ? "（圖片）" : ""));
+        const reply = await askGemini(text, image || null);
+        history.push({ role: "model", text: reply }); addBubble("model", reply);
+        await persistCurrent();
         window.MapSkyAI.postToNative("ai-reply", { text: reply });
         return reply;
       }
     };
 
-    window.MapSkyAI.postToNative("ai-page-ready", { version: 3 });
+    currentChatId = uid();
+    detectCloud().then(function () {
+      window.MapSkyAI.postToNative("ai-page-ready", { version: 4, cloud: cloudEnabled });
+    });
   </script>
 </body>
 </html>
