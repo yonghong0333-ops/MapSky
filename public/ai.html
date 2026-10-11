@@ -23,7 +23,7 @@
       padding:
         env(safe-area-inset-top, 0)
         env(safe-area-inset-right, 0)
-        env(safe-area-inset-bottom, 0)
+        0
         env(safe-area-inset-left, 0);
     }
     header {
@@ -91,7 +91,8 @@
       flex-shrink: 0;
       display: flex;
       gap: 8px;
-      padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+      /* 預留底部導覽列高度，輸入框往上抬，避免被挡住 */
+      padding: 10px 12px calc(78px + env(safe-area-inset-bottom, 0px));
       border-top: 1px solid rgba(255, 255, 255, 0.08);
       background: rgba(15, 23, 42, 0.95);
     }
