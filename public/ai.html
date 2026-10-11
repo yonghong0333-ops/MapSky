@@ -87,14 +87,70 @@
       background: transparent;
       padding: 4px 8px;
     }
+    .bubble img.preview {
+      display: block;
+      max-width: 220px;
+      max-height: 220px;
+      border-radius: 12px;
+      margin-bottom: 8px;
+      object-fit: cover;
+    }
+    .attach-preview {
+      display: none;
+      flex-shrink: 0;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px 0;
+      background: rgba(15, 23, 42, 0.95);
+    }
+    .attach-preview.show { display: flex; }
+    .attach-preview img {
+      width: 56px;
+      height: 56px;
+      border-radius: 10px;
+      object-fit: cover;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .attach-preview .meta {
+      flex: 1;
+      font-size: 12px;
+      color: rgba(255,255,255,0.55);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .attach-preview button {
+      border: none;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border-radius: 999px;
+      width: 28px;
+      height: 28px;
+      font-size: 14px;
+      cursor: pointer;
+    }
     .composer {
       flex-shrink: 0;
       display: flex;
-      gap: 8px;
-      /* 預留底部導覽列高度，輸入框往上抬，避免被挡住 */
-      padding: 10px 12px calc(78px + env(safe-area-inset-bottom, 0px));
+      align-items: center;
+      gap: 6px;
+      padding: 10px 10px calc(78px + env(safe-area-inset-bottom, 0px));
       border-top: 1px solid rgba(255, 255, 255, 0.08);
       background: rgba(15, 23, 42, 0.95);
+    }
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 18px;
+      cursor: pointer;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     #input {
       flex: 1;
@@ -105,6 +161,7 @@
       padding: 11px 16px;
       font-size: 16px;
       outline: none;
+      min-width: 0;
     }
     #input:focus {
       border-color: rgba(37, 99, 235, 0.7);
@@ -124,6 +181,7 @@
       opacity: 0.45;
       cursor: default;
     }
+    .hidden-file { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
   </style>
 </head>
 <body>
@@ -132,60 +190,180 @@
     <div class="title">AI 助手</div>
   </header>
   <div id="messages">
-    <div class="bubble system">可以問天氣、警特報或 MapSky 使用方式</div>
+    <div class="bubble system">可以問天氣、警特報，也可拍照或上傳圖片詢問</div>
+  </div>
+  <div class="attach-preview" id="attachPreview">
+    <img id="attachThumb" alt="預覽" />
+    <div class="meta" id="attachMeta"></div>
+    <button type="button" id="attachClear" aria-label="移除">×</button>
   </div>
   <form class="composer" id="form">
+    <button type="button" class="icon-btn" id="btnCamera" aria-label="拍照" title="拍照">📷</button>
+    <button type="button" class="icon-btn" id="btnGallery" aria-label="相簿" title="相簿／檔案">🖼</button>
     <input id="input" type="text" placeholder="輸入訊息…" autocomplete="off" enterkeyhint="send" />
     <button type="submit" id="send" aria-label="送出">↑</button>
+    <input class="hidden-file" id="fileCamera" type="file" accept="image/*" capture="environment" />
+    <input class="hidden-file" id="fileGallery" type="file" accept="image/*,.pdf,.txt,.md,.csv" />
   </form>
   <script>
     const messagesEl = document.getElementById("messages");
     const form = document.getElementById("form");
     const input = document.getElementById("input");
     const sendBtn = document.getElementById("send");
+    const fileCamera = document.getElementById("fileCamera");
+    const fileGallery = document.getElementById("fileGallery");
+    const attachPreview = document.getElementById("attachPreview");
+    const attachThumb = document.getElementById("attachThumb");
+    const attachMeta = document.getElementById("attachMeta");
+    const attachClear = document.getElementById("attachClear");
     const history = [];
+    let pendingImage = null;
 
-    function addBubble(role, text) {
+    function addBubble(role, text, imgUrl) {
       const div = document.createElement("div");
       div.className = "bubble " + role;
-      div.textContent = text;
+      if (imgUrl) {
+        const img = document.createElement("img");
+        img.className = "preview";
+        img.src = imgUrl;
+        img.alt = "附圖";
+        div.appendChild(img);
+      }
+      if (text) {
+        const span = document.createElement("div");
+        span.textContent = text;
+        div.appendChild(span);
+      }
       messagesEl.appendChild(div);
       messagesEl.scrollTop = messagesEl.scrollHeight;
       return div;
     }
 
-    async function askGemini(message) {
+    function clearAttach() {
+      pendingImage = null;
+      attachPreview.classList.remove("show");
+      attachThumb.removeAttribute("src");
+      attachMeta.textContent = "";
+      fileCamera.value = "";
+      fileGallery.value = "";
+    }
+
+    function setPendingFromFile(file) {
+      if (!file) return;
+      const isImage = (file.type || "").startsWith("image/");
+      if (!isImage) {
+        addBubble("error", "目前僅支援圖片（拍照／相簿）。文字檔稍後再支援。");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function () {
+        const dataUrl = String(reader.result || "");
+        const comma = dataUrl.indexOf(",");
+        const header = comma >= 0 ? dataUrl.slice(0, comma) : "";
+        const raw = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+        const mimeMatch = /data:([^;]+);base64/.exec(header);
+        const mimeType = (mimeMatch && mimeMatch[1]) || file.type || "image/jpeg";
+        const tooBig = raw.length > 4 * 1024 * 1024;
+        if (tooBig) {
+          compressImage(dataUrl, 1280, 0.82).then(function (compressed) {
+            applyPending(compressed.mimeType, compressed.data, file.name, compressed.previewUrl);
+          }).catch(function () {
+            addBubble("error", "圖片太大，請換一張較小的照片");
+          });
+          return;
+        }
+        applyPending(mimeType, raw, file.name, dataUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function applyPending(mimeType, data, name, previewUrl) {
+      pendingImage = { mimeType: mimeType, data: data, name: name || "image", previewUrl: previewUrl };
+      attachThumb.src = previewUrl;
+      attachMeta.textContent = name || "已選取圖片";
+      attachPreview.classList.add("show");
+    }
+
+    function compressImage(dataUrl, maxSide, quality) {
+      return new Promise(function (resolve, reject) {
+        const img = new Image();
+        img.onload = function () {
+          let w = img.width;
+          let h = img.height;
+          const scale = Math.min(1, maxSide / Math.max(w, h));
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+          const out = canvas.toDataURL("image/jpeg", quality);
+          const comma = out.indexOf(",");
+          resolve({
+            mimeType: "image/jpeg",
+            data: out.slice(comma + 1),
+            previewUrl: out,
+          });
+        };
+        img.onerror = reject;
+        img.src = dataUrl;
+      });
+    }
+
+    async function askGemini(message, image) {
+      const body = { message: message || "", history: history };
+      if (image && image.data) {
+        body.image = { mimeType: image.mimeType, data: image.data };
+      }
       const res = await fetch("/api/auth/session?action=ai-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ message, history }),
+        body: JSON.stringify(body),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(function () { return {}; });
       if (!res.ok || !data.ok) {
         throw new Error(data.error || ("HTTP " + res.status));
       }
       return data.text || "";
     }
 
-    form.addEventListener("submit", async (e) => {
+    document.getElementById("btnCamera").addEventListener("click", function () {
+      fileCamera.click();
+    });
+    document.getElementById("btnGallery").addEventListener("click", function () {
+      fileGallery.click();
+    });
+    fileCamera.addEventListener("change", function () {
+      if (fileCamera.files && fileCamera.files[0]) setPendingFromFile(fileCamera.files[0]);
+    });
+    fileGallery.addEventListener("change", function () {
+      if (fileGallery.files && fileGallery.files[0]) setPendingFromFile(fileGallery.files[0]);
+    });
+    attachClear.addEventListener("click", clearAttach);
+
+    form.addEventListener("submit", async function (e) {
       e.preventDefault();
       const message = (input.value || "").trim();
-      if (!message || sendBtn.disabled) return;
+      const image = pendingImage;
+      if ((!message && !image) || sendBtn.disabled) return;
 
       input.value = "";
-      addBubble("user", message);
-      history.push({ role: "user", text: message });
+      const previewUrl = image ? image.previewUrl : null;
+      clearAttach();
+      addBubble("user", message || (previewUrl ? "（圖片）" : ""), previewUrl);
+      history.push({ role: "user", text: message || "（使用者傳送了一張圖片）" });
       sendBtn.disabled = true;
 
       const thinking = addBubble("system", "思考中…");
       try {
-        const text = await askGemini(message);
+        const text = await askGemini(message, image);
         thinking.remove();
         addBubble("model", text);
-        history.push({ role: "model", text });
+        history.push({ role: "model", text: text });
         if (window.MapSkyAI) {
-          window.MapSkyAI.postToNative("ai-reply", { text });
+          window.MapSkyAI.postToNative("ai-reply", { text: text });
         }
       } catch (err) {
         thinking.remove();
@@ -200,7 +378,7 @@
     });
 
     window.MapSkyAI = {
-      version: 2,
+      version: 3,
       ready: true,
       history: history,
       postToNative: function (type, payload) {
@@ -212,12 +390,11 @@
         } catch (e) {}
         return false;
       },
-      chat: async function (message) {
+      chat: async function (message, image) {
         const text = String(message || "").trim();
-        if (!text) throw new Error("empty message");
-        addBubble("user", text);
-        history.push({ role: "user", text: text });
-        const reply = await askGemini(text);
+        const reply = await askGemini(text, image || null);
+        addBubble("user", text || (image ? "（圖片）" : ""));
+        history.push({ role: "user", text: text || "（使用者傳送了一張圖片）" });
         addBubble("model", reply);
         history.push({ role: "model", text: reply });
         window.MapSkyAI.postToNative("ai-reply", { text: reply });
@@ -225,7 +402,7 @@
       }
     };
 
-    window.MapSkyAI.postToNative("ai-page-ready", { version: 2 });
+    window.MapSkyAI.postToNative("ai-page-ready", { version: 3 });
   </script>
 </body>
 </html>

@@ -16,7 +16,7 @@ module.exports = async function handler(req, res) {
 
   // Gemini AI 聊天：掛在這支避免超過 Vercel Hobby 12 支 function 上限。
   // POST /api/auth/session?action=ai-chat
-  // body: { message: string, history?: [{ role: "user"|"model", text: string }] }
+  // body: { message: string, history?: [{ role: "user"|"model", text: string }], image?: { mimeType, data } }
   // 不強制登入，方便 /ai 頁與 iOS WKWebView 直接呼叫；金鑰只在伺服器端讀取。
   // 多模型備援：主模型忙碌（high demand）時自動換下一顆。
   if (req.query.action === "ai-chat") {
@@ -33,8 +33,15 @@ module.exports = async function handler(req, res) {
     }
     body = body || {};
     const message = typeof body.message === "string" ? body.message.trim() : "";
-    if (!message) {
-      return res.status(400).json({ ok: false, error: "message is required" });
+    const image = body.image && typeof body.image === "object" ? body.image : null;
+    const imageData = image && typeof image.data === "string" ? image.data.replace(/^data:[^;]+;base64,/, "") : "";
+    const imageMime = image && typeof image.mimeType === "string" ? image.mimeType : "image/jpeg";
+    const hasImage = Boolean(imageData);
+    if (!message && !hasImage) {
+      return res.status(400).json({ ok: false, error: "message or image is required" });
+    }
+    if (hasImage && imageData.length > 5.5 * 1024 * 1024) {
+      return res.status(400).json({ ok: false, error: "圖片太大，請選較小的照片" });
     }
     const history = Array.isArray(body.history) ? body.history : [];
     const contents = [];
@@ -43,7 +50,19 @@ module.exports = async function handler(req, res) {
       const role = h.role === "model" ? "model" : "user";
       contents.push({ role, parts: [{ text: String(h.text) }] });
     }
-    contents.push({ role: "user", parts: [{ text: message }] });
+    const userParts = [];
+    if (hasImage) {
+      userParts.push({
+        inlineData: {
+          mimeType: imageMime || "image/jpeg",
+          data: imageData,
+        },
+      });
+    }
+    userParts.push({
+      text: message || (hasImage ? "請描述這張圖片的內容，並用繁體中文回答。" : ""),
+    });
+    contents.push({ role: "user", parts: userParts });
 
     const preferred = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const models = [
@@ -128,11 +147,6 @@ module.exports = async function handler(req, res) {
     return res.status(503).json({ ok: false, error: zh });
   }
 
-  // 「登出」「可用的登入供應商清單」這兩個本來是獨立的 api/auth/logout.js、
-  // api/auth/providers.js，併進這支（Vercel Hobby 方案一個部署最多 12 支
-  // function，這支已經是現成要擴充的地方）。兩個都不需要先驗登入狀態，放在
-  // 驗證 session 之前處理，登出時就算本來就沒登入也不會報錯、登入畫面還沒
-  // 登入時也要能查供應商清單。
   if (req.query.action === "providers") {
     const list = Object.keys(PROVIDERS).map((id) => ({
       id,
@@ -150,14 +164,9 @@ module.exports = async function handler(req, res) {
   const cookies = parseCookies(req);
   const payload = verify(cookies.nexora_session);
   if (!payload) {
-    // 沒登入也要讓前端知道現在是不是維護模式，不然一般使用者的登入畫面
-    // 沒辦法在還沒登入的狀態下就先鎖住。
     return res.status(200).json({ loggedIn: false, maintenanceMode: await isMaintenanceMode() });
   }
 
-  // 動態島冒險的每日使用時間：查剩餘／開始（預扣）／結束（退回沒用完的）。
-  // 每天上限由後台設定，05:00 換日，細節見 api/_lib/adventure-usage.js。
-  // 一樣掛在這支（要驗登入、Vercel Hobby function 數量有上限），不另外開檔案。
   if (req.query.action === "adventure-usage" && req.method === "GET") {
     res.setHeader("Cache-Control", "no-store");
     const limit = await getAdventureDailyLimitMinutes();
@@ -185,7 +194,6 @@ module.exports = async function handler(req, res) {
     return res.status(result.ok ? 200 : 400).json(result);
   }
 
-  // Web Push 訂閱：登入後才能登記，存在 Redis，後台發公告時拿來推。
   if (req.method === "POST" && req.query.action === "push-subscribe") {
     let body = req.body;
     if (typeof body === "string") {
@@ -209,7 +217,6 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ ok: true });
   }
 
-  // iOS 原生 App（Capacitor @capacitor/push-notifications）版本的訂閱／取消
   if (req.method === "POST" && req.query.action === "push-subscribe-ios") {
     let body = req.body;
     if (typeof body === "string") {
@@ -233,7 +240,6 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ ok: true });
   }
 
-  // 更新個人資料（暱稱、頭像、onboarded）
   if (req.method === "POST" && (req.query.action === "update-profile" || req.query.action === "profile")) {
     let body = req.body;
     if (typeof body === "string") {
