@@ -28,10 +28,8 @@
     .attach-preview img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.15); }
     .attach-preview .meta { flex: 1; font-size: 12px; color: rgba(255,255,255,0.55); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .attach-preview button { border: none; background: rgba(255,255,255,0.1); color: #fff; border-radius: 999px; width: 28px; height: 28px; font-size: 14px; cursor: pointer; }
-    .model-bar { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 8px 12px 0; background: rgba(15, 23, 42, 0.95); }
-    .model-bar label { font-size: 12px; color: rgba(255, 255, 255, 0.45); flex-shrink: 0; }
-    #modelSelect { flex: 1; min-width: 0; appearance: none; -webkit-appearance: none; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.9); border-radius: 12px; padding: 8px 12px; font-size: 13px; outline: none; }
-    #modelSelect option { background: #0f172a; color: #fff; }
+    .model-bar { display: none !important; }
+    #modelSelect { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
     .composer { flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 8px 10px calc(78px + env(safe-area-inset-bottom, 0px)); background: rgba(15, 23, 42, 0.95); }
     .icon-btn { width: 40px; height: 40px; border: none; border-radius: 50%; background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.85); font-size: 18px; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
     #input { flex: 1; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.06); color: #fff; border-radius: 22px; padding: 11px 16px; font-size: 16px; outline: none; min-width: 0; }
@@ -327,11 +325,8 @@
       if (activeAbort) { try { activeAbort.abort(); } catch (e) {} }
       activeAbort = typeof AbortController !== "undefined" ? new AbortController() : null;
       const res = await fetch("/api/auth/session?action=ai-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify(body),
-        signal: activeAbort ? activeAbort.signal : undefined,
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+        body: JSON.stringify(body), signal: activeAbort ? activeAbort.signal : undefined,
       });
       const data = await res.json().catch(function () { return {}; });
       if (!res.ok || !data.ok) throw new Error(data.error || ("HTTP " + res.status));
@@ -370,16 +365,13 @@
       } catch (err) {
         thinking.remove();
         const aborted = err && (err.name === "AbortError" || /abort/i.test(String(err.message || "")));
-        if (aborted) {
-          addBubble("system", "已取消");
-        } else {
+        if (aborted) addBubble("system", "已取消");
+        else {
           addBubble("error", String(err.message || err));
           if (window.MapSkyAI) window.MapSkyAI.postToNative("ai-error", { message: String(err.message || err) });
         }
       } finally {
-        activeAbort = null;
-        setBusy(false);
-        input.focus();
+        activeAbort = null; setBusy(false); input.focus();
       }
     });
 
@@ -391,6 +383,17 @@
             window.webkit.messageHandlers.mapsky.postMessage({ type: type, payload: payload || null }); return true;
           }
         } catch (e) {}
+        return false;
+      },
+      setModel: function (id) {
+        if (!id || !modelSelect) return false;
+        for (var i = 0; i < modelSelect.options.length; i++) {
+          if (modelSelect.options[i].value === id) {
+            modelSelect.selectedIndex = i;
+            try { localStorage.setItem("mapsky_ai_model", id); } catch (e) {}
+            return true;
+          }
+        }
         return false;
       },
       chat: async function (message, image) {
