@@ -3,7 +3,7 @@
   position: relative !important;
   display: flex !important;
   align-items: center !important;
-  justify-content: space-between !important;
+  justify-content: flex-start !important;
   gap: 10px !important;
   margin: 4px 0 14px !important;
   padding: 0 !important;
@@ -23,14 +23,16 @@
   z-index: 1 !important;
 }
 
-/* 城市名：獨立玻璃膠囊 */
+/* 城市名：獨立玻璃膠囊，寬度貼齊文字 */
 #cityName,
 .main-header h2 {
-  flex: 1 1 auto !important;
+  flex: 0 1 auto !important;
+  width: fit-content !important;
+  max-width: calc(100% - 58px) !important;
   min-width: 0 !important;
   margin: 0 !important;
-  padding: 12px 18px !important;
-  font-size: 22px !important;
+  padding: 10px 16px !important;
+  font-size: 20px !important;
   font-weight: 800 !important;
   letter-spacing: 0.04em !important;
   color: #0c4a6e !important;
@@ -56,9 +58,10 @@
   -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
 }
 
-/* 星星：獨立玻璃方塊 */
+/* 星星：獨立玻璃方塊，靠右 */
 .fav-star-btn {
   flex-shrink: 0 !important;
+  margin-left: auto !important;
   width: 48px !important;
   height: 48px !important;
   border-radius: 16px !important;
