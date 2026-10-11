@@ -44,7 +44,7 @@ module.exports = async function handler(req, res) {
     }
     contents.push({ role: "user", parts: [{ text: message }] });
 
-    const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
     const url =
       "https://generativelanguage.googleapis.com/v1beta/models/" +
       encodeURIComponent(model) +
@@ -181,7 +181,6 @@ module.exports = async function handler(req, res) {
   }
 
   // iOS 原生 App（Capacitor @capacitor/push-notifications）版本的訂閱／取消
-  // 一樣掛在這支，不另外開 api，理由同上。
   if (req.method === "POST" && req.query.action === "push-subscribe-ios") {
     let body = req.body;
     if (typeof body === "string") {
@@ -205,7 +204,7 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ ok: true });
   }
 
-  // 更新個人資料（暱稱、頭像、onboarded）— 詳見原實作邏輯由 parent 還原
+  // 更新個人資料（暱稱、頭像、onboarded）
   if (req.method === "POST" && (req.query.action === "update-profile" || req.query.action === "profile")) {
     let body = req.body;
     if (typeof body === "string") {
