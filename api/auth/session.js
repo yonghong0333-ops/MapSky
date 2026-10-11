@@ -13,6 +13,7 @@ const { getPublicKey } = require("../_lib/web-push");
 const { addIosToken, removeIosToken } = require("../_lib/apns-store");
 
 module.exports = async function handler(req, res) {
+
   // Gemini AI 聊天：掛在這支避免超過 Vercel Hobby 12 支 function 上限。
   // POST /api/auth/session?action=ai-chat
   // body: { message: string, history?: [{ role: "user"|"model", text: string }] }
@@ -179,8 +180,9 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ ok: true });
   }
 
-  // iOS APNs device token 登記／取消
-  if (req.method === "POST" && req.query.action === "ios-token") {
+  // iOS 原生 App（Capacitor @capacitor/push-notifications）版本的訂閱／取消
+  // 一樣掛在這支，不另外開 api，理由同上。
+  if (req.method === "POST" && req.query.action === "push-subscribe-ios") {
     let body = req.body;
     if (typeof body === "string") {
       try { body = JSON.parse(body); } catch { body = {}; }
@@ -189,52 +191,86 @@ module.exports = async function handler(req, res) {
     if (!token || typeof token !== "string") {
       return res.status(400).json({ ok: false, reason: "bad-token" });
     }
-    await addIosToken(payload.sub || payload.userId || payload.id, token, body.bundleId);
-    return res.status(200).json({ ok: true });
+    const saved = await addIosToken(token);
+    return res.status(200).json({ ok: true, token: saved });
   }
 
-  if (req.method === "POST" && req.query.action === "ios-token-remove") {
+  if (req.method === "POST" && req.query.action === "push-unsubscribe-ios") {
     let body = req.body;
     if (typeof body === "string") {
       try { body = JSON.parse(body); } catch { body = {}; }
     }
-    if (body && body.token) await removeIosToken(body.token);
+    const token = body && body.token;
+    if (token) await removeIosToken(token);
     return res.status(200).json({ ok: true });
   }
 
-  // 更新個人資料（暱稱、頭像、onboarded）
-  if (req.method === "POST" && req.query.action === "profile") {
+  // 更新個人資料（暱稱、頭像、onboarded）— 詳見原實作邏輯由 parent 還原
+  if (req.method === "POST" && (req.query.action === "update-profile" || req.query.action === "profile")) {
     let body = req.body;
     if (typeof body === "string") {
       try { body = JSON.parse(body); } catch { body = {}; }
     }
+    body = body || {};
+    const nickname = body.nickname;
+    const avatarDataUrl = body.avatarDataUrl;
+    const onboarded = body.onboarded;
+    const patch = {};
+
+    if (nickname !== undefined) {
+      if (typeof nickname !== "string" || !nickname.trim()) {
+        return res.status(400).json({ ok: false, reason: "invalid-nickname" });
+      }
+      patch.nickname = nickname.trim();
+      patch.nicknameChangedAt = Date.now();
+    }
+    if (avatarDataUrl !== undefined) {
+      if (avatarDataUrl !== null) {
+        if (typeof avatarDataUrl !== "string" || !avatarDataUrl.startsWith("data:image/")) {
+          return res.status(400).json({ ok: false, reason: "invalid-avatar" });
+        }
+        const approxBytes = (avatarDataUrl.length * 3) / 4;
+        if (approxBytes > 400 * 1024) {
+          return res.status(400).json({ ok: false, reason: "avatar-too-large" });
+        }
+      }
+      patch.avatarDataUrl = avatarDataUrl;
+    }
+    if (onboarded !== undefined) {
+      patch.onboarded = Boolean(onboarded);
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ ok: false, reason: "nothing-to-update" });
+    }
+
     try {
-      const saved = await setUserProfile(payload, body || {});
+      const saved = await setUserProfile(payload.provider, payload.profile.id, patch);
       return res.status(200).json({ ok: true, profile: saved });
     } catch (e) {
-      return res.status(400).json({ ok: false, reason: e.message });
+      return res.status(502).json({ ok: false, reason: "save-failed", message: e.message });
     }
   }
 
-  const isAdmin = await isAdminSession(payload);
-  const isSuperAdmin = await isSuperAdminSession(payload);
-  const betaTester = await isBetaTester(payload);
-  const adventureSkipListed = await isAdventureSkip(payload);
-  const memberId = await getOrCreateMemberId(payload);
-  const custom = await getUserProfile(payload);
-  const nicknameCooldownDays = await getNicknameCooldownDays();
-  const maintenanceMode = await isMaintenanceMode();
+  const [isAdmin, memberId, custom, nicknameCooldownDays, maintenanceMode, betaTester, adventureSkipListed] = await Promise.all([
+    isAdminSession(payload),
+    getOrCreateMemberId(payload),
+    getUserProfile(payload.provider, payload.profile.id),
+    getNicknameCooldownDays(),
+    isMaintenanceMode(),
+    isBetaTester(payload),
+    isAdventureSkip(payload),
+  ]);
 
-  return res.status(200).json({
+  const isSuperAdmin = isSuperAdminSession(payload);
+
+  res.status(200).json({
     loggedIn: true,
-    user: {
-      id: payload.sub || payload.userId || payload.id,
-      name: payload.name || null,
-      email: payload.email || null,
-      picture: payload.picture || null,
-      provider: payload.provider || null,
-      nickname: (custom && custom.nickname) || payload.name || null,
-      avatarUrl: (custom && custom.avatarUrl) || payload.picture || null,
+    provider: payload.provider,
+    profile: {
+      ...payload.profile,
+      nickname: (custom && custom.nickname) || null,
+      avatarDataUrl: (custom && custom.avatarDataUrl) || null,
       onboarded: Boolean(custom && custom.onboarded),
       nicknameChangedAt: (custom && custom.nicknameChangedAt) || null,
     },
@@ -243,12 +279,7 @@ module.exports = async function handler(req, res) {
     nicknameCooldownDays,
     maintenanceMode,
     vapidPublicKey: getPublicKey(),
-    // 「動態島冒險」的解鎖條件要不要跳過：在後台名單裡的人，或超級管理員本人，
-    // 都不用集滿 3 個條件就能直接用（超級管理員自己開發的功能，不用跟自己過不去）。
     adventureSkip: isSuperAdmin || adventureSkipListed,
-    // 桌面版「軟體更新」卡片要依這個決定要不要顯示更新頻道選擇器：
-    // publicBeta —— 在公開測試版名單裡，或本身是超級管理員
-    // internalBeta —— 只有超級管理員（「一般測試版」只有我看得到）
     updateChannelAccess: {
       publicBeta: isSuperAdmin || betaTester,
       internalBeta: isSuperAdmin,
