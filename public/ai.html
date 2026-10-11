@@ -5,34 +5,91 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#0f172a" id="themeColorMeta" />
   <title>MapSky AI</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; width: 100%; background: #0f172a; color: rgba(255, 255, 255, 0.9); font-family: -apple-system, "Segoe UI", "Noto Sans TC", sans-serif; -webkit-font-smoothing: antialiased; }
+    :root {
+      color-scheme: light dark;
+      --ai-bg: #0f172a;
+      --ai-fg: rgba(255, 255, 255, 0.92);
+      --ai-muted: rgba(255, 255, 255, 0.42);
+      --ai-border: rgba(255, 255, 255, 0.1);
+      --ai-panel: rgba(15, 23, 42, 0.96);
+      --ai-chip: rgba(255, 255, 255, 0.08);
+      --ai-user: #2563eb;
+      --ai-model-bg: rgba(255, 255, 255, 0.08);
+      --ai-model-border: rgba(255, 255, 255, 0.12);
+      --ai-input-bg: rgba(255, 255, 255, 0.06);
+      --ai-input-border: rgba(255, 255, 255, 0.14);
+      --ai-drawer: #111827;
+      --ai-error-bg: rgba(220, 38, 38, 0.18);
+      --ai-error-border: rgba(220, 38, 38, 0.4);
+      --ai-error-fg: #fecaca;
+      --ai-theme-color: #0f172a;
+    }
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme="dark"]) {
+        --ai-bg: #f1f5f9;
+        --ai-fg: #0f172a;
+        --ai-muted: rgba(15, 23, 42, 0.45);
+        --ai-border: rgba(15, 23, 42, 0.1);
+        --ai-panel: rgba(255, 255, 255, 0.94);
+        --ai-chip: rgba(15, 23, 42, 0.06);
+        --ai-user: #2563eb;
+        --ai-model-bg: rgba(255, 255, 255, 0.9);
+        --ai-model-border: rgba(15, 23, 42, 0.1);
+        --ai-input-bg: rgba(255, 255, 255, 0.95);
+        --ai-input-border: rgba(15, 23, 42, 0.12);
+        --ai-drawer: #ffffff;
+        --ai-error-bg: rgba(220, 38, 38, 0.1);
+        --ai-error-border: rgba(220, 38, 38, 0.35);
+        --ai-error-fg: #b91c1c;
+        --ai-theme-color: #f1f5f9;
+      }
+    }
+    html[data-theme="light"] {
+      --ai-bg: #f1f5f9; --ai-fg: #0f172a; --ai-muted: rgba(15, 23, 42, 0.45);
+      --ai-border: rgba(15, 23, 42, 0.1); --ai-panel: rgba(255, 255, 255, 0.94);
+      --ai-chip: rgba(15, 23, 42, 0.06); --ai-user: #2563eb;
+      --ai-model-bg: rgba(255, 255, 255, 0.9); --ai-model-border: rgba(15, 23, 42, 0.1);
+      --ai-input-bg: rgba(255, 255, 255, 0.95); --ai-input-border: rgba(15, 23, 42, 0.12);
+      --ai-drawer: #ffffff; --ai-error-bg: rgba(220, 38, 38, 0.1);
+      --ai-error-border: rgba(220, 38, 38, 0.35); --ai-error-fg: #b91c1c; --ai-theme-color: #f1f5f9;
+    }
+    html[data-theme="dark"] {
+      --ai-bg: #0f172a; --ai-fg: rgba(255, 255, 255, 0.92); --ai-muted: rgba(255, 255, 255, 0.42);
+      --ai-border: rgba(255, 255, 255, 0.1); --ai-panel: rgba(15, 23, 42, 0.96);
+      --ai-chip: rgba(255, 255, 255, 0.08); --ai-user: #2563eb;
+      --ai-model-bg: rgba(255, 255, 255, 0.08); --ai-model-border: rgba(255, 255, 255, 0.12);
+      --ai-input-bg: rgba(255, 255, 255, 0.06); --ai-input-border: rgba(255, 255, 255, 0.14);
+      --ai-drawer: #111827; --ai-error-bg: rgba(220, 38, 38, 0.18);
+      --ai-error-border: rgba(220, 38, 38, 0.4); --ai-error-fg: #fecaca; --ai-theme-color: #0f172a;
+    }
+    html, body { height: 100%; width: 100%; background: var(--ai-bg); color: var(--ai-fg); font-family: -apple-system, "Segoe UI", "Noto Sans TC", sans-serif; -webkit-font-smoothing: antialiased; transition: background 0.2s ease, color 0.2s ease; }
     body { display: flex; flex-direction: column; padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) 0 env(safe-area-inset-left, 0); }
-    header { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+    header { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--ai-border); background: var(--ai-panel); }
     header .titles { flex: 1; text-align: center; min-width: 0; }
-    header .label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.4); }
-    header .title { font-size: 17px; font-weight: 700; }
-    .hdr-btn { width: 40px; height: 40px; border: none; border-radius: 12px; background: rgba(255, 255, 255, 0.08); color: #fff; font-size: 18px; cursor: pointer; flex-shrink: 0; }
+    header .label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ai-muted); }
+    header .title { font-size: 17px; font-weight: 700; color: var(--ai-fg); }
+    .hdr-btn { width: 40px; height: 40px; border: none; border-radius: 12px; background: var(--ai-chip); color: var(--ai-fg); font-size: 18px; cursor: pointer; flex-shrink: 0; }
     #messages { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
     .bubble { max-width: 88%; padding: 10px 14px; border-radius: 16px; font-size: 15px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
-    .bubble.user { align-self: flex-end; background: #2563eb; color: #fff; border-bottom-right-radius: 6px; }
-    .bubble.model { align-self: flex-start; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom-left-radius: 6px; }
-    .bubble.error { align-self: center; background: rgba(220, 38, 38, 0.2); border: 1px solid rgba(220, 38, 38, 0.4); color: #fecaca; font-size: 13px; }
-    .bubble.system { align-self: center; font-size: 13px; color: rgba(255, 255, 255, 0.45); background: transparent; padding: 4px 8px; }
+    .bubble.user { align-self: flex-end; background: var(--ai-user); color: #fff; border-bottom-right-radius: 6px; }
+    .bubble.model { align-self: flex-start; background: var(--ai-model-bg); border: 1px solid var(--ai-model-border); border-bottom-left-radius: 6px; color: var(--ai-fg); }
+    .bubble.error { align-self: center; background: var(--ai-error-bg); border: 1px solid var(--ai-error-border); color: var(--ai-error-fg); font-size: 13px; }
+    .bubble.system { align-self: center; font-size: 13px; color: var(--ai-muted); background: transparent; padding: 4px 8px; }
     .bubble img.preview { display: block; max-width: 220px; max-height: 220px; border-radius: 12px; margin-bottom: 8px; object-fit: cover; }
-    .attach-preview { display: none; flex-shrink: 0; align-items: center; gap: 10px; padding: 8px 12px 0; background: rgba(15, 23, 42, 0.95); }
+    .attach-preview { display: none; flex-shrink: 0; align-items: center; gap: 10px; padding: 8px 12px 0; background: var(--ai-panel); }
     .attach-preview.show { display: flex; }
-    .attach-preview img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.15); }
-    .attach-preview .meta { flex: 1; font-size: 12px; color: rgba(255,255,255,0.55); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .attach-preview button { border: none; background: rgba(255,255,255,0.1); color: #fff; border-radius: 999px; width: 28px; height: 28px; font-size: 14px; cursor: pointer; }
+    .attach-preview img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; border: 1px solid var(--ai-border); }
+    .attach-preview .meta { flex: 1; font-size: 12px; color: var(--ai-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .attach-preview button { border: none; background: var(--ai-chip); color: var(--ai-fg); border-radius: 999px; width: 28px; height: 28px; font-size: 14px; cursor: pointer; }
     .model-bar { display: none !important; }
     #modelSelect { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
-    .composer { flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 8px 10px calc(78px + env(safe-area-inset-bottom, 0px)); background: rgba(15, 23, 42, 0.95); }
-    .icon-btn { width: 40px; height: 40px; border: none; border-radius: 50%; background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.85); font-size: 18px; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
-    #input { flex: 1; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.06); color: #fff; border-radius: 22px; padding: 11px 16px; font-size: 16px; outline: none; min-width: 0; }
+    .composer { flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 8px 10px calc(78px + env(safe-area-inset-bottom, 0px)); background: var(--ai-panel); border-top: 1px solid var(--ai-border); }
+    .icon-btn { width: 40px; height: 40px; border: none; border-radius: 50%; background: var(--ai-chip); color: var(--ai-fg); font-size: 18px; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+    #input { flex: 1; border: 1px solid var(--ai-input-border); background: var(--ai-input-bg); color: var(--ai-fg); border-radius: 22px; padding: 11px 16px; font-size: 16px; outline: none; min-width: 0; }
     #input:focus { border-color: rgba(37, 99, 235, 0.7); }
     .send-wrap { position: relative; width: 44px; height: 44px; flex-shrink: 0; }
     #send, #cancel { position: absolute; inset: 0; width: 44px; height: 44px; border: none; border-radius: 50%; font-size: 18px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
@@ -43,20 +100,20 @@
     .hidden-file { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
     .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); opacity: 0; pointer-events: none; transition: opacity 0.2s ease; z-index: 40; }
     .drawer-overlay.open { opacity: 1; pointer-events: auto; }
-    .drawer { position: fixed; top: 0; left: 0; bottom: 0; width: min(86vw, 320px); background: #111827; border-right: 1px solid rgba(255,255,255,0.08); transform: translateX(-105%); transition: transform 0.22s ease; z-index: 50; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0); padding-bottom: env(safe-area-inset-bottom, 0); }
+    .drawer { position: fixed; top: 0; left: 0; bottom: 0; width: min(86vw, 320px); background: var(--ai-drawer); color: var(--ai-fg); border-right: 1px solid var(--ai-border); transform: translateX(-105%); transition: transform 0.22s ease; z-index: 50; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0); padding-bottom: env(safe-area-inset-bottom, 0); }
     .drawer.open { transform: translateX(0); }
-    .drawer-head { display: flex; align-items: center; gap: 8px; padding: 14px 14px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .drawer-head { display: flex; align-items: center; gap: 8px; padding: 14px 14px 10px; border-bottom: 1px solid var(--ai-border); }
     .drawer-head h3 { flex: 1; font-size: 16px; font-weight: 700; }
-    .drawer-cloud { font-size: 11px; color: rgba(255,255,255,0.4); padding: 0 14px 8px; }
+    .drawer-cloud { font-size: 11px; color: var(--ai-muted); padding: 0 14px 8px; }
     .drawer-cloud.on { color: #34d399; }
     .drawer-list { flex: 1; overflow-y: auto; padding: 6px 8px 16px; }
-    .chat-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 12px 10px; border: none; border-radius: 12px; background: transparent; color: rgba(255,255,255,0.88); cursor: pointer; margin-bottom: 4px; }
+    .chat-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 12px 10px; border: none; border-radius: 12px; background: transparent; color: var(--ai-fg); cursor: pointer; margin-bottom: 4px; }
     .chat-item:active, .chat-item.active { background: rgba(37, 99, 235, 0.25); }
     .chat-item .info { flex: 1; min-width: 0; }
     .chat-item .t { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .chat-item .s { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+    .chat-item .s { font-size: 11px; color: var(--ai-muted); margin-top: 2px; }
     .chat-item .del { width: 32px; height: 32px; border: none; border-radius: 8px; background: rgba(220, 38, 38, 0.15); color: #fca5a5; font-size: 14px; cursor: pointer; flex-shrink: 0; }
-    .drawer-empty { text-align: center; color: rgba(255,255,255,0.35); font-size: 13px; padding: 32px 16px; }
+    .drawer-empty { text-align: center; color: var(--ai-muted); font-size: 13px; padding: 32px 16px; }
   </style>
 </head>
 <body>
@@ -109,6 +166,25 @@
     <div class="drawer-list" id="chatList"></div>
   </aside>
   <script>
+    function applyTheme(mode) {
+      var root = document.documentElement;
+      if (mode === "light" || mode === "dark") root.setAttribute("data-theme", mode);
+      else root.removeAttribute("data-theme");
+      try {
+        var meta = document.getElementById("themeColorMeta");
+        if (meta) {
+          var bg = getComputedStyle(root).getPropertyValue("--ai-theme-color").trim() || "#0f172a";
+          meta.setAttribute("content", bg);
+        }
+      } catch (e) {}
+    }
+    try {
+      var mq = window.matchMedia("(prefers-color-scheme: dark)");
+      function onScheme() { if (!document.documentElement.hasAttribute("data-theme")) applyTheme(null); }
+      if (mq.addEventListener) mq.addEventListener("change", onScheme);
+      else if (mq.addListener) mq.addListener(onScheme);
+    } catch (e) {}
+
     const messagesEl = document.getElementById("messages");
     const form = document.getElementById("form");
     const input = document.getElementById("input");
@@ -376,7 +452,12 @@
     });
 
     window.MapSkyAI = {
-      version: 4, ready: true, history: history,
+      version: 5, ready: true, history: history,
+      setTheme: function (mode) {
+        if (mode === "system" || mode === "auto" || !mode) applyTheme(null);
+        else applyTheme(mode === "light" ? "light" : "dark");
+        return true;
+      },
       postToNative: function (type, payload) {
         try {
           if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.mapsky) {
@@ -411,7 +492,7 @@
 
     currentChatId = uid();
     detectCloud().then(function () {
-      window.MapSkyAI.postToNative("ai-page-ready", { version: 4, cloud: cloudEnabled });
+      window.MapSkyAI.postToNative("ai-page-ready", { version: 5, cloud: cloudEnabled });
     });
   </script>
 </body>
