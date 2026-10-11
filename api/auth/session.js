@@ -18,6 +18,7 @@ module.exports = async function handler(req, res) {
   // POST /api/auth/session?action=ai-chat
   // body: { message: string, history?: [{ role: "user"|"model", text: string }] }
   // 不強制登入，方便 /ai 頁與 iOS WKWebView 直接呼叫；金鑰只在伺服器端讀取。
+  // 多模型備援：主模型忙碌（high demand）時自動換下一顆。
   if (req.query.action === "ai-chat") {
     if (req.method !== "POST") {
       return res.status(405).json({ ok: false, error: "Method not allowed" });
@@ -44,59 +45,87 @@ module.exports = async function handler(req, res) {
     }
     contents.push({ role: "user", parts: [{ text: message }] });
 
-    const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-    const url =
-      "https://generativelanguage.googleapis.com/v1beta/models/" +
-      encodeURIComponent(model) +
-      ":generateContent";
+    const preferred = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const models = [
+      preferred,
+      "gemini-2.5-flash",
+      "gemini-2.0-flash",
+      "gemini-flash-latest",
+      "gemini-2.5-flash-lite",
+      "gemini-3.8-flash",
+    ].filter((m, i, arr) => m && arr.indexOf(m) === i);
 
-    try {
-      const r = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": key,
-        },
-        body: JSON.stringify({
-          contents,
-          systemInstruction: {
-            parts: [
-              {
-                text:
-                  "你是 MapSky 的 AI 助手，協助使用者了解台灣天氣、警特報與 App 使用。" +
-                  "請用繁體中文回答，語氣清楚簡潔。若不確定請誠實說明。",
-              },
-            ],
+    const payload = {
+      contents,
+      systemInstruction: {
+        parts: [
+          {
+            text:
+              "你是 MapSky 的 AI 助手，協助使用者了解台灣天氣、警特報與 App 使用。" +
+              "請用繁體中文回答，語氣清楚簡潔。若不確定請誠實說明。",
           },
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 2048,
+        ],
+      },
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 2048,
+      },
+    };
+
+    let lastError = "Gemini request failed";
+    for (const model of models) {
+      const url =
+        "https://generativelanguage.googleapis.com/v1beta/models/" +
+        encodeURIComponent(model) +
+        ":generateContent";
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": key,
           },
-        }),
-      });
-      const data = await r.json();
-      if (!r.ok) {
-        const msg =
-          (data && data.error && data.error.message) ||
-          "Gemini request failed";
-        return res.status(r.status).json({ ok: false, error: msg });
+          body: JSON.stringify(payload),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          const msg =
+            (data && data.error && data.error.message) ||
+            "Gemini request failed";
+          lastError = msg;
+          const busy =
+            r.status === 429 ||
+            r.status === 503 ||
+            /high demand|quota|unavailable|not found|no longer available/i.test(
+              msg
+            );
+          if (busy) continue;
+          const zh =
+            /high demand/i.test(msg)
+              ? "目前 AI 服務較忙碌，請稍後再試。"
+              : msg;
+          return res.status(r.status).json({ ok: false, error: zh, model });
+        }
+        const parts =
+          data &&
+          data.candidates &&
+          data.candidates[0] &&
+          data.candidates[0].content &&
+          data.candidates[0].content.parts;
+        const text = Array.isArray(parts)
+          ? parts.map((p) => (p && p.text) || "").join("")
+          : "";
+        return res.status(200).json({ ok: true, text: text || "", model });
+      } catch (e) {
+        lastError = String((e && e.message) || e);
+        continue;
       }
-      const parts =
-        data &&
-        data.candidates &&
-        data.candidates[0] &&
-        data.candidates[0].content &&
-        data.candidates[0].content.parts;
-      const text = Array.isArray(parts)
-        ? parts.map((p) => (p && p.text) || "").join("")
-        : "";
-      return res.status(200).json({ ok: true, text: text || "", model });
-    } catch (e) {
-      return res.status(500).json({
-        ok: false,
-        error: String((e && e.message) || e),
-      });
     }
+
+    const zh = /high demand/i.test(lastError)
+      ? "目前 AI 服務較忙碌，請稍後再試。"
+      : lastError;
+    return res.status(503).json({ ok: false, error: zh });
   }
 
   // 「登出」「可用的登入供應商清單」這兩個本來是獨立的 api/auth/logout.js、
