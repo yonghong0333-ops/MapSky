@@ -16,9 +16,7 @@ module.exports = async function handler(req, res) {
 
   // Gemini AI 聊天：掛在這支避免超過 Vercel Hobby 12 支 function 上限。
   // POST /api/auth/session?action=ai-chat
-  // body: { message: string, history?: [{ role: "user"|"model", text: string }], image?: { mimeType, data } }
-  // 不強制登入，方便 /ai 頁與 iOS WKWebView 直接呼叫；金鑰只在伺服器端讀取。
-  // 多模型備援：主模型忙碌（high demand）時自動換下一顆。
+  // body: { message, history?, image?, model? }
   if (req.query.action === "ai-chat") {
     if (req.method !== "POST") {
       return res.status(405).json({ ok: false, error: "Method not allowed" });
@@ -64,15 +62,25 @@ module.exports = async function handler(req, res) {
     });
     contents.push({ role: "user", parts: userParts });
 
-    const preferred = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-    const models = [
-      preferred,
+    const ALLOWED_MODELS = [
       "gemini-2.5-flash",
       "gemini-2.0-flash",
       "gemini-flash-latest",
       "gemini-2.5-flash-lite",
       "gemini-3.8-flash",
-    ].filter((m, i, arr) => m && arr.indexOf(m) === i);
+      "gemini-2.5-pro",
+      "gemini-3-flash-preview",
+    ];
+    const envDefault = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const clientModel =
+      typeof body.model === "string" ? body.model.trim() : "";
+    const preferred =
+      clientModel && ALLOWED_MODELS.indexOf(clientModel) !== -1
+        ? clientModel
+        : envDefault;
+    const models = [preferred]
+      .concat(ALLOWED_MODELS)
+      .filter((m, i, arr) => m && arr.indexOf(m) === i);
 
     const payload = {
       contents,
