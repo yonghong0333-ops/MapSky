@@ -11,12 +11,68 @@ const { getUsage, startSession, endSession } = require("../_lib/adventure-usage"
 const { addSubscription, removeSubscription } = require("../_lib/push-store");
 const { getPublicKey } = require("../_lib/web-push");
 const { addIosToken, removeIosToken } = require("../_lib/apns-store");
+const {
+  userKeyFromPayload,
+  listChats,
+  getChat,
+  saveChat,
+  deleteChat,
+} = require("../_lib/ai-chats");
 
 module.exports = async function handler(req, res) {
 
-  // Gemini AI 聊天：掛在這支避免超過 Vercel Hobby 12 支 function 上限。
-  // POST /api/auth/session?action=ai-chat
-  // body: { message, history?, image?, model? }
+  // ---- AI 對話雲端紀錄（需登入）----
+  if (req.query.action === "ai-chats" || req.query.action === "ai-chat-get" ||
+      req.query.action === "ai-chat-save" || req.query.action === "ai-chat-delete") {
+    const cookies = parseCookies(req);
+    const sessionPayload = verify(cookies.nexora_session);
+    const uk = userKeyFromPayload(sessionPayload);
+    if (!uk) {
+      return res.status(401).json({ ok: false, error: "請先登入以使用雲端對話" });
+    }
+
+    if (req.query.action === "ai-chats" && req.method === "GET") {
+      const chats = await listChats(uk.provider, uk.id);
+      return res.status(200).json({ ok: true, chats, cloud: true });
+    }
+
+    if (req.query.action === "ai-chat-get" && req.method === "GET") {
+      const chatId = String(req.query.id || "");
+      if (!chatId) return res.status(400).json({ ok: false, error: "missing id" });
+      const chat = await getChat(uk.provider, uk.id, chatId);
+      if (!chat) return res.status(404).json({ ok: false, error: "not found" });
+      return res.status(200).json({ ok: true, chat });
+    }
+
+    let body = req.body;
+    if (typeof body === "string") {
+      try { body = JSON.parse(body); } catch { body = {}; }
+    }
+    body = body || {};
+
+    if (req.query.action === "ai-chat-save" && req.method === "POST") {
+      try {
+        const saved = await saveChat(uk.provider, uk.id, body);
+        return res.status(200).json({ ok: true, chat: saved });
+      } catch (e) {
+        return res.status(500).json({ ok: false, error: String((e && e.message) || e) });
+      }
+    }
+
+    if (req.query.action === "ai-chat-delete" && req.method === "POST") {
+      const chatId = String(body.id || "");
+      if (!chatId) return res.status(400).json({ ok: false, error: "missing id" });
+      try {
+        await deleteChat(uk.provider, uk.id, chatId);
+        return res.status(200).json({ ok: true });
+      } catch (e) {
+        return res.status(500).json({ ok: false, error: String((e && e.message) || e) });
+      }
+    }
+
+    return res.status(405).json({ ok: false, error: "Method not allowed" });
+  }
+
   if (req.query.action === "ai-chat") {
     if (req.method !== "POST") {
       return res.status(405).json({ ok: false, error: "Method not allowed" });
