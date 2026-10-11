@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>MapSky AI</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      width: 100%;
+      background: #0f172a;
+      color: rgba(255, 255, 255, 0.85);
+      font-family: -apple-system, "Segoe UI", "Noto Sans TC", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    #app {
+      width: 100%;
+      max-width: 480px;
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      text-align: center;
+      padding: 24px;
+    }
+    .label {
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.45);
+    }
+    .title {
+      font-size: 22px;
+      font-weight: 700;
+    }
+    .hint {
+      font-size: 14px;
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.55);
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="label">MapSky</div>
+    <div class="title">AI</div>
+    <p class="hint">空白頁 · 之後在此接 AI 功能<br/>可供 iOS App / WKWebView 載入</p>
+  </div>
+  <script>
+    // 預留給 iOS native bridge（WKScriptMessageHandler / postMessage）
+    window.MapSkyAI = {
+      version: 1,
+      ready: true,
+      postToNative: function (type, payload) {
+        try {
+          if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.mapsky) {
+            window.webkit.messageHandlers.mapsky.postMessage({ type: type, payload: payload || null });
+            return true;
+          }
+        } catch (e) {}
+        return false;
+      }
+    };
+    // 通知 native：頁面已就緒
+    window.MapSkyAI.postToNative("ai-page-ready", { version: 1 });
+  </script>
+</body>
+</html>
