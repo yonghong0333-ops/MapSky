@@ -11,62 +11,40 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       color-scheme: light dark;
-      --ai-bg: #0f172a;
-      --ai-fg: rgba(255, 255, 255, 0.92);
-      --ai-muted: rgba(255, 255, 255, 0.42);
-      --ai-border: rgba(255, 255, 255, 0.1);
-      --ai-panel: rgba(15, 23, 42, 0.96);
-      --ai-chip: rgba(255, 255, 255, 0.08);
-      --ai-user: #2563eb;
-      --ai-model-bg: rgba(255, 255, 255, 0.08);
-      --ai-model-border: rgba(255, 255, 255, 0.12);
-      --ai-input-bg: rgba(255, 255, 255, 0.06);
-      --ai-input-border: rgba(255, 255, 255, 0.14);
-      --ai-drawer: #111827;
-      --ai-error-bg: rgba(220, 38, 38, 0.18);
-      --ai-error-border: rgba(220, 38, 38, 0.4);
-      --ai-error-fg: #fecaca;
-      --ai-theme-color: #0f172a;
+      --ai-bg: #0f172a; --ai-fg: rgba(255, 255, 255, 0.92); --ai-muted: rgba(255, 255, 255, 0.42);
+      --ai-border: rgba(255, 255, 255, 0.1); --ai-panel: rgba(15, 23, 42, 0.96); --ai-chip: rgba(255, 255, 255, 0.08);
+      --ai-user: #2563eb; --ai-model-bg: rgba(255, 255, 255, 0.08); --ai-model-border: rgba(255, 255, 255, 0.12);
+      --ai-input-bg: rgba(255, 255, 255, 0.06); --ai-input-border: rgba(255, 255, 255, 0.14);
+      --ai-drawer: #111827; --ai-error-bg: rgba(220, 38, 38, 0.18); --ai-error-border: rgba(220, 38, 38, 0.4);
+      --ai-error-fg: #fecaca; --ai-theme-color: #0f172a;
     }
     @media (prefers-color-scheme: light) {
       :root:not([data-theme="dark"]) {
-        --ai-bg: #eef2f7;
-        --ai-fg: #0f172a;
-        --ai-muted: rgba(15, 23, 42, 0.5);
-        --ai-border: rgba(15, 23, 42, 0.1);
-        --ai-panel: rgba(255, 255, 255, 0.96);
-        --ai-chip: rgba(15, 23, 42, 0.06);
-        --ai-user: #2563eb;
-        --ai-model-bg: #ffffff;
-        --ai-model-border: rgba(15, 23, 42, 0.1);
-        --ai-input-bg: #ffffff;
-        --ai-input-border: rgba(15, 23, 42, 0.12);
-        --ai-drawer: #ffffff;
-        --ai-error-bg: rgba(220, 38, 38, 0.1);
-        --ai-error-border: rgba(220, 38, 38, 0.35);
-        --ai-error-fg: #b91c1c;
-        --ai-theme-color: #eef2f7;
+        --ai-bg: #eef2f7; --ai-fg: #0f172a; --ai-muted: rgba(15, 23, 42, 0.5);
+        --ai-border: rgba(15, 23, 42, 0.1); --ai-panel: rgba(255, 255, 255, 0.96); --ai-chip: rgba(15, 23, 42, 0.06);
+        --ai-user: #2563eb; --ai-model-bg: #ffffff; --ai-model-border: rgba(15, 23, 42, 0.1);
+        --ai-input-bg: #ffffff; --ai-input-border: rgba(15, 23, 42, 0.12);
+        --ai-drawer: #ffffff; --ai-error-bg: rgba(220, 38, 38, 0.1); --ai-error-border: rgba(220, 38, 38, 0.35);
+        --ai-error-fg: #b91c1c; --ai-theme-color: #eef2f7;
       }
     }
     html[data-theme="light"] {
       --ai-bg: #eef2f7; --ai-fg: #0f172a; --ai-muted: rgba(15, 23, 42, 0.5);
-      --ai-border: rgba(15, 23, 42, 0.1); --ai-panel: rgba(255, 255, 255, 0.96);
-      --ai-chip: rgba(15, 23, 42, 0.06); --ai-user: #2563eb;
-      --ai-model-bg: #ffffff; --ai-model-border: rgba(15, 23, 42, 0.1);
+      --ai-border: rgba(15, 23, 42, 0.1); --ai-panel: rgba(255, 255, 255, 0.96); --ai-chip: rgba(15, 23, 42, 0.06);
+      --ai-user: #2563eb; --ai-model-bg: #ffffff; --ai-model-border: rgba(15, 23, 42, 0.1);
       --ai-input-bg: #ffffff; --ai-input-border: rgba(15, 23, 42, 0.12);
-      --ai-drawer: #ffffff; --ai-error-bg: rgba(220, 38, 38, 0.1);
-      --ai-error-border: rgba(220, 38, 38, 0.35); --ai-error-fg: #b91c1c; --ai-theme-color: #eef2f7;
+      --ai-drawer: #ffffff; --ai-error-bg: rgba(220, 38, 38, 0.1); --ai-error-border: rgba(220, 38, 38, 0.35);
+      --ai-error-fg: #b91c1c; --ai-theme-color: #eef2f7;
     }
     html[data-theme="dark"] {
       --ai-bg: #0f172a; --ai-fg: rgba(255, 255, 255, 0.92); --ai-muted: rgba(255, 255, 255, 0.42);
-      --ai-border: rgba(255, 255, 255, 0.1); --ai-panel: rgba(15, 23, 42, 0.96);
-      --ai-chip: rgba(255, 255, 255, 0.08); --ai-user: #2563eb;
-      --ai-model-bg: rgba(255, 255, 255, 0.08); --ai-model-border: rgba(255, 255, 255, 0.12);
+      --ai-border: rgba(255, 255, 255, 0.1); --ai-panel: rgba(15, 23, 42, 0.96); --ai-chip: rgba(255, 255, 255, 0.08);
+      --ai-user: #2563eb; --ai-model-bg: rgba(255, 255, 255, 0.08); --ai-model-border: rgba(255, 255, 255, 0.12);
       --ai-input-bg: rgba(255, 255, 255, 0.06); --ai-input-border: rgba(255, 255, 255, 0.14);
-      --ai-drawer: #111827; --ai-error-bg: rgba(220, 38, 38, 0.18);
-      --ai-error-border: rgba(220, 38, 38, 0.4); --ai-error-fg: #fecaca; --ai-theme-color: #0f172a;
+      --ai-drawer: #111827; --ai-error-bg: rgba(220, 38, 38, 0.18); --ai-error-border: rgba(220, 38, 38, 0.4);
+      --ai-error-fg: #fecaca; --ai-theme-color: #0f172a;
     }
-    html, body { height: 100%; width: 100%; background: var(--ai-bg); color: var(--ai-fg); font-family: -apple-system, "Segoe UI", "Noto Sans TC", sans-serif; -webkit-font-smoothing: antialiased; transition: background 0.2s ease, color 0.2s ease; }
+    html, body { height: 100%; width: 100%; background: var(--ai-bg); color: var(--ai-fg); font-family: -apple-system, "Segoe UI", "Noto Sans TC", sans-serif; -webkit-font-smoothing: antialiased; }
     body { display: flex; flex-direction: column; padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) 0 env(safe-area-inset-left, 0); }
     header { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--ai-border); background: var(--ai-panel); }
     header .titles { flex: 1; text-align: center; min-width: 0; }
@@ -118,10 +96,7 @@
     .chat-item .s { font-size: 11px; color: var(--ai-muted); margin-top: 2px; }
     .chat-item .del { width: 32px; height: 32px; border: none; border-radius: 8px; background: rgba(220, 38, 38, 0.15); color: #fca5a5; font-size: 14px; cursor: pointer; flex-shrink: 0; }
     .drawer-empty { text-align: center; color: var(--ai-muted); font-size: 13px; padding: 32px 16px; }
-    html.embed header,
-    html.embed .composer,
-    html.embed .attach-preview,
-    html.embed .model-bar { display: none !important; }
+    html.embed header, html.embed .composer, html.embed .attach-preview, html.embed .model-bar { display: none !important; }
     html.embed #messages { padding-bottom: 24px; }
   </style>
 </head>
@@ -149,12 +124,17 @@
   <div class="model-bar">
     <label for="modelSelect">模型</label>
     <select id="modelSelect" aria-label="選擇 AI 模型">
-      <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash（推薦）</option>
+      <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash</option>
       <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
       <option value="gemini-flash-latest">Gemini Flash Latest</option>
       <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
       <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
       <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
+      <option value="llama-3.3-70b-versatile">Groq Llama 3.3 70B</option>
+      <option value="llama-3.1-8b-instant">Groq Llama 3.1 8B Instant</option>
+      <option value="gemma2-9b-it">Groq Gemma2 9B</option>
+      <option value="mixtral-8x7b-32768">Groq Mixtral 8x7B</option>
+      <option value="qwen/qwen3-32b">Groq Qwen3 32B</option>
     </select>
   </div>
   <form class="composer" id="form">
@@ -182,12 +162,9 @@
     (function () {
       try {
         var q = new URLSearchParams(location.search);
-        if (q.get("embed") === "1" || q.get("native") === "1") {
-          document.documentElement.classList.add("embed");
-        }
+        if (q.get("embed") === "1" || q.get("native") === "1") document.documentElement.classList.add("embed");
       } catch (e) {}
     })();
-
     function applyTheme(mode) {
       var root = document.documentElement;
       if (mode === "light" || mode === "dark") root.setAttribute("data-theme", mode);
@@ -233,25 +210,18 @@
 
     function setBusy(busy) {
       sendBtn.disabled = busy;
-      if (busy) cancelBtn.classList.add("show");
-      else cancelBtn.classList.remove("show");
+      if (busy) cancelBtn.classList.add("show"); else cancelBtn.classList.remove("show");
     }
     function cancelRequest() {
       if (activeAbort) { try { activeAbort.abort(); } catch (e) {} activeAbort = null; }
       setBusy(false);
     }
-    cancelBtn.addEventListener("click", function (e) {
-      e.preventDefault(); e.stopPropagation(); cancelRequest();
-    });
+    cancelBtn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); cancelRequest(); });
 
     function uid() { return "c_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8); }
     function openDrawer() { drawer.classList.add("open"); drawerOverlay.classList.add("open"); refreshChatList(); }
     function closeDrawer() { drawer.classList.remove("open"); drawerOverlay.classList.remove("open"); }
-
-    function hideWelcome() {
-      var w = document.getElementById("welcome");
-      if (w) w.style.display = "none";
-    }
+    function hideWelcome() { var w = document.getElementById("welcome"); if (w) w.style.display = "none"; }
     function addBubble(role, text, imgUrl) {
       if (role === "user" || role === "model" || role === "error") hideWelcome();
       const div = document.createElement("div");
@@ -265,8 +235,7 @@
     function clearMessages() {
       messagesEl.innerHTML = "";
       var w = document.createElement("div");
-      w.className = "welcome";
-      w.id = "welcome";
+      w.className = "welcome"; w.id = "welcome";
       w.innerHTML = '<div class="welcome-icon">☁</div><div class="welcome-title">MapSky AI</div><div class="welcome-sub">可以問天氣、警特報，也可拍照或上傳圖片詢問</div>';
       messagesEl.appendChild(w);
     }
@@ -285,7 +254,6 @@
       const data = await res.json().catch(function () { return {}; });
       return { res: res, data: data };
     }
-
     async function detectCloud() {
       try {
         const r = await api("/api/auth/session?action=ai-chats", { method: "GET" });
@@ -299,14 +267,12 @@
         return { id: c.id, title: c.title || "新對話", updatedAt: c.updatedAt || 0, messageCount: (c.messages || []).length };
       });
     }
-
     function formatTime(ts) {
       if (!ts) return "";
       const d = new Date(ts); const now = new Date();
       if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
       return (d.getMonth() + 1) + "/" + d.getDate();
     }
-
     function renderChatList() {
       chatListEl.innerHTML = "";
       if (!chatsCache.length) {
@@ -324,7 +290,6 @@
         chatListEl.appendChild(row);
       });
     }
-
     async function refreshChatList() {
       if (cloudEnabled) {
         try { const r = await api("/api/auth/session?action=ai-chats", { method: "GET" }); if (r.res.ok && r.data.ok) chatsCache = r.data.chats || []; } catch {}
@@ -335,7 +300,6 @@
       }
       renderChatList();
     }
-
     async function persistCurrent() {
       if (!currentChatId || !history.length) return;
       const title = (history.find(function (m) { return m.role === "user"; }) || {}).text || "新對話";
@@ -347,7 +311,6 @@
         list.unshift(chat); saveLocalChats(list);
       }
     }
-
     async function loadChat(id) {
       let chat = null;
       if (cloudEnabled) {
@@ -360,13 +323,10 @@
       currentChatId = chat.id;
       history = Array.isArray(chat.messages) ? chat.messages.slice() : [];
       clearMessages();
-      if (history.length) {
-        history.forEach(function (m) { addBubble(m.role === "model" ? "model" : "user", m.text); });
-      }
+      if (history.length) history.forEach(function (m) { addBubble(m.role === "model" ? "model" : "user", m.text); });
       headerTitle.textContent = (chat.title || "AI 助手").slice(0, 16);
       closeDrawer();
     }
-
     async function deleteChat(id) {
       if (!confirm("刪除這個對話？")) return;
       if (cloudEnabled) {
@@ -377,12 +337,10 @@
       if (currentChatId === id) newChat();
       await refreshChatList();
     }
-
     function newChat() {
       currentChatId = uid(); history = []; clearMessages(); clearAttach();
       headerTitle.textContent = "新對話"; closeDrawer();
     }
-
     function setPendingFromFile(file) {
       if (!file) return;
       if (!(file.type || "").startsWith("image/")) { addBubble("error", "目前僅支援圖片（拍照／相簿）。"); return; }
@@ -422,7 +380,6 @@
         img.onerror = reject; img.src = dataUrl;
       });
     }
-
     try {
       const saved = localStorage.getItem("mapsky_ai_model");
       if (saved) for (let i = 0; i < modelSelect.options.length; i++) if (modelSelect.options[i].value === saved) { modelSelect.selectedIndex = i; break; }
