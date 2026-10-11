@@ -13,56 +13,195 @@
       height: 100%;
       width: 100%;
       background: #0f172a;
-      color: rgba(255, 255, 255, 0.85);
+      color: rgba(255, 255, 255, 0.9);
       font-family: -apple-system, "Segoe UI", "Noto Sans TC", sans-serif;
       -webkit-font-smoothing: antialiased;
     }
     body {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      flex-direction: column;
+      padding:
+        env(safe-area-inset-top, 0)
+        env(safe-area-inset-right, 0)
+        env(safe-area-inset-bottom, 0)
+        env(safe-area-inset-left, 0);
     }
-    #app {
-      width: 100%;
-      max-width: 480px;
-      min-height: 100%;
+    header {
+      flex-shrink: 0;
+      padding: 14px 16px 10px;
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    header .label {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.4);
+    }
+    header .title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 16px;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      text-align: center;
-      padding: 24px;
+      gap: 10px;
     }
-    .label {
+    .bubble {
+      max-width: 88%;
+      padding: 10px 14px;
+      border-radius: 16px;
+      font-size: 15px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .bubble.user {
+      align-self: flex-end;
+      background: #2563eb;
+      color: #fff;
+      border-bottom-right-radius: 6px;
+    }
+    .bubble.model {
+      align-self: flex-start;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom-left-radius: 6px;
+    }
+    .bubble.error {
+      align-self: center;
+      background: rgba(220, 38, 38, 0.2);
+      border: 1px solid rgba(220, 38, 38, 0.4);
+      color: #fecaca;
       font-size: 13px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+    }
+    .bubble.system {
+      align-self: center;
+      font-size: 13px;
       color: rgba(255, 255, 255, 0.45);
+      background: transparent;
+      padding: 4px 8px;
     }
-    .title {
-      font-size: 22px;
-      font-weight: 700;
+    .composer {
+      flex-shrink: 0;
+      display: flex;
+      gap: 8px;
+      padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(15, 23, 42, 0.95);
     }
-    .hint {
-      font-size: 14px;
-      line-height: 1.6;
-      color: rgba(255, 255, 255, 0.55);
+    #input {
+      flex: 1;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.06);
+      color: #fff;
+      border-radius: 22px;
+      padding: 11px 16px;
+      font-size: 16px;
+      outline: none;
+    }
+    #input:focus {
+      border-color: rgba(37, 99, 235, 0.7);
+    }
+    #send {
+      width: 44px;
+      height: 44px;
+      border: none;
+      border-radius: 50%;
+      background: #2563eb;
+      color: #fff;
+      font-size: 18px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    #send:disabled {
+      opacity: 0.45;
+      cursor: default;
     }
   </style>
 </head>
 <body>
-  <div id="app">
+  <header>
     <div class="label">MapSky</div>
-    <div class="title">AI</div>
-    <p class="hint">空白頁 · 之後在此接 AI 功能<br/>可供 iOS App / WKWebView 載入</p>
+    <div class="title">AI 助手</div>
+  </header>
+  <div id="messages">
+    <div class="bubble system">可以問天氣、警特報或 MapSky 使用方式</div>
   </div>
+  <form class="composer" id="form">
+    <input id="input" type="text" placeholder="輸入訊息…" autocomplete="off" enterkeyhint="send" />
+    <button type="submit" id="send" aria-label="送出">↑</button>
+  </form>
   <script>
-    // 預留給 iOS native bridge（WKScriptMessageHandler / postMessage）
+    const messagesEl = document.getElementById("messages");
+    const form = document.getElementById("form");
+    const input = document.getElementById("input");
+    const sendBtn = document.getElementById("send");
+    const history = [];
+
+    function addBubble(role, text) {
+      const div = document.createElement("div");
+      div.className = "bubble " + role;
+      div.textContent = text;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return div;
+    }
+
+    async function askGemini(message) {
+      const res = await fetch("/api/auth/session?action=ai-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ message, history }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || ("HTTP " + res.status));
+      }
+      return data.text || "";
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const message = (input.value || "").trim();
+      if (!message || sendBtn.disabled) return;
+
+      input.value = "";
+      addBubble("user", message);
+      history.push({ role: "user", text: message });
+      sendBtn.disabled = true;
+
+      const thinking = addBubble("system", "思考中…");
+      try {
+        const text = await askGemini(message);
+        thinking.remove();
+        addBubble("model", text);
+        history.push({ role: "model", text });
+        if (window.MapSkyAI) {
+          window.MapSkyAI.postToNative("ai-reply", { text });
+        }
+      } catch (err) {
+        thinking.remove();
+        addBubble("error", String(err.message || err));
+        if (window.MapSkyAI) {
+          window.MapSkyAI.postToNative("ai-error", { message: String(err.message || err) });
+        }
+      } finally {
+        sendBtn.disabled = false;
+        input.focus();
+      }
+    });
+
     window.MapSkyAI = {
-      version: 1,
+      version: 2,
       ready: true,
+      history: history,
       postToNative: function (type, payload) {
         try {
           if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.mapsky) {
@@ -71,10 +210,21 @@
           }
         } catch (e) {}
         return false;
+      },
+      chat: async function (message) {
+        const text = String(message || "").trim();
+        if (!text) throw new Error("empty message");
+        addBubble("user", text);
+        history.push({ role: "user", text: text });
+        const reply = await askGemini(text);
+        addBubble("model", reply);
+        history.push({ role: "model", text: reply });
+        window.MapSkyAI.postToNative("ai-reply", { text: reply });
+        return reply;
       }
     };
-    // 通知 native：頁面已就緒
-    window.MapSkyAI.postToNative("ai-page-ready", { version: 1 });
+
+    window.MapSkyAI.postToNative("ai-page-ready", { version: 2 });
   </script>
 </body>
 </html>
