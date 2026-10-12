@@ -182,9 +182,22 @@
       from { opacity: 0; transform: translateY(12px) scale(0.96); }
       to { opacity: 1; transform: translateY(0) scale(1); }
     }
-    @keyframes bubbleInUser {
-      from { opacity: 0; transform: translateY(10px) translateX(8px) scale(0.96); }
-      to { opacity: 1; transform: translateY(0) translateX(0) scale(1); }
+    .bubble.user.pop {
+      transform-origin: 90% 120%;
+      animation: bubblePop 0.5s cubic-bezier(0.18, 1.35, 0.36, 1) both;
+    }
+    .bubble.user.pop.has-image-only { animation-delay: 0s; }
+    @keyframes bubblePop {
+      0% { opacity: 0; transform: translateY(36px) scale(0.45); }
+      58% { opacity: 1; transform: translateY(-8px) scale(1.07); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    #send.popping { animation: sendPop 0.42s cubic-bezier(0.2, 1.45, 0.32, 1); }
+    @keyframes sendPop {
+      0% { transform: scale(1); }
+      32% { transform: scale(0.78); }
+      68% { transform: scale(1.14); }
+      100% { transform: scale(1); }
     }
     @keyframes dotSeq {
       0%, 22%, 100% { opacity: 0.28; transform: translateY(0) scale(0.85); }
@@ -512,7 +525,7 @@
       const hasText = Boolean(text && String(text).trim());
       if (hasImg && hasText && role === "user") {
         const imgBubble = document.createElement("div");
-        imgBubble.className = "bubble " + role + " has-image has-image-only";
+        imgBubble.className = "bubble " + role + " has-image has-image-only" + (opts && opts.pop ? " pop" : "");
         const img = document.createElement("img");
         img.className = "preview";
         img.src = imgUrl;
@@ -521,8 +534,8 @@
         messagesEl.appendChild(imgBubble);
 
         const textBubble = document.createElement("div");
-        textBubble.className = "bubble " + role;
-        textBubble.style.animationDelay = "0.08s";
+        textBubble.className = "bubble " + role + (opts && opts.pop ? " pop" : "");
+        if (opts && opts.pop) textBubble.style.animationDelay = "0.06s";
         const span = document.createElement("div");
         span.className = "bubble-text";
         if (role === "model") {
@@ -536,7 +549,7 @@
         return textBubble;
       }
       const div = document.createElement("div");
-      div.className = "bubble " + role + (hasImg ? " has-image" : "") + (hasImg && !hasText ? " has-image-only" : "");
+      div.className = "bubble " + role + (hasImg ? " has-image" : "") + (hasImg && !hasText ? " has-image-only" : "") + (opts && opts.pop && role === "user" ? " pop" : "");
       if (hasImg) {
         const img = document.createElement("img");
         img.className = "preview";
@@ -778,7 +791,10 @@
       input.value = "";
       const previewUrl = image ? image.previewUrl : null;
       clearAttach();
-      addBubble("user", message, previewUrl);
+      sendBtn.classList.remove("popping");
+      void sendBtn.offsetWidth;
+      sendBtn.classList.add("popping");
+      addBubble("user", message, previewUrl, { pop: true });
       history.push({ role: "user", text: message || "（使用者傳送了一張圖片）", image: previewUrl || null });
       setBusy(true);
       const thinking = addThinking();
@@ -835,7 +851,7 @@
         if (!currentChatId) currentChatId = uid();
         const text = String(message || "").trim();
         history.push({ role: "user", text: text || "（使用者傳送了一張圖片）", image: image && image.previewUrl ? image.previewUrl : null });
-        addBubble("user", text, image && image.previewUrl ? image.previewUrl : null);
+        addBubble("user", text, image && image.previewUrl ? image.previewUrl : null, { pop: true });
         const thinking = addThinking();
         let reply;
         try {
