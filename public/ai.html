@@ -72,11 +72,16 @@
       max-width: 88%; padding: 10px 14px; border-radius: 16px; font-size: 15px;
       line-height: 1.55; white-space: pre-wrap; word-break: break-word;
       display: flex; flex-direction: column; gap: 8px;
+      animation: bubbleIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
-    .bubble.user { align-self: flex-end; background: var(--ai-user); color: #fff; border-bottom-right-radius: 6px; }
+    .bubble.user {
+      align-self: flex-end; background: var(--ai-user); color: #fff; border-bottom-right-radius: 6px;
+      animation-name: bubbleInUser;
+    }
     .bubble.model { align-self: flex-start; background: var(--ai-model-bg); border: 1px solid var(--ai-model-border); border-bottom-left-radius: 6px; color: var(--ai-fg); }
     .bubble.error { align-self: center; background: var(--ai-error-bg); border: 1px solid var(--ai-error-border); color: var(--ai-error-fg); font-size: 13px; }
     .bubble.system { align-self: center; font-size: 13px; color: var(--ai-muted); background: transparent; padding: 4px 8px; }
+    .bubble.system.thinking { animation: thinkingPulse 1.2s ease-in-out infinite; }
     .bubble.has-image-only { padding: 4px; overflow: hidden; }
     .bubble.has-image-only img.preview { margin: 0; border-radius: 12px; }
     .bubble.has-image img.preview {
@@ -86,6 +91,21 @@
     .bubble .bubble-text { order: 1; }
     .bubble img.preview {
       display: block; max-width: 240px; max-height: 280px; border-radius: 12px; object-fit: cover;
+    }
+    @keyframes bubbleIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes bubbleInUser {
+      from { opacity: 0; transform: translateY(10px) translateX(8px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) translateX(0) scale(1); }
+    }
+    @keyframes thinkingPulse {
+      0%, 100% { opacity: 0.35; }
+      50% { opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .bubble, .bubble.user, .bubble.system.thinking { animation: none !important; }
     }
     .attach-preview { display: none; flex-shrink: 0; align-items: center; gap: 10px; padding: 8px 12px 0; background: var(--ai-panel); }
     .attach-preview.show { display: flex; }
@@ -276,6 +296,7 @@
 
         const textBubble = document.createElement("div");
         textBubble.className = "bubble " + role;
+        textBubble.style.animationDelay = "0.08s";
         const span = document.createElement("div");
         span.className = "bubble-text";
         span.textContent = text;
@@ -496,6 +517,7 @@
       history.push({ role: "user", text: message || "（使用者傳送了一張圖片）" });
       setBusy(true);
       const thinking = addBubble("system", "思考中…");
+      if (thinking) thinking.classList.add("thinking");
       try {
         const text = await askGemini(message, image);
         thinking.remove(); addBubble("model", text); history.push({ role: "model", text: text });
