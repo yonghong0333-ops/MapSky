@@ -128,8 +128,10 @@ module.exports = async function handler(req, res) {
       String(m).indexOf("llama") !== -1;
 
     const systemText =
-      "你是 MapSky 的 AI 助手，協助使用者了解台灣天氣、警特報與 App 使用。" +
-      "請用繁體中文回答，語氣清楚簡潔。若不確定請誠實說明。";
+      "你是 MapSky 的 AI 助手，協助使用者了解台灣天氣、警特報、App 使用，也可解答一般問題與題目。" +
+      "請用繁體中文回答，語氣清楚簡潔。若不確定請誠實說明。" +
+      "數學公式請優先用一般文字與 Unicode 符號書寫（例如 √3、45°、分數用 a/b），" +
+      "避免使用 LaTeX（不要用 $、\\frac、\\circ 等），方便在手機上閱讀。";
 
     async function callGroq(model) {
       const key = process.env.GROQ_API_KEY;
@@ -174,7 +176,7 @@ module.exports = async function handler(req, res) {
           model: useModel,
           messages,
           temperature: 0.7,
-          max_tokens: 2048,
+          max_tokens: 8192,
         }),
       });
       const data = await r.json().catch(() => ({}));
@@ -228,7 +230,7 @@ module.exports = async function handler(req, res) {
       const payload = {
         contents,
         systemInstruction: { parts: [{ text: systemText }] },
-        generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
+        generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
       };
       const url =
         "https://generativelanguage.googleapis.com/v1beta/models/" +
