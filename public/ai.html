@@ -81,7 +81,32 @@
     .bubble.model { align-self: flex-start; background: var(--ai-model-bg); border: 1px solid var(--ai-model-border); border-bottom-left-radius: 6px; color: var(--ai-fg); }
     .bubble.error { align-self: center; background: var(--ai-error-bg); border: 1px solid var(--ai-error-border); color: var(--ai-error-fg); font-size: 13px; }
     .bubble.system { align-self: center; font-size: 13px; color: var(--ai-muted); background: transparent; padding: 4px 8px; }
-    .bubble.system.thinking { animation: thinkingPulse 1.2s ease-in-out infinite; }
+    .bubble.thinking {
+      align-self: flex-start;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: auto;
+      min-width: 62px;
+      min-height: 40px;
+      padding: 12px 14px;
+      background: var(--ai-model-bg);
+      border: 1px solid var(--ai-model-border);
+      border-bottom-left-radius: 6px;
+    }
+    .bubble.thinking i {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.28;
+      transform: translateY(0) scale(0.85);
+      animation: dotSeq 1.2s infinite ease-in-out;
+    }
+    .bubble.thinking i:nth-child(1) { animation-delay: 0s; }
+    .bubble.thinking i:nth-child(2) { animation-delay: 0.4s; }
+    .bubble.thinking i:nth-child(3) { animation-delay: 0.8s; }
     .bubble.has-image,
     .bubble.has-image-only {
       width: min(72vw, 240px);
@@ -107,12 +132,13 @@
       from { opacity: 0; transform: translateY(10px) translateX(8px) scale(0.96); }
       to { opacity: 1; transform: translateY(0) translateX(0) scale(1); }
     }
-    @keyframes thinkingPulse {
-      0%, 100% { opacity: 0.35; }
-      50% { opacity: 1; }
+    @keyframes dotSeq {
+      0%, 22%, 100% { opacity: 0.28; transform: translateY(0) scale(0.85); }
+      11% { opacity: 1; transform: translateY(-4px) scale(1.15); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .bubble, .bubble.user, .bubble.system.thinking { animation: none !important; }
+      .bubble, .bubble.user { animation: none !important; }
+      .bubble.thinking i { animation: none; opacity: 0.85; transform: none; }
     }
     .attach-preview { display: none; flex-shrink: 0; align-items: center; gap: 10px; padding: 8px 12px 0; background: var(--ai-panel); }
     .attach-preview.show { display: flex; }
@@ -331,6 +357,17 @@
       messagesEl.scrollTop = messagesEl.scrollHeight;
       return div;
     }
+    function addThinking() {
+      hideWelcome();
+      const div = document.createElement("div");
+      div.className = "bubble model thinking";
+      div.setAttribute("role", "status");
+      div.setAttribute("aria-label", "思考中");
+      div.innerHTML = "<i></i><i></i><i></i>";
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return div;
+    }
     function clearMessages() {
       messagesEl.innerHTML = "";
       var w = document.createElement("div");
@@ -542,8 +579,7 @@
       addBubble("user", message, previewUrl);
       history.push({ role: "user", text: message || "（使用者傳送了一張圖片）", image: previewUrl || null });
       setBusy(true);
-      const thinking = addBubble("system", "思考中…");
-      if (thinking) thinking.classList.add("thinking");
+      const thinking = addThinking();
       try {
         const text = await askGemini(message, image);
         thinking.remove(); addBubble("model", text); history.push({ role: "model", text: text });
@@ -598,7 +634,13 @@
         const text = String(message || "").trim();
         history.push({ role: "user", text: text || "（使用者傳送了一張圖片）", image: image && image.previewUrl ? image.previewUrl : null });
         addBubble("user", text, image && image.previewUrl ? image.previewUrl : null);
-        const reply = await askGemini(text, image || null);
+        const thinking = addThinking();
+        let reply;
+        try {
+          reply = await askGemini(text, image || null);
+        } finally {
+          thinking.remove();
+        }
         history.push({ role: "model", text: reply }); addBubble("model", reply);
         await persistCurrent();
         window.MapSkyAI.postToNative("ai-reply", { text: reply });
