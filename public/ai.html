@@ -45,16 +45,13 @@
       --ai-error-fg: #fecaca; --ai-theme-color: #0f172a;
     }
     html, body {
-      height: 100%; width: 100%;
-      min-height: 100%; min-height: 100dvh;
+      height: 100%; width: 100%; min-height: 100%; min-height: 100dvh;
       background: var(--ai-bg); color: var(--ai-fg);
       font-family: -apple-system, "Segoe UI", "Noto Sans TC", sans-serif;
-      -webkit-font-smoothing: antialiased;
-      overflow: hidden;
+      -webkit-font-smoothing: antialiased; overflow: hidden;
     }
     body {
-      display: flex; flex-direction: column;
-      min-height: 100%; min-height: 100dvh;
+      display: flex; flex-direction: column; min-height: 100%; min-height: 100dvh;
       padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) 0 env(safe-area-inset-left, 0);
     }
     header { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--ai-border); background: var(--ai-panel); }
@@ -63,31 +60,33 @@
     header .title { font-size: 17px; font-weight: 700; color: var(--ai-fg); }
     .hdr-btn { width: 40px; height: 40px; border: none; border-radius: 12px; background: var(--ai-chip); color: var(--ai-fg); font-size: 18px; cursor: pointer; flex-shrink: 0; }
     #messages {
-      flex: 1 1 auto; min-height: 0;
-      overflow-x: hidden; overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      padding: 20px 16px 16px;
+      flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto;
+      -webkit-overflow-scrolling: touch; padding: 20px 16px 16px;
       display: flex; flex-direction: column; gap: 10px;
     }
-    .welcome {
-      margin: 18vh auto 0;
-      text-align: center;
-      padding: 24px 28px;
-      max-width: 300px; width: 100%;
-      box-sizing: border-box;
-    }
+    .welcome { margin: 18vh auto 0; text-align: center; padding: 24px 28px; max-width: 300px; width: 100%; box-sizing: border-box; }
     .welcome-icon { font-size: 36px; line-height: 1; margin-bottom: 14px; opacity: 0.9; }
     .welcome-title { font-size: 22px; font-weight: 700; color: var(--ai-fg); margin-bottom: 10px; letter-spacing: -0.02em; }
-    .welcome-sub {
-      font-size: 14px; line-height: 1.65; color: var(--ai-muted);
-      word-break: keep-all; overflow-wrap: break-word;
+    .welcome-sub { font-size: 14px; line-height: 1.65; color: var(--ai-muted); word-break: keep-all; overflow-wrap: break-word; }
+    .bubble {
+      max-width: 88%; padding: 10px 14px; border-radius: 16px; font-size: 15px;
+      line-height: 1.55; white-space: pre-wrap; word-break: break-word;
+      display: flex; flex-direction: column; gap: 8px;
     }
-    .bubble { max-width: 88%; padding: 10px 14px; border-radius: 16px; font-size: 15px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
     .bubble.user { align-self: flex-end; background: var(--ai-user); color: #fff; border-bottom-right-radius: 6px; }
     .bubble.model { align-self: flex-start; background: var(--ai-model-bg); border: 1px solid var(--ai-model-border); border-bottom-left-radius: 6px; color: var(--ai-fg); }
     .bubble.error { align-self: center; background: var(--ai-error-bg); border: 1px solid var(--ai-error-border); color: var(--ai-error-fg); font-size: 13px; }
     .bubble.system { align-self: center; font-size: 13px; color: var(--ai-muted); background: transparent; padding: 4px 8px; }
-    .bubble img.preview { display: block; max-width: 220px; max-height: 220px; border-radius: 12px; margin-bottom: 8px; object-fit: cover; }
+    .bubble.has-image-only { padding: 4px; overflow: hidden; }
+    .bubble.has-image-only img.preview { margin: 0; border-radius: 12px; }
+    .bubble.has-image img.preview {
+      display: block; width: 100%; max-width: 240px; max-height: 280px;
+      border-radius: 12px; margin: 0; object-fit: cover; order: 0;
+    }
+    .bubble .bubble-text { order: 1; }
+    .bubble img.preview {
+      display: block; max-width: 240px; max-height: 280px; border-radius: 12px; object-fit: cover;
+    }
     .attach-preview { display: none; flex-shrink: 0; align-items: center; gap: 10px; padding: 8px 12px 0; background: var(--ai-panel); }
     .attach-preview.show { display: flex; }
     .attach-preview img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; border: 1px solid var(--ai-border); }
@@ -133,13 +132,8 @@
     }
     .chat-item .del:active { background: rgba(220, 38, 38, 0.28); }
     .drawer-empty { text-align: center; color: var(--ai-muted); font-size: 13px; padding: 32px 16px; }
-    html.embed header,
-    html.embed .composer,
-    html.embed .attach-preview,
-    html.embed .model-bar { display: none !important; }
-    html.embed #messages {
-      padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px));
-    }
+    html.embed header, html.embed .composer, html.embed .attach-preview, html.embed .model-bar { display: none !important; }
+    html.embed #messages { padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)); }
     html.embed body { padding-top: 0; }
     html.embed .welcome { margin-top: 22vh; }
   </style>
@@ -268,10 +262,43 @@
     function hideWelcome() { var w = document.getElementById("welcome"); if (w) w.style.display = "none"; }
     function addBubble(role, text, imgUrl) {
       if (role === "user" || role === "model" || role === "error") hideWelcome();
+      const hasImg = Boolean(imgUrl);
+      const hasText = Boolean(text && String(text).trim());
+      if (hasImg && hasText && role === "user") {
+        const imgBubble = document.createElement("div");
+        imgBubble.className = "bubble " + role + " has-image has-image-only";
+        const img = document.createElement("img");
+        img.className = "preview";
+        img.src = imgUrl;
+        img.alt = "附圖";
+        imgBubble.appendChild(img);
+        messagesEl.appendChild(imgBubble);
+
+        const textBubble = document.createElement("div");
+        textBubble.className = "bubble " + role;
+        const span = document.createElement("div");
+        span.className = "bubble-text";
+        span.textContent = text;
+        textBubble.appendChild(span);
+        messagesEl.appendChild(textBubble);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        return textBubble;
+      }
       const div = document.createElement("div");
-      div.className = "bubble " + role;
-      if (imgUrl) { const img = document.createElement("img"); img.className = "preview"; img.src = imgUrl; img.alt = "附圖"; div.appendChild(img); }
-      if (text) { const span = document.createElement("div"); span.textContent = text; div.appendChild(span); }
+      div.className = "bubble " + role + (hasImg ? " has-image" : "") + (hasImg && !hasText ? " has-image-only" : "");
+      if (hasImg) {
+        const img = document.createElement("img");
+        img.className = "preview";
+        img.src = imgUrl;
+        img.alt = "附圖";
+        div.appendChild(img);
+      }
+      if (hasText) {
+        const span = document.createElement("div");
+        span.className = "bubble-text";
+        span.textContent = text;
+        div.appendChild(span);
+      }
       messagesEl.appendChild(div);
       messagesEl.scrollTop = messagesEl.scrollHeight;
       return div;
@@ -465,7 +492,7 @@
       input.value = "";
       const previewUrl = image ? image.previewUrl : null;
       clearAttach();
-      addBubble("user", message || (previewUrl ? "（圖片）" : ""), previewUrl);
+      addBubble("user", message, previewUrl);
       history.push({ role: "user", text: message || "（使用者傳送了一張圖片）" });
       setBusy(true);
       const thinking = addBubble("system", "思考中…");
@@ -522,7 +549,7 @@
         if (!currentChatId) currentChatId = uid();
         const text = String(message || "").trim();
         history.push({ role: "user", text: text || "（使用者傳送了一張圖片）" });
-        addBubble("user", text || (image ? "（圖片）" : ""));
+        addBubble("user", text, image && image.previewUrl ? image.previewUrl : null);
         const reply = await askGemini(text, image || null);
         history.push({ role: "model", text: reply }); addBubble("model", reply);
         await persistCurrent();
