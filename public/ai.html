@@ -1,71 +1,31 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="theme-color" content="#0f172a" id="themeColorMeta" />
-  <title>MapSky AI</title>
-  <link rel="stylesheet" href="/ai-app.css" />
-</head>
+<html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"/><title>MapSky AI</title></head>
 <body>
-  <header>
-    <button type="button" class="hdr-btn" id="btnDrawer" aria-label="對話列表">☰</button>
-    <div class="titles">
-      <div class="label">MapSky</div>
-      <div class="title" id="headerTitle">AI 助手</div>
-    </div>
-    <button type="button" class="hdr-btn" id="btnNewChat" aria-label="新對話">＋</button>
-  </header>
-  <div id="messages">
-    <div class="welcome" id="welcome">
-      <div class="welcome-icon">☁</div>
-      <div class="welcome-title">MapSky AI</div>
-      <div class="welcome-sub">可以問天氣、警特報<br>也可拍照或上傳圖片</div>
-    </div>
-  </div>
-  <div class="attach-preview" id="attachPreview">
-    <img id="attachThumb" alt="預覽" />
-    <div class="meta" id="attachMeta"></div>
-    <button type="button" id="attachClear" aria-label="移除">×</button>
-  </div>
-  <div class="model-bar">
-    <label for="modelSelect">模型</label>
-    <select id="modelSelect" aria-label="選擇 AI 模型">
-      <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash</option>
-      <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-      <option value="gemini-flash-latest">Gemini Flash Latest</option>
-      <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
-      <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-      <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
-      <option value="llama-3.3-70b-versatile">Groq Llama 3.3 70B</option>
-      <option value="llama-3.1-8b-instant">Groq Llama 3.1 8B Instant</option>
-      <option value="openai/gpt-oss-120b">Groq GPT-OSS 120B</option>
-      <option value="openai/gpt-oss-20b">Groq GPT-OSS 20B</option>
-    </select>
-  </div>
-  <form class="composer" id="form">
-    <button type="button" class="icon-btn" id="btnCamera" aria-label="拍照" title="拍照">📷</button>
-    <button type="button" class="icon-btn" id="btnGallery" aria-label="相簿" title="相簿／檔案">🖼</button>
-    <input id="input" type="text" placeholder="輸入訊息…" autocomplete="off" enterkeyhint="send" />
-    <div class="send-wrap">
-      <button type="submit" id="send" aria-label="送出">↑</button>
-      <button type="button" id="cancel" aria-label="取消">✕</button>
-    </div>
-    <input class="hidden-file" id="fileCamera" type="file" accept="image/*" capture="environment" />
-    <input class="hidden-file" id="fileGallery" type="file" accept="image/*,.pdf,.txt,.md,.csv" />
-  </form>
-  <div class="drawer-overlay" id="drawerOverlay"></div>
-  <aside class="drawer" id="drawer">
-    <div class="drawer-head">
-      <h3>對話</h3>
-      <button type="button" class="hdr-btn" id="btnDrawerNew" aria-label="新對話">＋</button>
-      <button type="button" class="hdr-btn" id="btnDrawerClose" aria-label="關閉">←</button>
-    </div>
-    <div class="drawer-cloud" id="cloudHint">本機儲存 · 登入後可同步雲端</div>
-    <div class="drawer-list" id="chatList"></div>
-  </aside>
-  <script src="/ai-app.js"></script>
-</body>
-</html>
+<script>
+(async function(){
+  try {
+    var r = await fetch("https://cdn.jsdelivr.net/gh/yonghong0333-ops/MapSky@5ab928b4ec/public/ai.html");
+    var html = await r.text();
+    var patch = `
+    (function(){
+      var el = document.getElementById("messages");
+      if (!el) return;
+      var stick = true;
+      var TH = 80;
+      function near(){ return (el.scrollHeight - el.scrollTop - el.clientHeight) <= TH; }
+      el.addEventListener("scroll", function(){ stick = near(); }, {passive:true});
+      el.addEventListener("touchmove", function(){ requestAnimationFrame(function(){ stick = near(); }); }, {passive:true});
+      var obs = new MutationObserver(function(){ if (stick) el.scrollTop = el.scrollHeight; });
+      obs.observe(el, {childList:true, subtree:true, characterData:true});
+      document.addEventListener("submit", function(){ stick = true; }, true);
+    })();
+    `;
+    var idx = html.lastIndexOf("</script>");
+    if (idx !== -1) html = html.slice(0, idx) + "\n" + patch + "\n" + html.slice(idx);
+    document.open(); document.write(html); document.close();
+  } catch (e) {
+    document.body.innerHTML = "<p style='padding:24px;font-family:sans-serif'>AI 頁面載入失敗，請稍後再試。</p>";
+  }
+})();
+</script>
+</body></html>
