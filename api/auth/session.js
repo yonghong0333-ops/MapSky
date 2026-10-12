@@ -110,7 +110,12 @@ module.exports = async function handler(req, res) {
       "mixtral-8x7b-32768",
       "qwen/qwen3-32b",
     ];
-    const GROQ_VISION = "meta-llama/llama-4-scout-17b-16e-instruct";
+    const GROQ_VISION_MODELS = [
+      "meta-llama/llama-4-maverick-17b-128e-instruct",
+      "qwen/qwen3.8-27b",
+      "meta-llama/llama-4-scout-17b-16e-instruct",
+      "llama-3.2-11b-vision-preview",
+    ];
 
     const ALLOWED = GEMINI_MODELS.concat(GROQ_MODELS);
     const envDefault = process.env.AI_DEFAULT_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -121,10 +126,12 @@ module.exports = async function handler(req, res) {
 
     const isGroqModel = (m) =>
       GROQ_MODELS.indexOf(m) !== -1 ||
+      GROQ_VISION_MODELS.indexOf(m) !== -1 ||
       String(m).startsWith("llama") ||
       String(m).startsWith("gemma") ||
       String(m).startsWith("mixtral") ||
       String(m).startsWith("qwen") ||
+      String(m).startsWith("meta-llama") ||
       String(m).indexOf("llama") !== -1;
 
     const systemText =
@@ -137,7 +144,9 @@ module.exports = async function handler(req, res) {
       const key = process.env.GROQ_API_KEY;
       if (!key) throw new Error("GROQ_API_KEY not set");
       let useModel = model;
-      if (hasImage) useModel = GROQ_VISION;
+      if (hasImage && GROQ_VISION_MODELS.indexOf(model) === -1) {
+        useModel = GROQ_VISION_MODELS[0];
+      }
       const messages = [{ role: "system", content: systemText }];
       const history = Array.isArray(body.history) ? body.history : [];
       for (const h of history.slice(-20)) {
@@ -188,7 +197,7 @@ module.exports = async function handler(req, res) {
         err.busy =
           r.status === 429 ||
           r.status === 503 ||
-          /rate limit|overloaded|unavailable/i.test(msg);
+          /rate limit|overloaded|unavailable|does not exist|do not have access|not found|decommissioned/i.test(msg);
         throw err;
       }
       const text =
@@ -253,7 +262,7 @@ module.exports = async function handler(req, res) {
         err.busy =
           r.status === 429 ||
           r.status === 503 ||
-          /high demand|quota|unavailable|not found|no longer available/i.test(msg);
+          /high demand|quota|unavailable|not found|no longer available|does not exist|do not have access/i.test(msg);
         throw err;
       }
       const parts =
@@ -272,13 +281,23 @@ module.exports = async function handler(req, res) {
     const pushUnique = (m) => {
       if (m && tryList.indexOf(m) === -1) tryList.push(m);
     };
-    pushUnique(preferred);
-    if (isGroqModel(preferred)) {
-      GROQ_MODELS.forEach(pushUnique);
-      if (process.env.GEMINI_API_KEY) GEMINI_MODELS.forEach(pushUnique);
+    if (hasImage) {
+      if (process.env.GEMINI_API_KEY) {
+        if (!isGroqModel(preferred)) pushUnique(preferred);
+        GEMINI_MODELS.forEach(pushUnique);
+      }
+      if (process.env.GROQ_API_KEY) {
+        GROQ_VISION_MODELS.forEach(pushUnique);
+      }
     } else {
-      GEMINI_MODELS.forEach(pushUnique);
-      if (process.env.GROQ_API_KEY) GROQ_MODELS.forEach(pushUnique);
+      pushUnique(preferred);
+      if (isGroqModel(preferred)) {
+        GROQ_MODELS.forEach(pushUnique);
+        if (process.env.GEMINI_API_KEY) GEMINI_MODELS.forEach(pushUnique);
+      } else {
+        GEMINI_MODELS.forEach(pushUnique);
+        if (process.env.GROQ_API_KEY) GROQ_MODELS.forEach(pushUnique);
+      }
     }
 
     let lastError = "AI request failed";
