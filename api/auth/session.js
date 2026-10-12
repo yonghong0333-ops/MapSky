@@ -102,13 +102,12 @@ module.exports = async function handler(req, res) {
       "gemini-2.5-pro",
       "gemini-3-flash-preview",
     ];
+    // 僅保留目前 Groq 上較穩定的文字模型（無效 ID 會讓 fallback 失敗並露出英文錯誤）
     const GROQ_MODELS = [
       "llama-3.3-70b-versatile",
       "llama-3.1-8b-instant",
-      "llama-3.1-70b-versatile",
-      "gemma2-9b-it",
-      "mixtral-8x7b-32768",
-      "qwen/qwen3-32b",
+      "openai/gpt-oss-120b",
+      "openai/gpt-oss-20b",
     ];
     const GROQ_VISION_MODELS = [
       "meta-llama/llama-4-maverick-17b-128e-instruct",
@@ -132,6 +131,7 @@ module.exports = async function handler(req, res) {
       String(m).startsWith("mixtral") ||
       String(m).startsWith("qwen") ||
       String(m).startsWith("meta-llama") ||
+      String(m).startsWith("openai/") ||
       String(m).indexOf("llama") !== -1;
 
     const systemText =
@@ -315,14 +315,14 @@ module.exports = async function handler(req, res) {
         });
       } catch (e) {
         lastError = String((e && e.message) || e);
+        // 模型不存在／無權限／未設定金鑰 → 自動試下一個，不要把英文錯誤給使用者
         if (e && e.busy) continue;
-        if (/not set/i.test(lastError)) continue;
-        const zh = /high demand|rate limit/i.test(lastError)
+        if (/not set|does not exist|do not have access|not found|decommissioned|invalid model/i.test(lastError)) continue;
+        const zh = /high demand|rate limit|overloaded|busy/i.test(lastError)
           ? "目前 AI 服務較忙碌，請稍後再試。"
           : lastError;
-        return res
-          .status((e && e.status) || 502)
-          .json({ ok: false, error: zh, model });
+        // 若還有下一個模型可試，繼續；否則才回錯誤
+        continue;
       }
     }
 
@@ -331,9 +331,12 @@ module.exports = async function handler(req, res) {
         .status(500)
         .json({ ok: false, error: "請設定 GEMINI_API_KEY 或 GROQ_API_KEY" });
     }
-    const zh = /high demand|rate limit/i.test(lastError)
-      ? "目前 AI 服務較忙碌，請稍後再試。"
-      : lastError;
+    let zh = "目前 AI 服務暫時無法回應，請稍後再試。";
+    if (/high demand|rate limit|overloaded|busy/i.test(lastError)) {
+      zh = "目前 AI 服務較忙碌，請稍後再試。";
+    } else if (/api.?key|not set/i.test(lastError)) {
+      zh = "AI 金鑰未設定，請聯絡管理員。";
+    }
     return res.status(503).json({ ok: false, error: zh });
   }
 
