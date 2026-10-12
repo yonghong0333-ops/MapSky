@@ -78,22 +78,34 @@
       align-self: flex-end; background: var(--ai-user); color: #fff; border-bottom-right-radius: 6px;
       animation-name: bubbleInUser;
     }
-    .bubble.model { align-self: flex-start; background: var(--ai-model-bg); border: 1px solid var(--ai-model-border); border-bottom-left-radius: 6px; color: var(--ai-fg); }
+    .bubble.model {
+      align-self: stretch;
+      max-width: 100%;
+      width: 100%;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      padding: 2px 2px 8px;
+      color: var(--ai-fg);
+    }
     .bubble.error { align-self: center; background: var(--ai-error-bg); border: 1px solid var(--ai-error-border); color: var(--ai-error-fg); font-size: 13px; }
     .bubble.system { align-self: center; font-size: 13px; color: var(--ai-muted); background: transparent; padding: 4px 8px; }
     .bubble.thinking {
       align-self: flex-start;
       flex-direction: row;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
       gap: 6px;
       width: auto;
-      min-width: 62px;
-      min-height: 40px;
-      padding: 12px 14px;
-      background: var(--ai-model-bg);
-      border: 1px solid var(--ai-model-border);
-      border-bottom-left-radius: 6px;
+      max-width: none;
+      min-width: 0;
+      min-height: 0;
+      padding: 4px 2px;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
     }
     .bubble.thinking i {
       width: 7px;
