@@ -124,7 +124,14 @@
     .chat-item .info { flex: 1; min-width: 0; }
     .chat-item .t { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .chat-item .s { font-size: 11px; color: var(--ai-muted); margin-top: 2px; }
-    .chat-item .del { width: 32px; height: 32px; border: none; border-radius: 8px; background: rgba(220, 38, 38, 0.15); color: #fca5a5; font-size: 14px; cursor: pointer; flex-shrink: 0; }
+    .chat-item .del {
+      width: 40px; height: 40px; border: none; border-radius: 10px;
+      background: rgba(220, 38, 38, 0.12); color: #dc2626;
+      font-size: 16px; cursor: pointer; flex-shrink: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .chat-item .del:active { background: rgba(220, 38, 38, 0.28); }
     .drawer-empty { text-align: center; color: var(--ai-muted); font-size: 13px; padding: 32px 16px; }
     html.embed header,
     html.embed .composer,
@@ -365,9 +372,10 @@
       closeDrawer();
     }
     async function deleteChat(id) {
-      if (!confirm("刪除這個對話？")) return;
       if (cloudEnabled) {
-        await api("/api/auth/session?action=ai-chat-delete", { method: "POST", body: JSON.stringify({ id: id }) });
+        try {
+          await api("/api/auth/session?action=ai-chat-delete", { method: "POST", body: JSON.stringify({ id: id }) });
+        } catch (e) {}
       } else {
         saveLocalChats(loadLocalChats().filter(function (c) { return c.id !== id; }));
       }
