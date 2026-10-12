@@ -71,7 +71,7 @@
     .bubble {
       max-width: 88%; padding: 10px 14px; border-radius: 16px; font-size: 15px;
       line-height: 1.55; white-space: pre-wrap; word-break: break-word;
-      display: flex; flex-direction: column; gap: 8px;
+      display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;
       animation: bubbleIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
     .bubble.user {
@@ -82,16 +82,23 @@
     .bubble.error { align-self: center; background: var(--ai-error-bg); border: 1px solid var(--ai-error-border); color: var(--ai-error-fg); font-size: 13px; }
     .bubble.system { align-self: center; font-size: 13px; color: var(--ai-muted); background: transparent; padding: 4px 8px; }
     .bubble.system.thinking { animation: thinkingPulse 1.2s ease-in-out infinite; }
-    .bubble.has-image-only { padding: 4px; overflow: hidden; }
-    .bubble.has-image-only img.preview { margin: 0; border-radius: 12px; }
-    .bubble.has-image img.preview {
-      display: block; width: 100%; max-width: 240px; max-height: 280px;
+    .bubble.has-image,
+    .bubble.has-image-only {
+      width: min(72vw, 240px);
+      max-width: min(72vw, 240px);
+      padding: 4px;
+      overflow: visible;
+      flex-shrink: 0;
+    }
+    .bubble.user.has-image-only { background: transparent; }
+    .bubble.has-image img.preview,
+    .bubble.has-image-only img.preview,
+    .bubble img.preview {
+      display: block; width: 100%; height: auto; max-height: 280px;
       border-radius: 12px; margin: 0; object-fit: cover; order: 0;
+      background: rgba(15, 23, 42, 0.06);
     }
     .bubble .bubble-text { order: 1; }
-    .bubble img.preview {
-      display: block; max-width: 240px; max-height: 280px; border-radius: 12px; object-fit: cover;
-    }
     @keyframes bubbleIn {
       from { opacity: 0; transform: translateY(12px) scale(0.96); }
       to { opacity: 1; transform: translateY(0) scale(1); }
@@ -392,10 +399,29 @@
       }
       renderChatList();
     }
+    async function messagesForSave(list) {
+      const out = [];
+      for (let i = 0; i < list.length; i++) {
+        const m = list[i] || {};
+        const row = { role: m.role, text: m.text || "" };
+        const img = m.image;
+        if (typeof img === "string" && img.indexOf("data:image/") === 0) {
+          try {
+            if (img.length <= 120000) row.image = img;
+            else {
+              const c = await compressImage(img, 640, 0.62);
+              if (c.previewUrl && c.previewUrl.length <= 180000) row.image = c.previewUrl;
+            }
+          } catch (e) {}
+        }
+        out.push(row);
+      }
+      return out;
+    }
     async function persistCurrent() {
       if (!currentChatId || !history.length) return;
       const title = (history.find(function (m) { return m.role === "user"; }) || {}).text || "新對話";
-      const chat = { id: currentChatId, title: String(title).slice(0, 40), updatedAt: Date.now(), messages: history.slice(-60) };
+      const chat = { id: currentChatId, title: String(title).slice(0, 40), updatedAt: Date.now(), messages: await messagesForSave(history.slice(-60)) };
       if (cloudEnabled) {
         try { await api("/api/auth/session?action=ai-chat-save", { method: "POST", body: JSON.stringify(chat) }); } catch {}
       } else {
@@ -415,7 +441,7 @@
       currentChatId = chat.id;
       history = Array.isArray(chat.messages) ? chat.messages.slice() : [];
       clearMessages();
-      if (history.length) history.forEach(function (m) { addBubble(m.role === "model" ? "model" : "user", m.text); });
+      if (history.length) history.forEach(function (m) { addBubble(m.role === "model" ? "model" : "user", m.text, m.image || null); });
       headerTitle.textContent = (chat.title || "AI 助手").slice(0, 16);
       closeDrawer();
     }
@@ -514,7 +540,7 @@
       const previewUrl = image ? image.previewUrl : null;
       clearAttach();
       addBubble("user", message, previewUrl);
-      history.push({ role: "user", text: message || "（使用者傳送了一張圖片）" });
+      history.push({ role: "user", text: message || "（使用者傳送了一張圖片）", image: previewUrl || null });
       setBusy(true);
       const thinking = addBubble("system", "思考中…");
       if (thinking) thinking.classList.add("thinking");
@@ -570,7 +596,7 @@
       chat: async function (message, image) {
         if (!currentChatId) currentChatId = uid();
         const text = String(message || "").trim();
-        history.push({ role: "user", text: text || "（使用者傳送了一張圖片）" });
+        history.push({ role: "user", text: text || "（使用者傳送了一張圖片）", image: image && image.previewUrl ? image.previewUrl : null });
         addBubble("user", text, image && image.previewUrl ? image.previewUrl : null);
         const reply = await askGemini(text, image || null);
         history.push({ role: "model", text: reply }); addBubble("model", reply);

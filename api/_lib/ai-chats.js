@@ -76,10 +76,17 @@ async function saveChat(provider, id, chat) {
     ? chat.messages
         .filter((m) => m && m.text)
         .slice(-MAX_MESSAGES)
-        .map((m) => ({
-          role: m.role === "model" ? "model" : "user",
-          text: String(m.text).slice(0, 8000),
-        }))
+        .map((m) => {
+          const row = {
+            role: m.role === "model" ? "model" : "user",
+            text: String(m.text).slice(0, 8000),
+          };
+          // 只留較小的預覽圖，避免整張原圖塞爆 Redis
+          if (typeof m.image === "string" && m.image.startsWith("data:image/") && m.image.length <= 180000) {
+            row.image = m.image;
+          }
+          return row;
+        })
     : [];
 
   const title =
