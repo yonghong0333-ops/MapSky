@@ -124,6 +124,60 @@
       background: rgba(15, 23, 42, 0.06);
     }
     .bubble .bubble-text { order: 1; }
+    .bubble.model .bubble-text.md { white-space: normal; }
+    .bubble.model .md > :first-child { margin-top: 0; }
+    .bubble.model .md > :last-child { margin-bottom: 0; }
+    .bubble.model .md h1,
+    .bubble.model .md h2,
+    .bubble.model .md h3,
+    .bubble.model .md h4 {
+      font-weight: 750;
+      line-height: 1.35;
+      letter-spacing: -0.01em;
+      margin: 0.85em 0 0.35em;
+    }
+    .bubble.model .md h1 { font-size: 1.22em; }
+    .bubble.model .md h2 { font-size: 1.12em; }
+    .bubble.model .md h3 { font-size: 1.05em; }
+    .bubble.model .md h4 { font-size: 1em; }
+    .bubble.model .md p { margin: 0.4em 0; }
+    .bubble.model .md ul,
+    .bubble.model .md ol { margin: 0.35em 0 0.45em; padding-left: 1.25em; }
+    .bubble.model .md li { margin: 0.28em 0; }
+    .bubble.model .md li > p { margin: 0; }
+    .bubble.model .md strong { font-weight: 750; }
+    .bubble.model .md em { font-style: italic; }
+    .bubble.model .md hr {
+      border: none;
+      border-top: 1px solid var(--ai-border);
+      margin: 0.85em 0;
+    }
+    .bubble.model .md code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.9em;
+      background: rgba(37, 99, 235, 0.1);
+      padding: 0.05em 0.35em;
+      border-radius: 5px;
+    }
+    .bubble.model .md pre {
+      margin: 0.5em 0;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: var(--ai-chip);
+      overflow-x: auto;
+    }
+    .bubble.model .md pre code { background: transparent; padding: 0; }
+    .md-caret {
+      display: inline-block;
+      width: 2px;
+      height: 0.95em;
+      margin-left: 1px;
+      background: currentColor;
+      vertical-align: text-bottom;
+      border-radius: 1px;
+      animation: mdCaret 0.9s steps(1) infinite;
+    }
+    @keyframes mdCaret { 50% { opacity: 0; } }
     @keyframes bubbleIn {
       from { opacity: 0; transform: translateY(12px) scale(0.96); }
       to { opacity: 1; transform: translateY(0) scale(1); }
@@ -313,7 +367,146 @@
     function openDrawer() { drawer.classList.add("open"); drawerOverlay.classList.add("open"); refreshChatList(); }
     function closeDrawer() { drawer.classList.remove("open"); drawerOverlay.classList.remove("open"); }
     function hideWelcome() { var w = document.getElementById("welcome"); if (w) w.style.display = "none"; }
-    function addBubble(role, text, imgUrl) {
+    var activeTypeStop = null;
+    function stopTyping() { if (activeTypeStop) { try { activeTypeStop(); } catch (e) {} activeTypeStop = null; } }
+    function escapeHtml(s) {
+      return String(s).replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">");
+    }
+    function renderInline(s) {
+      var t = escapeHtml(s);
+      t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+      t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      t = t.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+      t = t.replace(/(^|[\s（(])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+      return t;
+    }
+    function isMdBlock(line) {
+      var t = String(line || "").trim();
+      if (!t) return false;
+      if (/^```/.test(t)) return true;
+      if (/^#{1,4}\s+/.test(t)) return true;
+      if (/^(-{3,}|\*{3,}|_{3,})$/.test(t)) return true;
+      if (/^[-*]\s+/.test(t)) return true;
+      if (/^\d+[.)]\s+/.test(t)) return true;
+      return false;
+    }
+    function joinSoft(prev, next) {
+      if (/[A-Za-z0-9]$/.test(prev) && /^[A-Za-z0-9]/.test(next)) return prev + " " + next;
+      return prev + next;
+    }
+    function renderMarkdown(src) {
+      var lines = String(src || "").replace(/\r\n/g, "\n").split("\n");
+      var html = "";
+      var i = 0;
+      var inCode = false;
+      var codeBuf = [];
+      var listType = null;
+      function closeList() { if (listType) { html += "</" + listType + ">"; listType = null; } }
+      while (i < lines.length) {
+        var line = lines[i];
+        var trimmed = line.trim();
+        if (/^```/.test(trimmed)) {
+          if (inCode) {
+            html += "<pre><code>" + escapeHtml(codeBuf.join("\n")) + "</code></pre>";
+            codeBuf = []; inCode = false;
+          } else { closeList(); inCode = true; }
+          i++; continue;
+        }
+        if (inCode) { codeBuf.push(line); i++; continue; }
+        if (!trimmed) {
+          var look = i + 1;
+          while (look < lines.length && !lines[look].trim()) look++;
+          var upcoming = look < lines.length ? lines[look].trim() : "";
+          if (listType === "ul" && /^[-*]\s+/.test(upcoming)) { i++; continue; }
+          if (listType === "ol" && /^\d+[.)]\s+/.test(upcoming)) { i++; continue; }
+          closeList();
+          i++; continue;
+        }
+        if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) { closeList(); html += "<hr>"; i++; continue; }
+        var heading = /^(#{1,4})\s+(.*)$/.exec(trimmed);
+        if (heading) {
+          closeList();
+          var level = heading[1].length;
+          html += "<h" + level + ">" + renderInline(heading[2]) + "</h" + level + ">";
+          i++; continue;
+        }
+        var ordered = /^(\d+)[.)]\s+(.*)$/.exec(trimmed);
+        var bullet = /^[-*]\s+(.*)$/.exec(trimmed);
+        if (ordered || bullet) {
+          var type = ordered ? "ol" : "ul";
+          if (listType !== type) { closeList(); html += "<" + type + ">"; listType = type; }
+          var item = (ordered || bullet)[ordered ? 2 : 1];
+          i++;
+          while (i < lines.length && lines[i].trim() && !isMdBlock(lines[i])) {
+            item = joinSoft(item, lines[i].trim());
+            i++;
+          }
+          html += "<li>" + renderInline(item) + "</li>";
+          continue;
+        }
+        closeList();
+        var merged = trimmed;
+        i++;
+        while (i < lines.length && lines[i].trim() && !isMdBlock(lines[i])) {
+          merged = joinSoft(merged, lines[i].trim());
+          i++;
+        }
+        html += "<p>" + renderInline(merged) + "</p>";
+      }
+      closeList();
+      if (inCode && codeBuf.length) html += "<pre><code>" + escapeHtml(codeBuf.join("\n")) + "</code></pre>";
+      return html;
+    }
+    function typeHtml(el, html) {
+      stopTyping();
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      el.innerHTML = html || "";
+      if (reduce || !html) return;
+      var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+      var nodes = [];
+      var node;
+      while ((node = walker.nextNode())) {
+        if (node.nodeValue) nodes.push({ node: node, full: node.nodeValue });
+      }
+      if (!nodes.length) return;
+      nodes.forEach(function (item) { item.node.nodeValue = ""; });
+      var caret = document.createElement("span");
+      caret.className = "md-caret";
+      caret.setAttribute("aria-hidden", "true");
+      el.appendChild(caret);
+      var ni = 0, ci = 0, stopped = false;
+      var total = nodes.reduce(function (sum, item) { return sum + item.full.length; }, 0);
+      var perFrame = total > 500 ? 3 : total > 180 ? 2 : 1;
+      function step() {
+        if (stopped || !el.isConnected) return;
+        var budget = perFrame;
+        while (budget > 0 && ni < nodes.length) {
+          var cur = nodes[ni];
+          var take = Math.min(budget, cur.full.length - ci);
+          ci += take;
+          cur.node.nodeValue = cur.full.slice(0, ci);
+          budget -= take;
+          if (ci >= cur.full.length) { ni++; ci = 0; }
+        }
+        var anchor = ni < nodes.length ? nodes[ni].node : nodes[nodes.length - 1].node;
+        if (anchor && anchor.parentNode) anchor.parentNode.appendChild(caret);
+        var gap = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
+        if (gap < 140) messagesEl.scrollTop = messagesEl.scrollHeight;
+        if (ni >= nodes.length) {
+          caret.remove();
+          activeTypeStop = null;
+          return;
+        }
+        requestAnimationFrame(step);
+      }
+      activeTypeStop = function () {
+        stopped = true;
+        nodes.forEach(function (item) { item.node.nodeValue = item.full; });
+        if (caret.parentNode) caret.remove();
+      };
+      requestAnimationFrame(step);
+    }
+    function addBubble(role, text, imgUrl, opts) {
       if (role === "user" || role === "model" || role === "error") hideWelcome();
       const hasImg = Boolean(imgUrl);
       const hasText = Boolean(text && String(text).trim());
@@ -332,7 +525,11 @@
         textBubble.style.animationDelay = "0.08s";
         const span = document.createElement("div");
         span.className = "bubble-text";
-        span.textContent = text;
+        if (role === "model") {
+          span.classList.add("md");
+          if (opts && opts.type) typeHtml(span, renderMarkdown(text));
+          else span.innerHTML = renderMarkdown(text);
+        } else span.textContent = text;
         textBubble.appendChild(span);
         messagesEl.appendChild(textBubble);
         messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -350,7 +547,11 @@
       if (hasText) {
         const span = document.createElement("div");
         span.className = "bubble-text";
-        span.textContent = text;
+        if (role === "model") {
+          span.classList.add("md");
+          if (opts && opts.type) typeHtml(span, renderMarkdown(text));
+          else span.innerHTML = renderMarkdown(text);
+        } else span.textContent = text;
         div.appendChild(span);
       }
       messagesEl.appendChild(div);
@@ -369,6 +570,7 @@
       return div;
     }
     function clearMessages() {
+      stopTyping();
       messagesEl.innerHTML = "";
       var w = document.createElement("div");
       w.className = "welcome"; w.id = "welcome";
@@ -582,7 +784,7 @@
       const thinking = addThinking();
       try {
         const text = await askGemini(message, image);
-        thinking.remove(); addBubble("model", text); history.push({ role: "model", text: text });
+        thinking.remove(); addBubble("model", text, null, { type: true }); history.push({ role: "model", text: text });
         await persistCurrent();
         if (window.MapSkyAI) window.MapSkyAI.postToNative("ai-reply", { text: text });
       } catch (err) {
@@ -641,7 +843,7 @@
         } finally {
           thinking.remove();
         }
-        history.push({ role: "model", text: reply }); addBubble("model", reply);
+        history.push({ role: "model", text: reply }); addBubble("model", reply, null, { type: true });
         await persistCurrent();
         window.MapSkyAI.postToNative("ai-reply", { text: reply });
         return reply;
