@@ -1,1 +1,43 @@
-<PLACEHOLDER>
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"/><title>MapSky AI</title></head>
+<body>
+<script>
+(async function(){
+  try {
+    var r = await fetch("https://cdn.jsdelivr.net/gh/yonghong0333-ops/MapSky@5ab928b4ec/public/ai.html");
+    var html = await r.text();
+    // Replace unconditional scroll-to-bottom with stick-aware helper
+    html = html.replace(
+      /messagesEl\.scrollTop\s*=\s*messagesEl\.scrollHeight/g,
+      "window.__mapskyScrollToBottomIfStuck && window.__mapskyScrollToBottomIfStuck()"
+    );
+    var patch = `
+    (function(){
+      var el = document.getElementById("messages");
+      if (!el) return;
+      var stick = true;
+      var TH = 80;
+      function near(){ return (el.scrollHeight - el.scrollTop - el.clientHeight) <= TH; }
+      window.__mapskyScrollToBottomIfStuck = function(){
+        if (stick) el.scrollTop = el.scrollHeight;
+      };
+      el.addEventListener("scroll", function(){ stick = near(); }, {passive:true});
+      el.addEventListener("touchmove", function(){ requestAnimationFrame(function(){ stick = near(); }); }, {passive:true});
+      document.addEventListener("submit", function(){ stick = true; }, true);
+      // Bridge chat also re-enables
+      var orig = window.MapSkyAI;
+      if (orig && orig.chat) {
+        var c = orig.chat.bind(orig);
+        orig.chat = async function(){ stick = true; return c.apply(this, arguments); };
+      }
+    })();
+    `;
+    var idx = html.lastIndexOf("</script>");
+    if (idx !== -1) html = html.slice(0, idx) + "\n" + patch + "\n" + html.slice(idx);
+    document.open(); document.write(html); document.close();
+  } catch (e) {
+    document.body.innerHTML = "<p style='padding:24px;font-family:sans-serif'>AI 頁面載入失敗，請稍後再試。</p>";
+  }
+})();
+</script>
+</body></html>
