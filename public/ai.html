@@ -30,9 +30,7 @@
       '.c-indigo{color:#9fa8da}.c-purple{color:#ce93d8}.c-pink{color:#f48fb1}' +
       '.c-rose{color:#f48fb1}.c-brown{color:#bcaaa4}.c-gray{color:#bdbdbd}}' +
       '</style>';
-    if (html.indexOf("</head>") !== -1) {
-      html = html.replace("</head>", richCss + "</head>");
-    }
+    if (html.indexOf("</head>") !== -1) html = html.replace("</head>", richCss + "</head>");
 
     var colorNames = "red|orange|amber|yellow|lime|green|teal|cyan|blue|indigo|purple|pink|rose|brown|gray";
     var newInline =
@@ -71,44 +69,33 @@
       "  el.addEventListener('touchmove',function(){requestAnimationFrame(function(){stick=near();});},{passive:true});",
       "  document.addEventListener('submit',function(){stick=true;},true);",
       "  var COLORS='red|orange|amber|yellow|lime|green|teal|cyan|blue|indigo|purple|pink|rose|brown|gray';",
+      "  var colorRe=new RegExp('\\{#\\s*('+COLORS+')\\s*\\}([\\s\\S]+?)\\{#\\}','gi');",
+      "  var markRe=/==([^=<\\n]+)==/g;",
       "  function richifyHtml(h){",
       "    if(!h)return h;",
-      "    if(h.indexOf('{#')===-1&&h.indexOf('==')===-1)return h;",
-      "    h=h.replace(/==([^=<\\n]+)==/g,function(_,t){return '<mark class=\"hl\">'+t+'</mark>';});",
-      "    h=h.replace(new RegExp('\\{#\\s*('+COLORS+')\\s*\\}([\\s\\S]+?)\\{#\\}','gi'),function(_,c,t){",
-      "      return '<span class=\"c-'+c.toLowerCase()+'\">'+t+'</span>';",
-      "    });",
+      "    h=h.replace(markRe,function(_,t){return '<mark class=\"hl\">'+t+'</mark>';});",
+      "    h=h.replace(colorRe,function(_,c,t){return '<span class=\"c-'+String(c).toLowerCase()+'\">'+t+'</span>';});",
       "    return h;",
       "  }",
-      "  function richifyNode(node){",
-      "    if(!node||node.nodeType!==1)return;",
-      "    var targets=[];",
-      "    if(node.classList&&node.classList.contains('bubble-text'))targets.push(node);",
-      "    if(node.querySelectorAll){node.querySelectorAll('.bubble-text').forEach(function(t){targets.push(t);});}",
-      "    targets.forEach(function(t){",
-      "      if(t.getAttribute('data-rich')==='1')return;",
-      "      var html=t.innerHTML||'';",
+      "  function needsRich(s){return s&&(s.indexOf('{#')!==-1||s.indexOf('==')!==-1);}",
+      "  function richifyAll(){",
+      "    var nodes=el.querySelectorAll('.bubble-text, .bubble.model');",
+      "    for(var i=0;i<nodes.length;i++){",
+      "      var t=nodes[i];",
       "      var txt=t.textContent||'';",
-      "      if(txt.indexOf('{#')===-1&&txt.indexOf('==')===-1){t.setAttribute('data-rich','1');return;}",
-      "      var next=richifyHtml(html);",
-      "      if(next!==html)t.innerHTML=next;",
-      "      t.setAttribute('data-rich','1');",
-      "    });",
+      "      if(!needsRich(txt))continue;",
+      "      var before=t.innerHTML;",
+      "      var after=richifyHtml(before);",
+      "      if(after!==before){t.innerHTML=after;continue;}",
+      "      if(t.childNodes.length===1&&t.childNodes[0].nodeType===3){",
+      "        t.innerHTML=richifyHtml(txt.replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>'));",
+      "      }",
+      "    }",
       "  }",
-      "  var obs=new MutationObserver(function(ms){",
-      "    ms.forEach(function(m){",
-      "      m.addedNodes.forEach(function(n){",
-      "        if(n.nodeType===1){",
-      "          requestAnimationFrame(function(){richifyNode(n);});",
-      "          setTimeout(function(){richifyNode(n);},250);",
-      "          setTimeout(function(){richifyNode(n);},700);",
-      "        }",
-      "      });",
-      "    });",
-      "    if(stick)el.scrollTop=el.scrollHeight;",
-      "  });",
-      "  obs.observe(el,{childList:true,subtree:true});",
-      "  richifyNode(el);",
+      "  setInterval(richifyAll, 400);",
+      "  var obs=new MutationObserver(function(){richifyAll();if(stick)el.scrollTop=el.scrollHeight;});",
+      "  obs.observe(el,{childList:true,subtree:true,characterData:true});",
+      "  richifyAll();",
       "})();"
     ].join("\n");
 
