@@ -11,17 +11,55 @@
     var r = await fetch("https://cdn.jsdelivr.net/gh/yonghong0333-ops/MapSky@5ab928b4ec/public/ai.html");
     var html = await r.text();
 
-    var katexHead =
-      '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">' +
-      '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">' +
-      '<style>.katex{font-size:1.15em;line-height:1.35}.katex-display{display:block;margin:.8em 0;overflow-x:auto;-webkit-overflow-scrolling:touch;text-align:center}.bubble .katex-error{color:inherit!important;background:transparent!important}</style>' +
-      '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"><\/script>' +
-      '<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"><\/script>';
-
+    var richCss =
+      '<style>' +
+      'mark,.hl{background:linear-gradient(transparent 40%,#ffe566 40%);background-color:#ffe56699;padding:0.08em 0.2em;border-radius:3px;color:inherit}' +
+      '@media (prefers-color-scheme:dark){mark,.hl{background:linear-gradient(transparent 40%,#c9a227 40%);background-color:#c9a22766}}' +
+      '.c-red{color:#e53935;font-weight:600}' +
+      '.c-blue{color:#1e88e5;font-weight:600}' +
+      '.c-green{color:#43a047;font-weight:600}' +
+      '.c-orange{color:#fb8c00;font-weight:600}' +
+      '.c-purple{color:#8e24aa;font-weight:600}' +
+      '.c-yellow{color:#f9a825;font-weight:600}' +
+      '@media (prefers-color-scheme:dark){' +
+      '.c-red{color:#ef9a9a}.c-blue{color:#90caf9}.c-green{color:#a5d6a7}' +
+      '.c-orange{color:#ffcc80}.c-purple{color:#ce93d8}.c-yellow{color:#fff59d}}' +
+      '</style>';
     if (html.indexOf("</head>") !== -1) {
-      html = html.replace("</head>", katexHead + "</head>");
-    } else {
-      html = katexHead + html;
+      html = html.replace("</head>", richCss + "</head>");
+    }
+
+    var newInline =
+      "function renderInline(s) {\n" +
+      "      var raw = String(s || \"\");\n" +
+      "      var tokens = [];\n" +
+      "      raw = raw.replace(/==([^=\\n]+)==/g, function (_, t) {\n" +
+      "        var i = tokens.length;\n" +
+      "        tokens.push('<mark class=\"hl\">' + escapeHtml(t) + '</mark>');\n" +
+      "        return '\\uE000' + i + '\\uE001';\n" +
+      "      });\n" +
+      "      raw = raw.replace(/\\{#\\s*(red|blue|green|orange|purple|yellow)\\s*\\}([\\s\\S]+?)\\{#\\}/gi, function (_, c, t) {\n" +
+      "        var i = tokens.length;\n" +
+      "        tokens.push('<span class=\"c-' + c.toLowerCase() + '\">' + escapeHtml(t) + '</span>');\n" +
+      "        return '\\uE000' + i + '\\uE001';\n" +
+      "      });\n" +
+      "      raw = raw.replace(/<mark>([\\s\\S]+?)<\\/mark>/gi, function (_, t) {\n" +
+      "        var i = tokens.length;\n" +
+      "        tokens.push('<mark class=\"hl\">' + escapeHtml(t) + '</mark>');\n" +
+      "        return '\\uE000' + i + '\\uE001';\n" +
+      "      });\n" +
+      "      var t = escapeHtml(raw);\n" +
+      "      t = t.replace(/`([^`]+)`/g, \"<code>$1</code>\");\n" +
+      "      t = t.replace(/\\*\\*([^*]+)\\*\\*/g, \"<strong>$1</strong>\");\n" +
+      "      t = t.replace(/__([^_]+)__/g, \"<strong>$1</strong>\");\n" +
+      "      t = t.replace(/(^|[\\s（(])\\*([^*\\n]+)\\*/g, \"$1<em>$2</em>\");\n" +
+      "      t = t.replace(/\\uE000(\\d+)\\uE001/g, function (_, i) { return tokens[Number(i)] || ''; });\n" +
+      "      return t;\n" +
+      "    }";
+
+    var reInline = /function renderInline\(s\) \{[\s\S]*?\n    \}/;
+    if (reInline.test(html)) {
+      html = html.replace(reInline, newInline);
     }
 
     html = html.replace(
@@ -39,64 +77,8 @@
       "  el.addEventListener('scroll',function(){stick=near();},{passive:true});",
       "  el.addEventListener('touchmove',function(){requestAnimationFrame(function(){stick=near();});},{passive:true});",
       "  document.addEventListener('submit',function(){stick=true;},true);",
-      "  function esc(s){return String(s).replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>');}",
-      "  function mathToHtml(text){",
-      "    if(!text)return '';",
-      "    var chunks=[],s=String(text),re=/\\$\\$([\\s\\S]+?)\\$\\$|\\$([^\\$\\n]+?)\\$/g,last=0,m;",
-      "    while((m=re.exec(s))){",
-      "      if(m.index>last)chunks.push({t:'p',v:s.slice(last,m.index)});",
-      "      var tex=(m[1]!=null?m[1]:m[2]).trim(),display=m[1]!=null,html='';",
-      "      if(typeof katex!=='undefined'){",
-      "        try{html=katex.renderToString(tex,{displayMode:display,throwOnError:false,strict:'ignore',errorColor:'#111'});}",
-      "        catch(e){html=display?'<div style=\"text-align:center;margin:.6em 0\">'+esc(tex)+'</div>':esc(tex);}",
-      "      }else{html=display?'<div style=\"text-align:center;margin:.6em 0\">'+esc(tex)+'</div>':esc(tex);}",
-      "      chunks.push({t:'m',v:html});",
-      "      last=m.index+m[0].length;",
-      "    }",
-      "    if(last<s.length)chunks.push({t:'p',v:s.slice(last)});",
-      "    return chunks.map(function(c){return c.t==='m'?c.v:esc(c.v).replace(/\\n/g,'<br>');}).join('');",
-      "  }",
-      "  function enhanceBubble(node){",
-      "    if(!node||node.nodeType!==1)return;",
-      "    var list=[];",
-      "    function collect(n){",
-      "      if(!n||n.nodeType!==1)return;",
-      "      if(n.getAttribute&&n.getAttribute('data-math')==='1')return;",
-      "      var onlyText=n.childNodes&&n.childNodes.length===1&&n.childNodes[0].nodeType===3;",
-      "      var txt=onlyText?(n.textContent||''):'';",
-      "      if(txt.indexOf('$')!==-1){list.push(n);return;}",
-      "      if(n.children){for(var i=0;i<n.children.length;i++)collect(n.children[i]);}",
-      "    }",
-      "    collect(node);",
-      "    list.forEach(function(t){",
-      "      if(t.getAttribute('data-math')==='1')return;",
-      "      var raw=t.textContent||'';",
-      "      if(raw.indexOf('$')===-1)return;",
-      "      try{t.innerHTML=mathToHtml(raw);t.setAttribute('data-math','1');}catch(e){}",
-      "    });",
-      "  }",
-      "  function waitKatex(cb,n){",
-      "    n=n||0;",
-      "    if(typeof katex!=='undefined'){cb();return;}",
-      "    if(n>200){cb();return;}",
-      "    setTimeout(function(){waitKatex(cb,n+1);},50);",
-      "  }",
-      "  waitKatex(function(){",
-      "    enhanceBubble(el);",
-      "    var obs=new MutationObserver(function(ms){",
-      "      ms.forEach(function(m){",
-      "        m.addedNodes.forEach(function(n){",
-      "          if(n.nodeType===1){",
-      "            requestAnimationFrame(function(){enhanceBubble(n);});",
-      "            setTimeout(function(){enhanceBubble(n);},200);",
-      "            setTimeout(function(){enhanceBubble(n);},600);",
-      "          }",
-      "        });",
-      "      });",
-      "      if(stick)el.scrollTop=el.scrollHeight;",
-      "    });",
-      "    obs.observe(el,{childList:true,subtree:true});",
-      "  });",
+      "  var obs=new MutationObserver(function(){if(stick)el.scrollTop=el.scrollHeight;});",
+      "  obs.observe(el,{childList:true,subtree:true});",
       "})();"
     ].join("\n");
 
