@@ -7,9 +7,11 @@
     var r = await fetch("https://cdn.jsdelivr.net/gh/yonghong0333-ops/MapSky@5ab928b4ec/public/ai.html");
     var html = await r.text();
     var katexHead =
+      '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css" crossorigin="anonymous">' +
       '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">' +
-      '<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"><\/script>' +
-      '<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"><\/script>';
+      '<style>.katex{font-size:1.1em;}.katex-display{margin:0.6em 0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;}.bubble .katex-error{color:inherit;}</style>' +
+      '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js" crossorigin="anonymous"><\/script>' +
+      '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/contrib/auto-render.min.js" crossorigin="anonymous"><\/script>';
     if (html.indexOf("</head>") !== -1) {
       html = html.replace("</head>", katexHead + "</head>");
     } else {
@@ -32,6 +34,7 @@
       "  document.addEventListener('submit', function(){ stick = true; }, true);",
       "  function renderMath(node){",
       "    if (!node || typeof renderMathInElement !== 'function') return;",
+      "    if (node.querySelector && node.querySelector('.katex')) return;",
       "    try {",
       "      renderMathInElement(node, {",
       "        delimiters: [",
@@ -41,21 +44,24 @@
       "          {left:'\\\\(', right:'\\\\)', display:false}",
       "        ],",
       "        throwOnError: false,",
+      "        errorColor: '#000000',",
       "        strict: 'ignore'",
       "      });",
       "    } catch (e) {}",
       "  }",
       "  function waitKatex(cb, n){",
       "    n = n || 0;",
-      "    if (typeof renderMathInElement === 'function' && typeof katex !== 'undefined') { cb(); return; }",
-      "    if (n > 100) return;",
+      "    if (typeof katex !== 'undefined' && typeof renderMathInElement === 'function') { cb(); return; }",
+      "    if (n > 120) { cb(); return; }",
       "    setTimeout(function(){ waitKatex(cb, n+1); }, 50);",
       "  }",
       "  waitKatex(function(){",
       "    renderMath(el);",
       "    var obs = new MutationObserver(function(muts){",
       "      muts.forEach(function(m){",
-      "        m.addedNodes.forEach(function(n){ if (n.nodeType === 1) renderMath(n); });",
+      "        m.addedNodes.forEach(function(n){",
+      "          if (n.nodeType === 1) requestAnimationFrame(function(){ renderMath(n); });",
+      "        });",
       "      });",
       "      if (stick) el.scrollTop = el.scrollHeight;",
       "    });",
