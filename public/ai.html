@@ -15,20 +15,13 @@
       '<style>' +
       'mark,.hl{background:linear-gradient(transparent 40%,#ffe566 40%);background-color:#ffe56699;padding:0.08em 0.2em;border-radius:3px;color:inherit}' +
       '@media (prefers-color-scheme:dark){mark,.hl{background:linear-gradient(transparent 40%,#c9a227 40%);background-color:#c9a22766}}' +
-      '.c-red{color:#e53935;font-weight:600}' +
-      '.c-orange{color:#fb8c00;font-weight:600}' +
-      '.c-amber{color:#ffb300;font-weight:600}' +
-      '.c-yellow{color:#f9a825;font-weight:600}' +
-      '.c-lime{color:#c0ca33;font-weight:600}' +
-      '.c-green{color:#43a047;font-weight:600}' +
-      '.c-teal{color:#00897b;font-weight:600}' +
-      '.c-cyan{color:#00acc1;font-weight:600}' +
-      '.c-blue{color:#1e88e5;font-weight:600}' +
-      '.c-indigo{color:#3949ab;font-weight:600}' +
-      '.c-purple{color:#8e24aa;font-weight:600}' +
-      '.c-pink{color:#d81b60;font-weight:600}' +
-      '.c-rose{color:#ec407a;font-weight:600}' +
-      '.c-brown{color:#6d4c41;font-weight:600}' +
+      '.c-red{color:#e53935;font-weight:600}.c-orange{color:#fb8c00;font-weight:600}' +
+      '.c-amber{color:#ffb300;font-weight:600}.c-yellow{color:#f9a825;font-weight:600}' +
+      '.c-lime{color:#c0ca33;font-weight:600}.c-green{color:#43a047;font-weight:600}' +
+      '.c-teal{color:#00897b;font-weight:600}.c-cyan{color:#00acc1;font-weight:600}' +
+      '.c-blue{color:#1e88e5;font-weight:600}.c-indigo{color:#3949ab;font-weight:600}' +
+      '.c-purple{color:#8e24aa;font-weight:600}.c-pink{color:#d81b60;font-weight:600}' +
+      '.c-rose{color:#ec407a;font-weight:600}.c-brown{color:#6d4c41;font-weight:600}' +
       '.c-gray{color:#757575;font-weight:600}' +
       '@media (prefers-color-scheme:dark){' +
       '.c-red{color:#ef9a9a}.c-orange{color:#ffcc80}.c-amber{color:#ffe082}' +
@@ -42,39 +35,25 @@
     }
 
     var colorNames = "red|orange|amber|yellow|lime|green|teal|cyan|blue|indigo|purple|pink|rose|brown|gray";
-
     var newInline =
       "function renderInline(s) {\n" +
-      "      var raw = String(s || \"\");\n" +
+      "      var raw = String(s || '');\n" +
       "      var tokens = [];\n" +
-      "      raw = raw.replace(/==([^=\\n]+)==/g, function (_, t) {\n" +
-      "        var i = tokens.length;\n" +
-      "        tokens.push('<mark class=\"hl\">' + escapeHtml(t) + '</mark>');\n" +
-      "        return '\\uE000' + i + '\\uE001';\n" +
-      "      });\n" +
-      "      raw = raw.replace(/\\{#\\s*(" + colorNames + ")\\s*\\}([\\s\\S]+?)\\{#\\}/gi, function (_, c, t) {\n" +
-      "        var i = tokens.length;\n" +
-      "        tokens.push('<span class=\"c-' + c.toLowerCase() + '\">' + escapeHtml(t) + '</span>');\n" +
-      "        return '\\uE000' + i + '\\uE001';\n" +
-      "      });\n" +
-      "      raw = raw.replace(/<mark>([\\s\\S]+?)<\\/mark>/gi, function (_, t) {\n" +
-      "        var i = tokens.length;\n" +
-      "        tokens.push('<mark class=\"hl\">' + escapeHtml(t) + '</mark>');\n" +
-      "        return '\\uE000' + i + '\\uE001';\n" +
+      "      function keep(html){ var i=tokens.length; tokens.push(html); return '\\uE000'+i+'\\uE001'; }\n" +
+      "      raw = raw.replace(/==([^=\\n]+)==/g, function(_,t){ return keep('<mark class=\"hl\">'+escapeHtml(t)+'</mark>'); });\n" +
+      "      raw = raw.replace(/\\{#\\s*(" + colorNames + ")\\s*\\}([\\s\\S]+?)\\{#\\}/gi, function(_,c,t){\n" +
+      "        return keep('<span class=\"c-'+c.toLowerCase()+'\">'+escapeHtml(t)+'</span>');\n" +
       "      });\n" +
       "      var t = escapeHtml(raw);\n" +
-      "      t = t.replace(/`([^`]+)`/g, \"<code>$1</code>\");\n" +
-      "      t = t.replace(/\\*\\*([^*]+)\\*\\*/g, \"<strong>$1</strong>\");\n" +
-      "      t = t.replace(/__([^_]+)__/g, \"<strong>$1</strong>\");\n" +
-      "      t = t.replace(/(^|[\\s（(])\\*([^*\\n]+)\\*/g, \"$1<em>$2</em>\");\n" +
-      "      t = t.replace(/\\uE000(\\d+)\\uE001/g, function (_, i) { return tokens[Number(i)] || ''; });\n" +
+      "      t = t.replace(/`([^`]+)`/g, '<code>$1</code>');\n" +
+      "      t = t.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');\n" +
+      "      t = t.replace(/__([^_]+)__/g, '<strong>$1</strong>');\n" +
+      "      t = t.replace(/(^|[\\s（(])\\*([^*\\n]+)\\*/g, '$1<em>$2</em>');\n" +
+      "      t = t.replace(/\\uE000(\\d+)\\uE001/g, function(_,i){ return tokens[+i]||''; });\n" +
       "      return t;\n" +
       "    }";
-
     var reInline = /function renderInline\(s\) \{[\s\S]*?\n    \}/;
-    if (reInline.test(html)) {
-      html = html.replace(reInline, newInline);
-    }
+    if (reInline.test(html)) html = html.replace(reInline, newInline);
 
     html = html.replace(
       /messagesEl\.scrollTop\s*=\s*messagesEl\.scrollHeight/g,
@@ -91,8 +70,45 @@
       "  el.addEventListener('scroll',function(){stick=near();},{passive:true});",
       "  el.addEventListener('touchmove',function(){requestAnimationFrame(function(){stick=near();});},{passive:true});",
       "  document.addEventListener('submit',function(){stick=true;},true);",
-      "  var obs=new MutationObserver(function(){if(stick)el.scrollTop=el.scrollHeight;});",
+      "  var COLORS='red|orange|amber|yellow|lime|green|teal|cyan|blue|indigo|purple|pink|rose|brown|gray';",
+      "  function richifyHtml(h){",
+      "    if(!h)return h;",
+      "    if(h.indexOf('{#')===-1&&h.indexOf('==')===-1)return h;",
+      "    h=h.replace(/==([^=<\\n]+)==/g,function(_,t){return '<mark class=\"hl\">'+t+'</mark>';});",
+      "    h=h.replace(new RegExp('\\{#\\s*('+COLORS+')\\s*\\}([\\s\\S]+?)\\{#\\}','gi'),function(_,c,t){",
+      "      return '<span class=\"c-'+c.toLowerCase()+'\">'+t+'</span>';",
+      "    });",
+      "    return h;",
+      "  }",
+      "  function richifyNode(node){",
+      "    if(!node||node.nodeType!==1)return;",
+      "    var targets=[];",
+      "    if(node.classList&&node.classList.contains('bubble-text'))targets.push(node);",
+      "    if(node.querySelectorAll){node.querySelectorAll('.bubble-text').forEach(function(t){targets.push(t);});}",
+      "    targets.forEach(function(t){",
+      "      if(t.getAttribute('data-rich')==='1')return;",
+      "      var html=t.innerHTML||'';",
+      "      var txt=t.textContent||'';",
+      "      if(txt.indexOf('{#')===-1&&txt.indexOf('==')===-1){t.setAttribute('data-rich','1');return;}",
+      "      var next=richifyHtml(html);",
+      "      if(next!==html)t.innerHTML=next;",
+      "      t.setAttribute('data-rich','1');",
+      "    });",
+      "  }",
+      "  var obs=new MutationObserver(function(ms){",
+      "    ms.forEach(function(m){",
+      "      m.addedNodes.forEach(function(n){",
+      "        if(n.nodeType===1){",
+      "          requestAnimationFrame(function(){richifyNode(n);});",
+      "          setTimeout(function(){richifyNode(n);},250);",
+      "          setTimeout(function(){richifyNode(n);},700);",
+      "        }",
+      "      });",
+      "    });",
+      "    if(stick)el.scrollTop=el.scrollHeight;",
+      "  });",
       "  obs.observe(el,{childList:true,subtree:true});",
+      "  richifyNode(el);",
       "})();"
     ].join("\n");
 
