@@ -114,15 +114,24 @@ module.exports = async function handler(req, res) {
       "meta-llama/llama-4-scout-17b-16e-instruct",
       "llama-3.2-11b-vision-preview",
     ];
+    const DEEPSEEK_MODELS = [
+      "deepseek-chat",
+      "deepseek-reasoner",
+    ];
 
-    const ALLOWED = GEMINI_MODELS.concat(GROQ_MODELS);
+    const ALLOWED = GEMINI_MODELS.concat(GROQ_MODELS).concat(DEEPSEEK_MODELS);
     const envDefault = process.env.AI_DEFAULT_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const clientModel = typeof body.model === "string" ? body.model.trim() : "";
     let preferred =
       clientModel && ALLOWED.indexOf(clientModel) !== -1 ? clientModel : envDefault;
     if (ALLOWED.indexOf(preferred) === -1) preferred = "gemini-2.5-flash";
 
+    const isDeepSeekModel = (m) =>
+      DEEPSEEK_MODELS.indexOf(m) !== -1 ||
+      String(m).startsWith("deepseek");
+
     const isGroqModel = (m) =>
+      !isDeepSeekModel(m) && (
       GROQ_MODELS.indexOf(m) !== -1 ||
       GROQ_VISION_MODELS.indexOf(m) !== -1 ||
       String(m).startsWith("llama") ||
@@ -131,7 +140,8 @@ module.exports = async function handler(req, res) {
       String(m).startsWith("qwen") ||
       String(m).startsWith("meta-llama") ||
       String(m).startsWith("openai/") ||
-      String(m).indexOf("llama") !== -1;
+      String(m).indexOf("llama") !== -1
+      );
 
     const systemText =
       "[Role & Directives]\n" +
@@ -223,6 +233,53 @@ module.exports = async function handler(req, res) {
       return { text: text || "", model: useModel, provider: "groq" };
     }
 
+    async function callDeepSeek(model) {
+      const key = process.env.DEEPSEEK_API_KEY;
+      if (!key) throw new Error("DEEPSEEK_API_KEY not set");
+      const messages = [{ role: "system", content: systemText }];
+      const history = Array.isArray(body.history) ? body.history : [];
+      for (const h of history.slice(-20)) {
+        if (!h || !h.text) continue;
+        messages.push({
+          role: h.role === "model" ? "assistant" : "user",
+          content: String(h.text),
+        });
+      }
+      messages.push({ role: "user", content: message || "" });
+      const r = await fetch("https://api.deepseek.com/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + key,
+        },
+        body: JSON.stringify({
+          model: model,
+          messages,
+          temperature: 0.7,
+          max_tokens: 8192,
+        }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const msg =
+          (data && data.error && data.error.message) || "DeepSeek request failed";
+        const err = new Error(msg);
+        err.status = r.status;
+        err.busy =
+          r.status === 429 ||
+          r.status === 503 ||
+          /rate limit|overloaded|unavailable|insufficient/i.test(msg);
+        throw err;
+      }
+      const text =
+        data &&
+        data.choices &&
+        data.choices[0] &&
+        data.choices[0].message &&
+        data.choices[0].message.content;
+      return { text: text || "", model: model, provider: "deepseek" };
+    }
+
     async function callGemini(model) {
       const key = process.env.GEMINI_API_KEY;
       if (!key) throw new Error("GEMINI_API_KEY not set");
@@ -297,7 +354,7 @@ module.exports = async function handler(req, res) {
     };
     if (hasImage) {
       if (process.env.GEMINI_API_KEY) {
-        if (!isGroqModel(preferred)) pushUnique(preferred);
+        if (!isGroqModel(preferred) && !isDeepSeekModel(preferred)) pushUnique(preferred);
         GEMINI_MODELS.forEach(pushUnique);
       }
       if (process.env.GROQ_API_KEY) {
@@ -305,11 +362,17 @@ module.exports = async function handler(req, res) {
       }
     } else {
       pushUnique(preferred);
-      if (isGroqModel(preferred)) {
+      if (isDeepSeekModel(preferred)) {
+        DEEPSEEK_MODELS.forEach(pushUnique);
+        if (process.env.GEMINI_API_KEY) GEMINI_MODELS.forEach(pushUnique);
+        if (process.env.GROQ_API_KEY) GROQ_MODELS.forEach(pushUnique);
+      } else if (isGroqModel(preferred)) {
         GROQ_MODELS.forEach(pushUnique);
         if (process.env.GEMINI_API_KEY) GEMINI_MODELS.forEach(pushUnique);
+        if (process.env.DEEPSEEK_API_KEY) DEEPSEEK_MODELS.forEach(pushUnique);
       } else {
         GEMINI_MODELS.forEach(pushUnique);
+        if (process.env.DEEPSEEK_API_KEY) DEEPSEEK_MODELS.forEach(pushUnique);
         if (process.env.GROQ_API_KEY) GROQ_MODELS.forEach(pushUnique);
       }
     }
@@ -317,10 +380,16 @@ module.exports = async function handler(req, res) {
     let lastError = "AI request failed";
     for (const model of tryList) {
       try {
+        const useDeepSeek = isDeepSeekModel(model);
         const useGroq = isGroqModel(model);
+        if (useDeepSeek && !process.env.DEEPSEEK_API_KEY) continue;
         if (useGroq && !process.env.GROQ_API_KEY) continue;
-        if (!useGroq && !process.env.GEMINI_API_KEY) continue;
-        const result = useGroq ? await callGroq(model) : await callGemini(model);
+        if (!useDeepSeek && !useGroq && !process.env.GEMINI_API_KEY) continue;
+        const result = useDeepSeek
+          ? await callDeepSeek(model)
+          : useGroq
+            ? await callGroq(model)
+            : await callGemini(model);
         return res.status(200).json({
           ok: true,
           text: result.text,
@@ -335,10 +404,10 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    if (!process.env.GEMINI_API_KEY && !process.env.GROQ_API_KEY) {
+    if (!process.env.GEMINI_API_KEY && !process.env.GROQ_API_KEY && !process.env.DEEPSEEK_API_KEY) {
       return res
         .status(500)
-        .json({ ok: false, error: "請設定 GEMINI_API_KEY 或 GROQ_API_KEY" });
+        .json({ ok: false, error: "請設定 GEMINI_API_KEY、GROQ_API_KEY 或 DEEPSEEK_API_KEY" });
     }
     let zh = "目前 AI 服務暫時無法回應，請稍後再試。";
     if (/high demand|rate limit|overloaded|busy/i.test(lastError)) {
