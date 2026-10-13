@@ -16,18 +16,32 @@
       'mark,.hl{background:linear-gradient(transparent 40%,#ffe566 40%);background-color:#ffe56699;padding:0.08em 0.2em;border-radius:3px;color:inherit}' +
       '@media (prefers-color-scheme:dark){mark,.hl{background:linear-gradient(transparent 40%,#c9a227 40%);background-color:#c9a22766}}' +
       '.c-red{color:#e53935;font-weight:600}' +
-      '.c-blue{color:#1e88e5;font-weight:600}' +
-      '.c-green{color:#43a047;font-weight:600}' +
       '.c-orange{color:#fb8c00;font-weight:600}' +
-      '.c-purple{color:#8e24aa;font-weight:600}' +
+      '.c-amber{color:#ffb300;font-weight:600}' +
       '.c-yellow{color:#f9a825;font-weight:600}' +
+      '.c-lime{color:#c0ca33;font-weight:600}' +
+      '.c-green{color:#43a047;font-weight:600}' +
+      '.c-teal{color:#00897b;font-weight:600}' +
+      '.c-cyan{color:#00acc1;font-weight:600}' +
+      '.c-blue{color:#1e88e5;font-weight:600}' +
+      '.c-indigo{color:#3949ab;font-weight:600}' +
+      '.c-purple{color:#8e24aa;font-weight:600}' +
+      '.c-pink{color:#d81b60;font-weight:600}' +
+      '.c-rose{color:#ec407a;font-weight:600}' +
+      '.c-brown{color:#6d4c41;font-weight:600}' +
+      '.c-gray{color:#757575;font-weight:600}' +
       '@media (prefers-color-scheme:dark){' +
-      '.c-red{color:#ef9a9a}.c-blue{color:#90caf9}.c-green{color:#a5d6a7}' +
-      '.c-orange{color:#ffcc80}.c-purple{color:#ce93d8}.c-yellow{color:#fff59d}}' +
+      '.c-red{color:#ef9a9a}.c-orange{color:#ffcc80}.c-amber{color:#ffe082}' +
+      '.c-yellow{color:#fff59d}.c-lime{color:#e6ee9c}.c-green{color:#a5d6a7}' +
+      '.c-teal{color:#80cbc4}.c-cyan{color:#80deea}.c-blue{color:#90caf9}' +
+      '.c-indigo{color:#9fa8da}.c-purple{color:#ce93d8}.c-pink{color:#f48fb1}' +
+      '.c-rose{color:#f48fb1}.c-brown{color:#bcaaa4}.c-gray{color:#bdbdbd}}' +
       '</style>';
     if (html.indexOf("</head>") !== -1) {
       html = html.replace("</head>", richCss + "</head>");
     }
+
+    var colorNames = "red|orange|amber|yellow|lime|green|teal|cyan|blue|indigo|purple|pink|rose|brown|gray";
 
     var newInline =
       "function renderInline(s) {\n" +
@@ -38,7 +52,7 @@
       "        tokens.push('<mark class=\"hl\">' + escapeHtml(t) + '</mark>');\n" +
       "        return '\\uE000' + i + '\\uE001';\n" +
       "      });\n" +
-      "      raw = raw.replace(/\\{#\\s*(red|blue|green|orange|purple|yellow)\\s*\\}([\\s\\S]+?)\\{#\\}/gi, function (_, c, t) {\n" +
+      "      raw = raw.replace(/\\{#\\s*(" + colorNames + ")\\s*\\}([\\s\\S]+?)\\{#\\}/gi, function (_, c, t) {\n" +
       "        var i = tokens.length;\n" +
       "        tokens.push('<span class=\"c-' + c.toLowerCase() + '\">' + escapeHtml(t) + '</span>');\n" +
       "        return '\\uE000' + i + '\\uE001';\n" +
