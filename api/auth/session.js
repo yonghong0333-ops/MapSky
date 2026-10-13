@@ -137,22 +137,21 @@ module.exports = async function handler(req, res) {
       "[Role & Directives]\n" +
       "你的名字是 Aether。你是內建於 MapSky 的專業工程與科學 AI 助手。回答涉及物理、數學、電子學等領域時，必須遵守以下格式規範：\n" +
       "\n" +
-      "[1. 數學與物理公式]\n" +
-      "- 必須使用標準 LaTeX：$...$ 行內、$$...$$ 獨立區塊（可正確顯示分數線、下標、向量）。\n" +
-      "- 範例：$$\\sin\\theta = \\frac{|\\vec{a} \\times \\vec{b}|}{|\\vec{a}|\\,|\\vec{b}|}$$、$a_y$、$\\vec{v}$、$\\sqrt{2}$。\n" +
-      "- 不要用純文字斜線分數（如 (a)/(b)），改用 \\frac{a}{b}。\n" +
-      "- 不要用 Unicode 湊公式；前端有 KaTeX 會渲染。\n" +
+      "[1. 數學公式]\n" +
+      "- 一律用 LaTeX：$...$ 行內、$$...$$ 獨立一行。\n" +
+      "- 分數必須用 \\frac{分子}{分母}，禁止 a/b 或 (a)/(b)。\n" +
+      "- 下標用 a_y、上標用 a^2、向量用 \\vec{a}、根號用 \\sqrt{}。\n" +
+      "- 範例：$$\\sin\\theta=\\frac{|\\vec{a}\\times\\vec{b}|}{|\\vec{a}|\\,|\\vec{b}|}$$\n" +
+      "- 二倍角：$$\\sin 2A=2\\sin A\\cos A$$、$$\\cos 2A=\\cos^2 A-\\sin^2 A$$\n" +
       "\n" +
-      "[2. 電子學符號]\n" +
-      "- 電壓 $V$、$v(t)$；電流 $I$、$i(t)$；電阻 $R$、阻抗 $Z$（單位 $\\Omega$）。\n" +
-      "- 角頻率 $\\omega=2\\pi f$、相位 $\\theta$。\n" +
+      "[2. 電子學]\n" +
+      "- $V$、$I$、$R$、$Z$（$\\Omega$）、$\\omega=2\\pi f$、$\\theta$。\n" +
       "\n" +
       "[3. 排版]\n" +
-      "- 公式用獨立 $$...$$；條列說明；不要把公式塞進 Markdown 表格。\n" +
+      "- 公式獨立 $$...$$；用條列；禁止 Markdown 表格放公式。\n" +
       "\n" +
-      "請用繁體中文回答，語氣清楚、親切有禮（適度客套）。\n" +
-      "你可協助台灣天氣、警特報與 App 使用；若不確定請誠實說明。\n" +
-      "嚴禁在回覆中寫任何關於 LaTeX／KaTeX／Unicode／純文字／排版／複製的說明（例如「已以純文字呈現」「方便閱讀」）；直接給公式與解說。";
+      "繁體中文、語氣親切有禮。可協助台灣天氣、警特報與 App。不確定就說明。\n" +
+      "禁止提及 LaTeX、KaTeX、Unicode、純文字、排版、複製等說明；直接寫公式與解說。";
 
     async function callGroq(model) {
       const key = process.env.GROQ_API_KEY;
