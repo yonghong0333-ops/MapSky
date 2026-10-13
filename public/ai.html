@@ -1,57 +1,68 @@
 <!DOCTYPE html>
-<html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"/><title>MapSky AI</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
-</head>
+<html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"/><title>MapSky AI</title></head>
 <body>
 <script>
 (async function(){
   try {
     var r = await fetch("https://cdn.jsdelivr.net/gh/yonghong0333-ops/MapSky@5ab928b4ec/public/ai.html");
     var html = await r.text();
+    var katexHead =
+      '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">' +
+      '<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"><\/script>' +
+      '<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"><\/script>';
+    if (html.indexOf("</head>") !== -1) {
+      html = html.replace("</head>", katexHead + "</head>");
+    } else {
+      html = katexHead + html;
+    }
     html = html.replace(
       /messagesEl\.scrollTop\s*=\s*messagesEl\.scrollHeight/g,
       "window.__mapskyScrollToBottomIfStuck && window.__mapskyScrollToBottomIfStuck()"
     );
-    var patch = `
-    (function(){
-      var el = document.getElementById("messages");
-      if (!el) return;
-      var stick = true;
-      var TH = 80;
-      function near(){ return (el.scrollHeight - el.scrollTop - el.clientHeight) <= TH; }
-      window.__mapskyScrollToBottomIfStuck = function(){ if (stick) el.scrollTop = el.scrollHeight; };
-      el.addEventListener("scroll", function(){ stick = near(); }, {passive:true});
-      el.addEventListener("touchmove", function(){ requestAnimationFrame(function(){ stick = near(); }); }, {passive:true});
-      document.addEventListener("submit", function(){ stick = true; }, true);
-      function renderMath(node){
-        if (!node || typeof renderMathInElement !== "function") return;
-        try {
-          renderMathInElement(node, {
-            delimiters: [
-              {left:"$$", right:"$$", display:true},
-              {left:"$", right:"$", display:false},
-              {left:"\\\\(", right:"\\\\)", display:false},
-              {left:"\\\\[", right:"\\\\]", display:true}
-            ],
-            throwOnError: false,
-            strict: "ignore"
-          });
-        } catch(e) {}
-      }
-      var obs = new MutationObserver(function(muts){
-        muts.forEach(function(m){
-          m.addedNodes.forEach(function(n){
-            if (n.nodeType === 1) renderMath(n);
-          });
-        });
-        if (stick) el.scrollTop = el.scrollHeight;
-      });
-      obs.observe(el, {childList:true, subtree:true});
-      renderMath(el);
-    })();
-    `;
+    var patch = [
+      "(function(){",
+      "  var el = document.getElementById('messages');",
+      "  if (!el) return;",
+      "  var stick = true;",
+      "  var TH = 80;",
+      "  function near(){ return (el.scrollHeight - el.scrollTop - el.clientHeight) <= TH; }",
+      "  window.__mapskyScrollToBottomIfStuck = function(){ if (stick) el.scrollTop = el.scrollHeight; };",
+      "  el.addEventListener('scroll', function(){ stick = near(); }, {passive:true});",
+      "  el.addEventListener('touchmove', function(){ requestAnimationFrame(function(){ stick = near(); }); }, {passive:true});",
+      "  document.addEventListener('submit', function(){ stick = true; }, true);",
+      "  function renderMath(node){",
+      "    if (!node || typeof renderMathInElement !== 'function') return;",
+      "    try {",
+      "      renderMathInElement(node, {",
+      "        delimiters: [",
+      "          {left:'$$', right:'$$', display:true},",
+      "          {left:'\\\\[', right:'\\\\]', display:true},",
+      "          {left:'$', right:'$', display:false},",
+      "          {left:'\\\\(', right:'\\\\)', display:false}",
+      "        ],",
+      "        throwOnError: false,",
+      "        strict: 'ignore'",
+      "      });",
+      "    } catch (e) {}",
+      "  }",
+      "  function waitKatex(cb, n){",
+      "    n = n || 0;",
+      "    if (typeof renderMathInElement === 'function' && typeof katex !== 'undefined') { cb(); return; }",
+      "    if (n > 100) return;",
+      "    setTimeout(function(){ waitKatex(cb, n+1); }, 50);",
+      "  }",
+      "  waitKatex(function(){",
+      "    renderMath(el);",
+      "    var obs = new MutationObserver(function(muts){",
+      "      muts.forEach(function(m){",
+      "        m.addedNodes.forEach(function(n){ if (n.nodeType === 1) renderMath(n); });",
+      "      });",
+      "      if (stick) el.scrollTop = el.scrollHeight;",
+      "    });",
+      "    obs.observe(el, {childList:true, subtree:true});",
+      "  });",
+      "})();"
+    ].join("\n");
     var idx = html.lastIndexOf("</script>");
     if (idx !== -1) html = html.slice(0, idx) + "\n" + patch + "\n" + html.slice(idx);
     document.open(); document.write(html); document.close();
