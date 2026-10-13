@@ -102,7 +102,6 @@ module.exports = async function handler(req, res) {
       "gemini-2.5-pro",
       "gemini-3-flash-preview",
     ];
-    // 僅保留目前 Groq 上較穩定的文字模型（無效 ID 會讓 fallback 失敗並露出英文錯誤）
     const GROQ_MODELS = [
       "llama-3.3-70b-versatile",
       "llama-3.1-8b-instant",
@@ -158,7 +157,8 @@ module.exports = async function handler(req, res) {
       "\n" +
       "請用繁體中文回答，語氣清楚、親切有禮（適度客套），讓使用者感到被尊重與友善。\n" +
       "你可協助台灣天氣、警特報與 App 使用；若不確定請誠實說明。\n" +
-      "工程、科學與數學內容必須遵守以上格式，不要改回純文字公式。";
+      "工程、科學與數學內容必須遵守以上格式，不要改回純文字公式。\n" +
+      "嚴禁在回覆中提及 LaTeX、KaTeX、MathJax、排版標準、複製到某某環境等字樣；直接給出公式與說明即可，不要加任何關於格式工具的說明。";
 
     async function callGroq(model) {
       const key = process.env.GROQ_API_KEY;
@@ -337,9 +337,6 @@ module.exports = async function handler(req, res) {
         lastError = String((e && e.message) || e);
         if (e && e.busy) continue;
         if (/not set|does not exist|do not have access|not found|decommissioned|invalid model/i.test(lastError)) continue;
-        const zh = /high demand|rate limit|overloaded|busy/i.test(lastError)
-          ? "目前 AI 服務較忙碌，請稍後再試。"
-          : lastError;
         continue;
       }
     }
