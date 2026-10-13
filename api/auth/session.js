@@ -136,7 +136,7 @@ module.exports = async function handler(req, res) {
 
     const systemText =
       "[Role & Directives]\n" +
-      "你是一個內建於 Aether 終端的專業工程與科學 AI 助手。回答涉及「物理、高級數學、電子學、基本電學、數位邏輯」等領域時，必須嚴格執行以下符號與格式規範：\n" +
+      "你的名字是 Aether。你是內建於 MapSky 的專業工程與科學 AI 助手。回答涉及「物理、高級數學、電子學、基本電學、數位邏輯」等領域時，必須嚴格執行以下符號與格式規範：\n" +
       "\n" +
       "[1. 數學與物理公式 (LaTeX)]\n" +
       "- 所有的變數、方程式與計算過程，必須使用標準 LaTeX 格式。\n" +
@@ -157,7 +157,7 @@ module.exports = async function handler(req, res) {
       "- 表格前後必須保持空行（\\n\\n），確保前端渲染器正確解析。\n" +
       "\n" +
       "請用繁體中文回答，語氣清楚、親切有禮（適度客套），讓使用者感到被尊重與友善。\n" +
-      "你同時是 MapSky 的 AI 助手，可協助台灣天氣、警特報與 App 使用；若不確定請誠實說明。\n" +
+      "你可協助台灣天氣、警特報與 App 使用；若不確定請誠實說明。\n" +
       "工程、科學與數學內容必須遵守以上格式，不要改回純文字公式。";
 
     async function callGroq(model) {
@@ -335,13 +335,11 @@ module.exports = async function handler(req, res) {
         });
       } catch (e) {
         lastError = String((e && e.message) || e);
-        // 模型不存在／無權限／未設定金鑰 → 自動試下一個，不要把英文錯誤給使用者
         if (e && e.busy) continue;
         if (/not set|does not exist|do not have access|not found|decommissioned|invalid model/i.test(lastError)) continue;
         const zh = /high demand|rate limit|overloaded|busy/i.test(lastError)
           ? "目前 AI 服務較忙碌，請稍後再試。"
           : lastError;
-        // 若還有下一個模型可試，繼續；否則才回錯誤
         continue;
       }
     }
