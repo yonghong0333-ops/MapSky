@@ -1,80 +1,103 @@
 <!DOCTYPE html>
-<html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"/><title>MapSky AI</title></head>
+<html><head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"/>
+<title>MapSky AI</title>
+</head>
 <body>
 <script>
-(async function(){
+(async function () {
   try {
     var r = await fetch("https://cdn.jsdelivr.net/gh/yonghong0333-ops/MapSky@5ab928b4ec/public/ai.html");
     var html = await r.text();
+
     var katexHead =
-      '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css" crossorigin="anonymous">' +
+      '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">' +
       '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">' +
-      '<style>.katex{font-size:1.1em;}.katex-display{margin:0.6em 0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;}.bubble .katex-error{color:inherit;}</style>' +
-      '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js" crossorigin="anonymous"><\/script>' +
-      '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/contrib/auto-render.min.js" crossorigin="anonymous"><\/script>';
+      '<style>' +
+      '.katex{font-size:1.15em;line-height:1.3;}' +
+      '.katex-display{display:block;margin:0.75em 0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;text-align:center;}' +
+      '.bubble .katex-error{color:inherit !important;background:transparent !important;}' +
+      '.bubble-text{line-height:1.55;}' +
+      '</style>' +
+      '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"><\/script>' +
+      '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/contrib/auto-render.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"><\/script>' +
+      '<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"><\/script>' +
+      '<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"><\/script>';
+
     if (html.indexOf("</head>") !== -1) {
       html = html.replace("</head>", katexHead + "</head>");
     } else {
       html = katexHead + html;
     }
+
     html = html.replace(
       /messagesEl\.scrollTop\s*=\s*messagesEl\.scrollHeight/g,
-      "window.__mapskyScrollToBottomIfStuck && window.__mapskyScrollToBottomIfStuck()"
+      "window.__mapskyScrollToBottomIfStuck&&window.__mapskyScrollToBottomIfStuck()"
     );
+
     var patch = [
       "(function(){",
-      "  var el = document.getElementById('messages');",
-      "  if (!el) return;",
-      "  var stick = true;",
-      "  var TH = 80;",
-      "  function near(){ return (el.scrollHeight - el.scrollTop - el.clientHeight) <= TH; }",
-      "  window.__mapskyScrollToBottomIfStuck = function(){ if (stick) el.scrollTop = el.scrollHeight; };",
-      "  el.addEventListener('scroll', function(){ stick = near(); }, {passive:true});",
-      "  el.addEventListener('touchmove', function(){ requestAnimationFrame(function(){ stick = near(); }); }, {passive:true});",
-      "  document.addEventListener('submit', function(){ stick = true; }, true);",
+      "  var el=document.getElementById('messages');",
+      "  if(!el)return;",
+      "  var stick=true,TH=80;",
+      "  function near(){return (el.scrollHeight-el.scrollTop-el.clientHeight)<=TH;}",
+      "  window.__mapskyScrollToBottomIfStuck=function(){if(stick)el.scrollTop=el.scrollHeight;};",
+      "  el.addEventListener('scroll',function(){stick=near();},{passive:true});",
+      "  el.addEventListener('touchmove',function(){requestAnimationFrame(function(){stick=near();});},{passive:true});",
+      "  document.addEventListener('submit',function(){stick=true;},true);",
+      "  var opts={",
+      "    delimiters:[",
+      "      {left:'$$',right:'$$',display:true},",
+      "      {left:'\\\\[',right:'\\\\]',display:true},",
+      "      {left:'$',right:'$',display:false},",
+      "      {left:'\\\\(',right:'\\\\)',display:false}",
+      "    ],",
+      "    throwOnError:false,",
+      "    errorColor:'#111',",
+      "    strict:'ignore',",
+      "    trust:false",
+      "  };",
       "  function renderMath(node){",
-      "    if (!node || typeof renderMathInElement !== 'function') return;",
-      "    if (node.querySelector && node.querySelector('.katex')) return;",
-      "    try {",
-      "      renderMathInElement(node, {",
-      "        delimiters: [",
-      "          {left:'$$', right:'$$', display:true},",
-      "          {left:'\\\\[', right:'\\\\]', display:true},",
-      "          {left:'$', right:'$', display:false},",
-      "          {left:'\\\\(', right:'\\\\)', display:false}",
-      "        ],",
-      "        throwOnError: false,",
-      "        errorColor: '#000000',",
-      "        strict: 'ignore'",
-      "      });",
-      "    } catch (e) {}",
+      "    if(!node)return;",
+      "    if(typeof renderMathInElement!=='function')return;",
+      "    if(node.querySelector&&node.querySelector('.katex'))return;",
+      "    try{renderMathInElement(node,opts);}catch(e){}",
       "  }",
-      "  function waitKatex(cb, n){",
-      "    n = n || 0;",
-      "    if (typeof katex !== 'undefined' && typeof renderMathInElement === 'function') { cb(); return; }",
-      "    if (n > 120) { cb(); return; }",
-      "    setTimeout(function(){ waitKatex(cb, n+1); }, 50);",
+      "  function waitReady(cb,n){",
+      "    n=n||0;",
+      "    if(typeof katex!=='undefined'&&typeof renderMathInElement==='function'){cb();return;}",
+      "    if(n>150){cb();return;}",
+      "    setTimeout(function(){waitReady(cb,n+1);},40);",
       "  }",
-      "  waitKatex(function(){",
+      "  waitReady(function(){",
       "    renderMath(el);",
-      "    var obs = new MutationObserver(function(muts){",
-      "      muts.forEach(function(m){",
+      "    var obs=new MutationObserver(function(ms){",
+      "      ms.forEach(function(m){",
       "        m.addedNodes.forEach(function(n){",
-      "          if (n.nodeType === 1) requestAnimationFrame(function(){ renderMath(n); });",
+      "          if(n.nodeType===1){",
+      "            requestAnimationFrame(function(){renderMath(n);});",
+      "            setTimeout(function(){renderMath(n);},100);",
+      "          }",
       "        });",
       "      });",
-      "      if (stick) el.scrollTop = el.scrollHeight;",
+      "      if(stick)el.scrollTop=el.scrollHeight;",
       "    });",
-      "    obs.observe(el, {childList:true, subtree:true});",
+      "    obs.observe(el,{childList:true,subtree:true});",
       "  });",
       "})();"
     ].join("\n");
+
     var idx = html.lastIndexOf("</script>");
     if (idx !== -1) html = html.slice(0, idx) + "\n" + patch + "\n" + html.slice(idx);
-    document.open(); document.write(html); document.close();
+
+    document.open();
+    document.write(html);
+    document.close();
   } catch (e) {
-    document.body.innerHTML = "<p style='padding:24px;font-family:sans-serif'>AI 頁面載入失敗，請稍後再試。</p>";
+    document.body.innerHTML = "<p style='padding:24px;font-family:sans-serif'>AI 頁面載入失敗</p>";
   }
 })();
 </script>
-</body></html>
+</body>
+</html>
