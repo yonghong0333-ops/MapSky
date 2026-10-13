@@ -11,19 +11,6 @@
     var r = await fetch("https://cdn.jsdelivr.net/gh/yonghong0333-ops/MapSky@5ab928b4ec/public/ai.html");
     var html = await r.text();
 
-    var katexHead =
-      '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">' +
-      '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">' +
-      '<style>.katex{font-size:1.15em;line-height:1.35}.katex-display{display:block;margin:.8em 0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;text-align:center}.bubble .katex-error{color:inherit!important;background:transparent!important}.bubble-text{line-height:1.55;word-break:break-word}</style>' +
-      '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"><\/script>' +
-      '<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"><\/script>';
-
-    if (html.indexOf("</head>") !== -1) {
-      html = html.replace("</head>", katexHead + "</head>");
-    } else {
-      html = katexHead + html;
-    }
-
     html = html.replace(
       /messagesEl\.scrollTop\s*=\s*messagesEl\.scrollHeight/g,
       "window.__mapskyScrollToBottomIfStuck&&window.__mapskyScrollToBottomIfStuck()"
@@ -39,63 +26,8 @@
       "  el.addEventListener('scroll',function(){stick=near();},{passive:true});",
       "  el.addEventListener('touchmove',function(){requestAnimationFrame(function(){stick=near();});},{passive:true});",
       "  document.addEventListener('submit',function(){stick=true;},true);",
-      "  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}",
-      "  function mathToHtml(text){",
-      "    if(!text)return '';",
-      "    var chunks=[],s=String(text),re=/\\$\\$([\\s\\S]+?)\\$\\$|\\$([^\\$\\n]+?)\\$/g,last=0,m;",
-      "    while((m=re.exec(s))){",
-      "      if(m.index>last)chunks.push({t:'p',v:s.slice(last,m.index)});",
-      "      var tex=(m[1]!=null?m[1]:m[2]).trim(),display=m[1]!=null,html='';",
-      "      if(typeof katex!=='undefined'){",
-      "        try{html=katex.renderToString(tex,{displayMode:display,throwOnError:false,strict:'ignore',errorColor:'#111'});}",
-      "        catch(e){html=display?'<div style=\"text-align:center;margin:.6em 0\">'+esc(tex)+'</div>':esc(tex);}",
-      "      }else{html=display?'<div style=\"text-align:center;margin:.6em 0\">'+esc(tex)+'</div>':esc(tex);}",
-      "      chunks.push({t:'m',v:html});",
-      "      last=m.index+m[0].length;",
-      "    }",
-      "    if(last<s.length)chunks.push({t:'p',v:s.slice(last)});",
-      "    return chunks.map(function(c){return c.t==='m'?c.v:esc(c.v).replace(/\\n/g,'<br>');}).join('');",
-      "  }",
-      "  function enhanceBubble(node){",
-      "    if(!node||node.nodeType!==1)return;",
-      "    var list=[];",
-      "    function collect(n){",
-      "      if(!n||n.nodeType!==1)return;",
-      "      if(n.getAttribute&&n.getAttribute('data-math')==='1')return;",
-      "      var txt=n.childNodes&&n.childNodes.length===1&&n.childNodes[0].nodeType===3?n.textContent:'';",
-      "      if(txt&&txt.indexOf('$')!==-1){list.push(n);return;}",
-      "      if(n.children){for(var i=0;i<n.children.length;i++)collect(n.children[i]);}",
-      "    }",
-      "    collect(node);",
-      "    list.forEach(function(t){",
-      "      if(t.getAttribute('data-math')==='1')return;",
-      "      var raw=t.textContent||'';",
-      "      if(raw.indexOf('$')===-1)return;",
-      "      try{t.innerHTML=mathToHtml(raw);t.setAttribute('data-math','1');}catch(e){}",
-      "    });",
-      "  }",
-      "  function waitKatex(cb,n){",
-      "    n=n||0;",
-      "    if(typeof katex!=='undefined'){cb();return;}",
-      "    if(n>150){cb();return;}",
-      "    setTimeout(function(){waitKatex(cb,n+1);},40);",
-      "  }",
-      "  waitKatex(function(){",
-      "    enhanceBubble(el);",
-      "    var obs=new MutationObserver(function(ms){",
-      "      ms.forEach(function(m){",
-      "        m.addedNodes.forEach(function(n){",
-      "          if(n.nodeType===1){",
-      "            requestAnimationFrame(function(){enhanceBubble(n);});",
-      "            setTimeout(function(){enhanceBubble(n);},150);",
-      "            setTimeout(function(){enhanceBubble(n);},450);",
-      "          }",
-      "        });",
-      "      });",
-      "      if(stick)el.scrollTop=el.scrollHeight;",
-      "    });",
-      "    obs.observe(el,{childList:true,subtree:true});",
-      "  });",
+      "  var obs=new MutationObserver(function(){if(stick)el.scrollTop=el.scrollHeight;});",
+      "  obs.observe(el,{childList:true,subtree:true});",
       "})();"
     ].join("\n");
 
