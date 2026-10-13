@@ -1,12 +1,15 @@
 <!DOCTYPE html>
-<html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"/><title>MapSky AI</title></head>
+<html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"/><title>MapSky AI</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
+</head>
 <body>
 <script>
 (async function(){
   try {
     var r = await fetch("https://cdn.jsdelivr.net/gh/yonghong0333-ops/MapSky@5ab928b4ec/public/ai.html");
     var html = await r.text();
-    // Replace unconditional scroll-to-bottom with stick-aware helper
     html = html.replace(
       /messagesEl\.scrollTop\s*=\s*messagesEl\.scrollHeight/g,
       "window.__mapskyScrollToBottomIfStuck && window.__mapskyScrollToBottomIfStuck()"
@@ -18,18 +21,35 @@
       var stick = true;
       var TH = 80;
       function near(){ return (el.scrollHeight - el.scrollTop - el.clientHeight) <= TH; }
-      window.__mapskyScrollToBottomIfStuck = function(){
-        if (stick) el.scrollTop = el.scrollHeight;
-      };
+      window.__mapskyScrollToBottomIfStuck = function(){ if (stick) el.scrollTop = el.scrollHeight; };
       el.addEventListener("scroll", function(){ stick = near(); }, {passive:true});
       el.addEventListener("touchmove", function(){ requestAnimationFrame(function(){ stick = near(); }); }, {passive:true});
       document.addEventListener("submit", function(){ stick = true; }, true);
-      // Bridge chat also re-enables
-      var orig = window.MapSkyAI;
-      if (orig && orig.chat) {
-        var c = orig.chat.bind(orig);
-        orig.chat = async function(){ stick = true; return c.apply(this, arguments); };
+      function renderMath(node){
+        if (!node || typeof renderMathInElement !== "function") return;
+        try {
+          renderMathInElement(node, {
+            delimiters: [
+              {left:"$$", right:"$$", display:true},
+              {left:"$", right:"$", display:false},
+              {left:"\\\\(", right:"\\\\)", display:false},
+              {left:"\\\\[", right:"\\\\]", display:true}
+            ],
+            throwOnError: false,
+            strict: "ignore"
+          });
+        } catch(e) {}
       }
+      var obs = new MutationObserver(function(muts){
+        muts.forEach(function(m){
+          m.addedNodes.forEach(function(n){
+            if (n.nodeType === 1) renderMath(n);
+          });
+        });
+        if (stick) el.scrollTop = el.scrollHeight;
+      });
+      obs.observe(el, {childList:true, subtree:true});
+      renderMath(el);
     })();
     `;
     var idx = html.lastIndexOf("</script>");
