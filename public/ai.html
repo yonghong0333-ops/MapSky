@@ -3,6 +3,8 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"/>
 <title>MapSky AI</title>
+<link rel="stylesheet" href="/katex/katex.min.css"/>
+<script src="/katex/katex.min.js"></script>
 </head>
 <body>
 <script>
@@ -11,7 +13,9 @@
     var r = await fetch("https://cdn.jsdelivr.net/gh/yonghong0333-ops/MapSky@5ab928b4ec/public/ai.html");
     var html = await r.text();
 
-    var richCss =
+    var inject =
+      '<link rel="stylesheet" href="/katex/katex.min.css">' +
+      '<script src="/katex/katex.min.js"><\/script>' +
       '<style>' +
       'mark,.hl{background:linear-gradient(transparent 40%,#ffe566 40%);background-color:#ffe56699;padding:0.08em 0.2em;border-radius:3px;color:inherit}' +
       '@media (prefers-color-scheme:dark){mark,.hl{background:linear-gradient(transparent 40%,#c9a227 40%);background-color:#c9a22766}}' +
@@ -29,8 +33,9 @@
       '.c-teal{color:#80cbc4}.c-cyan{color:#80deea}.c-blue{color:#90caf9}' +
       '.c-indigo{color:#9fa8da}.c-purple{color:#ce93d8}.c-pink{color:#f48fb1}' +
       '.c-rose{color:#f48fb1}.c-brown{color:#bcaaa4}.c-gray{color:#bdbdbd}}' +
+      '.katex{font-size:1.15em}.katex-display{display:block;margin:.8em 0;overflow-x:auto;-webkit-overflow-scrolling:touch;text-align:center}' +
       '</style>';
-    if (html.indexOf("</head>") !== -1) html = html.replace("</head>", richCss + "</head>");
+    if (html.indexOf("</head>") !== -1) html = html.replace("</head>", inject + "</head>");
 
     var colorNames = "red|orange|amber|yellow|lime|green|teal|cyan|blue|indigo|purple|pink|rose|brown|gray";
     var newInline =
@@ -71,25 +76,32 @@
       "  var COLORS='red|orange|amber|yellow|lime|green|teal|cyan|blue|indigo|purple|pink|rose|brown|gray';",
       "  var colorRe=new RegExp('\\{#\\s*('+COLORS+')\\s*\\}([\\s\\S]+?)\\{#\\}','gi');",
       "  var markRe=/==([^=<\\n]+)==/g;",
+      "  function esc(s){return String(s).replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>');}",
       "  function richifyHtml(h){",
       "    if(!h)return h;",
       "    h=h.replace(markRe,function(_,t){return '<mark class=\"hl\">'+t+'</mark>';});",
       "    h=h.replace(colorRe,function(_,c,t){return '<span class=\"c-'+String(c).toLowerCase()+'\">'+t+'</span>';});",
+      "    // math $...$ and $$...$$",
+      "    h=h.replace(/\\$\\$([\\s\\S]+?)\\$\\$/g,function(_,tex){",
+      "      if(typeof katex==='undefined')return '<div style=\"text-align:center;margin:.6em 0\">'+esc(tex)+'</div>';",
+      "      try{return katex.renderToString(tex.trim(),{displayMode:true,throwOnError:false,strict:'ignore'});}catch(e){return esc(tex);}",
+      "    });",
+      "    h=h.replace(/\\$([^\\$\\n]+?)\\$/g,function(_,tex){",
+      "      if(typeof katex==='undefined')return esc(tex);",
+      "      try{return katex.renderToString(tex.trim(),{displayMode:false,throwOnError:false,strict:'ignore'});}catch(e){return esc(tex);}",
+      "    });",
       "    return h;",
       "  }",
-      "  function needsRich(s){return s&&(s.indexOf('{#')!==-1||s.indexOf('==')!==-1);}",
+      "  function needsRich(s){return s&&(s.indexOf('{#')!==-1||s.indexOf('==')!==-1||s.indexOf('$')!==-1);}",
       "  function richifyAll(){",
-      "    var nodes=el.querySelectorAll('.bubble-text, .bubble.model');",
+      "    var nodes=el.querySelectorAll('.bubble-text');",
       "    for(var i=0;i<nodes.length;i++){",
       "      var t=nodes[i];",
       "      var txt=t.textContent||'';",
       "      if(!needsRich(txt))continue;",
       "      var before=t.innerHTML;",
       "      var after=richifyHtml(before);",
-      "      if(after!==before){t.innerHTML=after;continue;}",
-      "      if(t.childNodes.length===1&&t.childNodes[0].nodeType===3){",
-      "        t.innerHTML=richifyHtml(txt.replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>'));",
-      "      }",
+      "      if(after!==before)t.innerHTML=after;",
       "    }",
       "  }",
       "  setInterval(richifyAll, 400);",
