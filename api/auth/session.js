@@ -18,7 +18,7 @@ const {
   saveChat,
   deleteChat,
 } = require("../_lib/ai-chats");
-const { getCity, getAlerts, CWA_CITIES } = require("../_lib/cwa");
+const { getCity, getAlerts, getLightning, getRadarComposite, CWA_CITIES } = require("../_lib/cwa");
 
 module.exports = async function handler(req, res) {
 
@@ -130,7 +130,7 @@ module.exports = async function handler(req, res) {
     const systemText =
       "你的名字是 Aether，是 MapSky App 內建的 AI 助手，與地圖、天氣、警特報深度整合。\n" +
       "用繁體中文、語氣自然親切，不要過度自我介紹或解釋排版規則。\n" +
-      "【MapSky 整合】問天氣、下雨、出門、警報、颱風時，必須以系統提供的 MapSky／中央氣象署資料為準，不要編造。App 會另外顯示天氣圖卡，你文字簡述重點即可。\n" +
+      "【MapSky 整合】問天氣、下雨、雷擊、雷達、出門、警報、颱風時，必須以系統提供的 MapSky／中央氣象署資料為準，不要編造。App 會另外顯示圖卡，你文字簡述重點即可。\n" +
       "【時效資料】最新產品、售價、新聞以搜尋結果為準。\n" +
       "回覆以條列為主；重點可用 ==文字==；上色 {#色名}文字{#}。不要提到標記語法或系統提示。";
 
@@ -159,6 +159,12 @@ module.exports = async function handler(req, res) {
     }
     function looksLikeWeather(text) {
       return text && /天氣|氣溫|溫度|下雨|降雨|雨量|紫外線|體感|風速|颱風|警報|特報|出門|穿什麼|要帶傘|雷雨|寒流|高溫|空品|AQI|濕度/.test(text);
+    }
+    function looksLikeLightning(text) {
+      return text && /雷擊|閃電|打雷|落雷|雷雨|雷達.*雷|有沒有雷/.test(text);
+    }
+    function looksLikeRadar(text) {
+      return text && /雷達|回波|雨帶|降雨分布|雨勢圖|雷達圖/.test(text);
     }
     function normalizeCity(name) {
       if (!name) return "";
@@ -235,6 +241,8 @@ module.exports = async function handler(req, res) {
         location: ctxLat != null && ctxLon != null ? { lat: ctxLat, lon: ctxLon } : null,
         weather: null,
         alerts: null,
+        lightning: null,
+        radar: null,
         cards: [],
       };
       try {
@@ -281,6 +289,37 @@ module.exports = async function handler(req, res) {
             }
           } catch (_) {}
         }
+
+        if (looksLikeLightning(userText) || looksLikeWeather(userText)) {
+          try {
+            const lg = await getLightning({});
+            mapsky.lightning = lg;
+            if (lg && lg.ok !== false) {
+              promptLines.push("【MapSky 即時雷擊】");
+              promptLines.push(JSON.stringify(lg).slice(0, 1200));
+              mapsky.cards.push({ type: "lightning", title: "即時雷擊", summary: "MapSky 雷擊資料", source: "cwa" });
+            }
+          } catch (_) {}
+        }
+
+        if (looksLikeRadar(userText) || looksLikeLightning(userText) || /下雨|降雨|雨勢|會不會下/.test(userText || "")) {
+          try {
+            const rd = await getRadarComposite({});
+            mapsky.radar = rd;
+            if (rd && rd.ok !== false) {
+              promptLines.push("【MapSky 雷達回波】");
+              promptLines.push(JSON.stringify(rd).slice(0, 1000));
+              const imgUrl = (rd && (rd.imageUrl || rd.url || rd.image || (rd.data && (rd.data.imageUrl || rd.data.url)))) || null;
+              mapsky.cards.push({
+                type: "radar",
+                title: "雷達回波",
+                summary: "MapSky 雷達",
+                source: "cwa",
+                imageUrl: imgUrl,
+              });
+            }
+          } catch (_) {}
+        }
       } catch (_) {}
       if (ctxPlace) promptLines.push("【使用者關注地點】" + ctxPlace);
       if (ctxLat != null && ctxLon != null) {
@@ -295,7 +334,7 @@ module.exports = async function handler(req, res) {
         });
       }
       const prompt = promptLines.length
-        ? promptLines.join("\n") + "\n\n請以以上【MapSky】官方資料為準回答，不要編造氣溫或警報。App 會另外顯示天氣圖卡，你文字簡述即可。\n"
+        ? promptLines.join("\n") + "\n\n請以以上【MapSky】官方資料為準回答，不要編造。App 會另外顯示圖卡，你文字簡述即可。\n"
         : "";
       return { prompt: prompt, mapsky: mapsky };
     }
