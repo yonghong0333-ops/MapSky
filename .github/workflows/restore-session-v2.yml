@@ -1,0 +1,45 @@
+name: restore-session-v2
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/restore-session-v2.yml"
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download good session.js and patch
+        run: |
+          set -e
+          curl -fsSL "https://raw.githubusercontent.com/yonghong0333-ops/MapSky/780de4c45e1f5ebc866ede1c20114e9717b38569/api/auth/session.js" -o api/auth/session.js
+          wc -c api/auth/session.js
+          head -c 50 api/auth/session.js; echo
+          test $(wc -c < api/auth/session.js) -gt 20000
+
+          python3 -c '
+from pathlib import Path
+p = Path("api/auth/session.js")
+t = p.read_text(encoding="utf-8")
+old_wx = "function looksLikeWeather(text) {\n      return text && /天氣|氣溫|下雨|降雨|雨量|紫外線|體感|風速|颱風|氣象|預報|帶傘|穿什麼|雷雨|寒流|高溫|空品|AQI|濕度|會不會熱|會不會冷/.test(text);\n    }"
+new_wx = "function looksLikeWeather(text) {\n      if (!text) return false;\n      if (/天氣|氣溫|氣象|天氣預報|氣象局|中央氣象|雨量|紫外線|體感溫度|風速|颱風|雷雨|寒流|空品|AQI|PM2\\.5/.test(text)) return true;\n      if (/會不會下雨|下不下雨|有沒有雨|帶傘|要不要帶傘|穿什麼.*(冷|熱|雨)|會不會熱|會不會冷|幾度|幾℃/.test(text)) return true;\n      if (/(今|明|後)天.*(雨|熱|冷|溫)|外出.*(天氣|雨)/.test(text)) return true;\n      if (/(天氣|氣象).{0,8}(預報|高溫|濕度)|(預報|高溫|濕度).{0,8}(天氣|氣象|氣溫)/.test(text)) return true;\n      return false;\n    }"
+old_radar = "const askRadar = Boolean(looksLikeRadar(text)) || /下雨|降雨|雨勢|會不會下/.test(text);"
+new_radar = "const askRadar = Boolean(looksLikeRadar(text)) || /會不會下雨|下不下雨|雨勢|降雨量|有沒有雨/.test(text);"
+old_sys = "\"【MapSky 整合】只有使用者明確在問天氣、下雨、雷擊、雷達、地圖、警報、颱風時，才使用系統附上的 MapSky／中央氣象署資料。課業、國文、數學、一般聊天不要提及 MapSky、天氣或座標。\\n\" +"
+new_sys = "\"【MapSky 整合】只有使用者這句明確在問天氣、會不會下雨、雷擊、雷達、地圖定位、警特報、颱風時，才使用系統附上的 MapSky／中央氣象署資料。\\n\" +\n      \"課業（數學、國文、英文、理化等）、解題、聊天、翻譯、寫作一律直接回答，不要讀取或提到 MapSky API、天氣、座標、縣市氣象。沒有附上【MapSky】資料時，絕不要假裝查過天氣。\\n\" +"
+if old_wx not in t: raise SystemExit("wx missing")
+if old_radar not in t: raise SystemExit("radar missing")
+if old_sys not in t: raise SystemExit("sys missing")
+t = t.replace(old_wx, new_wx, 1).replace(old_radar, new_radar, 1).replace(old_sys, new_sys, 1)
+p.write_text(t, encoding="utf-8")
+print("patched", p.stat().st_size)
+'
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/auth/session.js
+          git commit -m "fix(ai): restore session.js; tighten weather API trigger for homework"
+          git push
