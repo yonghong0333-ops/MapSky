@@ -1,0 +1,99 @@
+name: restore-session-ai
+on:
+  push:
+    paths:
+      - ".github/workflows/restore-session-ai.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore and patch
+        run: |
+          set -e
+          GOOD=$(git log --all --pretty=format:%H -- api/auth/session.js | while read c; do
+            sz=$(git cat-file -s "$c:api/auth/session.js" 2>/dev/null || echo 0)
+            # real file is ~35k; PLACEHOLDER is tiny
+            if [ "$sz" -gt 20000 ]; then
+              # skip if content is literally PLACEHOLDER
+              head=$(git show "$c:api/auth/session.js" 2>/dev/null | head -c 20)
+              if echo "$head" | grep -q "PLACEHOLDER"; then continue; fi
+              echo "$c"
+              break
+            fi
+          done)
+          echo "GOOD=$GOOD"
+          test -n "$GOOD"
+          git show "$GOOD:api/auth/session.js" > api/auth/session.js
+          wc -c api/auth/session.js
+
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path("api/auth/session.js")
+          t = p.read_text(encoding="utf-8")
+
+          old_wx = '''function looksLikeWeather(text) {
+      return text && /天氣|氣溫|下雨|降雨|雨量|紫外線|體感|風速|颱風|氣象|預報|帶傘|穿什麼|雷雨|寒流|高溫|空品|AQI|濕度|會不會熱|會不會冷/.test(text);
+    }'''
+
+          new_wx = '''function looksLikeWeather(text) {
+      // 必須是明確的天氣語意；避免「會不會下學期／下次考試」等課業句誤觸
+      if (!text) return false;
+      if (/天氣|氣溫|氣象|天氣預報|氣象局|中央氣象|雨量|紫外線|體感溫度|風速|颱風|雷雨|寒流|空品|AQI|PM2\\.5/.test(text)) return true;
+      if (/會不會下雨|下不下雨|有沒有雨|帶傘|要不要帶傘|穿什麼.*(冷|熱|雨)|會不會熱|會不會冷|幾度|幾℃/.test(text)) return true;
+      if (/(今|明|後)天.*(雨|熱|冷|溫)|外出.*(天氣|雨)/.test(text)) return true;
+      if (/(天氣|氣象).{0,8}(預報|高溫|濕度)|(預報|高溫|濕度).{0,8}(天氣|氣象|氣溫)/.test(text)) return true;
+      return false;
+    }'''
+
+          old_radar = '''const askRadar = Boolean(looksLikeRadar(text)) || /下雨|降雨|雨勢|會不會下/.test(text);'''
+          new_radar = '''const askRadar = Boolean(looksLikeRadar(text)) || /會不會下雨|下不下雨|雨勢|降雨量|有沒有雨/.test(text);'''
+
+          old_sys = '''"【MapSky 整合】只有使用者明確在問天氣、下雨、雷擊、雷達、地圖、警報、颱風時，才使用系統附上的 MapSky／中央氣象署資料。課業、國文、數學、一般聊天不要提及 MapSky、天氣或座標。\\n" +'''
+          new_sys = '''"【MapSky 整合】只有使用者這句明確在問天氣、會不會下雨、雷擊、雷達、地圖定位、警特報、颱風時，才使用系統附上的 MapSky／中央氣象署資料。\\n" +
+      "課業（數學、國文、英文、理化等）、解題、聊天、翻譯、寫作一律直接回答，不要讀取或提到 MapSky API、天氣、座標、縣市氣象。沒有附上【MapSky】資料時，絕不要假裝查過天氣。\\n" +'''
+
+          # Idempotent: if already patched, skip replaces that are missing
+          if old_wx in t:
+              t = t.replace(old_wx, new_wx, 1)
+              print("wx patched")
+          elif "必須是明確的天氣語意" in t:
+              print("wx already patched")
+          else:
+              raise SystemExit("wx pattern not found")
+
+          if old_radar in t:
+              t = t.replace(old_radar, new_radar, 1)
+              print("radar patched")
+          elif "會不會下雨|下不下雨|雨勢|降雨量" in t:
+              print("radar already patched")
+          else:
+              raise SystemExit("radar pattern not found")
+
+          if old_sys in t:
+              t = t.replace(old_sys, new_sys, 1)
+              print("sys patched")
+          elif "絕不要假裝查過天氣" in t:
+              print("sys already patched")
+          else:
+              raise SystemExit("sys pattern not found")
+
+          p.write_text(t, encoding="utf-8")
+          print("final size", p.stat().st_size)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/auth/session.js
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "fix(ai): restore session.js + only fetch weather when clearly asked"
+            git push
+          fi
