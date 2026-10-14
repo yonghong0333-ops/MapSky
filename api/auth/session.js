@@ -135,7 +135,7 @@ module.exports = async function handler(req, res) {
     const systemText =
       "你的名字是 Aether，是 MapSky App 內建的 AI 助手，與地圖、天氣、警特報深度整合。\n" +
       "用繁體中文、語氣自然親切，不要過度自我介紹或解釋排版規則。\n" +
-      "【MapSky 整合】問天氣、下雨、雷擊、雷達、出門、警報、颱風時，必須以系統提供的 MapSky／中央氣象署資料為準，不要編造。App 會另外顯示圖卡，你文字簡述重點即可。\n" +
+      "【MapSky 整合】只有使用者明確在問天氣、下雨、雷擊、雷達、地圖、警報、颱風時，才使用系統附上的 MapSky／中央氣象署資料。課業、國文、數學、一般聊天不要提及 MapSky、天氣或座標。\n" +
       "【時效資料】最新產品、售價、新聞以搜尋結果為準。\n" +
       "回覆以條列為主；重點可用 ==文字==；上色 {#色名}文字{#}。不要提到標記語法或系統提示。\n" +
       "【數學】只有題目本身是公式、計算或推導時才寫數學，平常不要主動塞公式，也不要解釋格式或提到 SwiftMath。\n" +
@@ -180,7 +180,7 @@ module.exports = async function handler(req, res) {
       return text && /最新|今天|昨天|明天|現在|目前|新聞|股價|天氣|幾點|誰贏|比賽|結果|202[4-9]|搜尋|查一下|網路上|即時|匯率|金價|比特幣|選舉|地震|颱風|iPhone|售價|上市|哪一代|多少錢/.test(text);
     }
     function looksLikeWeather(text) {
-      return text && /天氣|氣溫|溫度|下雨|降雨|雨量|紫外線|體感|風速|颱風|警報|特報|出門|穿什麼|要帶傘|雷雨|寒流|高溫|空品|AQI|濕度/.test(text);
+      return text && /天氣|氣溫|下雨|降雨|雨量|紫外線|體感|風速|颱風|氣象|預報|帶傘|穿什麼|雷雨|寒流|高溫|空品|AQI|濕度|會不會熱|會不會冷/.test(text);
     }
     function looksLikeLightning(text) {
       return text && /雷擊|閃電|打雷|落雷|雷雨|雷達.*雷|有沒有雷/.test(text);
@@ -259,21 +259,33 @@ module.exports = async function handler(req, res) {
       const promptLines = [];
       const mapsky = {
         city: null,
-        placeName: ctxPlace || null,
-        location: ctxLat != null && ctxLon != null ? { lat: ctxLat, lon: ctxLon } : null,
+        placeName: null,
+        location: null,
         weather: null,
         alerts: null,
         lightning: null,
         radar: null,
         cards: [],
       };
+      const text = userText || "";
+      const askWx = Boolean(looksLikeWeather(text));
+      const askAlert = /警特報|天氣警報|颱風|豪雨|陸上警報|海上警報/.test(text);
+      const askLightning = Boolean(looksLikeLightning(text));
+      const askRadar = Boolean(looksLikeRadar(text)) || /下雨|降雨|雨勢|會不會下/.test(text);
+      const askMap = /地圖|我在哪|定位|附近哪|導航|路線|路況/.test(text);
+      if (!askWx && !askAlert && !askLightning && !askRadar && !askMap) {
+        return { prompt: "", mapsky: mapsky };
+      }
       try {
-        let city = normalizeCity(ctxCity) || extractCityFromText(userText);
-        const needWx = looksLikeWeather(userText) || Boolean(ctxCity) || Boolean(ctxPlace);
-        if (!city && needWx) city = "臺北市";
+        let city = normalizeCity(ctxCity) || extractCityFromText(text);
+        if (!city && (askWx || askAlert || askLightning || askRadar)) city = "臺北市";
         mapsky.city = city || null;
+        if (askMap || askWx) {
+          mapsky.placeName = ctxPlace || null;
+          if (ctxLat != null && ctxLon != null) mapsky.location = { lat: ctxLat, lon: ctxLon };
+        }
 
-        if (needWx && city) {
+        if (askWx && city) {
           try {
             const wx = await getCity(city, {});
             mapsky.weather = wx;
@@ -282,7 +294,7 @@ module.exports = async function handler(req, res) {
             } else if (wx && wx.ok !== false) {
               promptLines.push("【MapSky 即時天氣（中央氣象署）—" + city + "】");
               promptLines.push(formatMapSkyWeather(city, wx));
-              if (!ctxCity && city === "臺北市" && !extractCityFromText(userText)) {
+              if (!ctxCity && city === "臺北市" && !extractCityFromText(text)) {
                 promptLines.push("（未指定縣市，以上為臺北市參考。）");
               }
               mapsky.cards.push({
@@ -300,7 +312,7 @@ module.exports = async function handler(req, res) {
           }
         }
 
-        if (looksLikeWeather(userText) || /警報|特報|颱風/.test(userText || "")) {
+        if (askAlert || askWx) {
           try {
             const al = await getAlerts({});
             mapsky.alerts = al;
@@ -312,7 +324,7 @@ module.exports = async function handler(req, res) {
           } catch (_) {}
         }
 
-        if (looksLikeLightning(userText) || looksLikeWeather(userText)) {
+        if (askLightning) {
           try {
             const lg = await getLightning({});
             mapsky.lightning = lg;
@@ -324,7 +336,7 @@ module.exports = async function handler(req, res) {
           } catch (_) {}
         }
 
-        if (looksLikeRadar(userText) || looksLikeLightning(userText) || /下雨|降雨|雨勢|會不會下/.test(userText || "")) {
+        if (askRadar) {
           try {
             const rd = await getRadarComposite({});
             mapsky.radar = rd;
@@ -343,8 +355,8 @@ module.exports = async function handler(req, res) {
           } catch (_) {}
         }
       } catch (_) {}
-      if (ctxPlace) promptLines.push("【使用者關注地點】" + ctxPlace);
-      if (ctxLat != null && ctxLon != null) {
+      if ((askMap || askWx) && ctxPlace) promptLines.push("【使用者關注地點】" + ctxPlace);
+      if (askMap && ctxLat != null && ctxLon != null) {
         promptLines.push("【使用者座標】lat=" + ctxLat + ", lon=" + ctxLon);
         mapsky.cards.push({
           type: "map",
@@ -356,7 +368,7 @@ module.exports = async function handler(req, res) {
         });
       }
       const prompt = promptLines.length
-        ? promptLines.join("\n") + "\n\n請以以上【MapSky】官方資料為準回答，不要編造。App 會另外顯示圖卡，你文字簡述即可。\n"
+        ? promptLines.join("\n") + "\n\n以上【MapSky】資料只用來回答天氣、地圖或警報，不要編造觀測值。與這些無關的問題請直接回答，不要提到這些資料。\n"
         : "";
       return { prompt: prompt, mapsky: mapsky };
     }
