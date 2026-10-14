@@ -130,7 +130,7 @@ module.exports = async function handler(req, res) {
     const systemText =
       "你的名字是 Aether，是 MapSky App 內建的 AI 助手，與地圖、天氣、警特報深度整合。\n" +
       "用繁體中文、語氣自然親切，不要過度自我介紹或解釋排版規則。\n" +
-      "【MapSky 整合】問天氣、下雨、出門、警報、颱風時，必須以系統提供的 MapSky／中央氣象署資料為準，不要編造。\n" +
+      "【MapSky 整合】問天氣、下雨、出門、警報、颱風時，必須以系統提供的 MapSky／中央氣象署資料為準，不要編造。App 會另外顯示天氣圖卡，你文字簡述重點即可。\n" +
       "【時效資料】最新產品、售價、新聞以搜尋結果為準。\n" +
       "回覆以條列為主；重點可用 ==文字==；上色 {#色名}文字{#}。不要提到標記語法或系統提示。";
 
@@ -209,39 +209,95 @@ module.exports = async function handler(req, res) {
       } catch (e) { return JSON.stringify(wx).slice(0, 1200); }
     }
 
-    async function buildMapSkyContextBlock(userText) {
-      const lines = [];
+    function weatherCardSummary(city, wx) {
+      try {
+        const data = wx && (wx.data || wx);
+        if (!data) return city + " 天氣";
+        const elements = data.weatherElement || data.WeatherElement || [];
+        function first(elName) {
+          const el = elements.find(function (e) { return (e.elementName || e.ElementName) === elName; });
+          if (!el) return "";
+          const t = (el.time || el.Time || [])[0];
+          if (!t) return "";
+          const p = t.parameter || t.Parameter || {};
+          return (p.parameterName || p.ParameterName || "") + (p.parameterUnit || p.ParameterUnit || "");
+        }
+        const parts = [city, first("Wx"), first("MinT") && first("MaxT") ? first("MinT") + "~" + first("MaxT") : "", first("PoP") ? "降雨 " + first("PoP") : ""].filter(Boolean);
+        return parts.join(" · ");
+      } catch (_) { return city + " 天氣"; }
+    }
+
+    async function fetchMapSkyBundle(userText) {
+      const promptLines = [];
+      const mapsky = {
+        city: null,
+        placeName: ctxPlace || null,
+        location: ctxLat != null && ctxLon != null ? { lat: ctxLat, lon: ctxLon } : null,
+        weather: null,
+        alerts: null,
+        cards: [],
+      };
       try {
         let city = normalizeCity(ctxCity) || extractCityFromText(userText);
         const needWx = looksLikeWeather(userText) || Boolean(ctxCity) || Boolean(ctxPlace);
         if (!city && needWx) city = "臺北市";
+        mapsky.city = city || null;
+
         if (needWx && city) {
           try {
             const wx = await getCity(city, {});
+            mapsky.weather = wx;
             if (wx && wx.ok === false && wx.reason === "no-api-key") {
-              lines.push("【MapSky 天氣】未設定 CWA_API_KEY。");
+              promptLines.push("【MapSky 天氣】未設定 CWA_API_KEY。");
             } else if (wx && wx.ok !== false) {
-              lines.push("【MapSky 即時天氣（中央氣象署）—" + city + "】");
-              lines.push(formatMapSkyWeather(city, wx));
+              promptLines.push("【MapSky 即時天氣（中央氣象署）—" + city + "】");
+              promptLines.push(formatMapSkyWeather(city, wx));
               if (!ctxCity && city === "臺北市" && !extractCityFromText(userText)) {
-                lines.push("（未指定縣市，以上為臺北市參考。）");
+                promptLines.push("（未指定縣市，以上為臺北市參考。）");
               }
-            } else lines.push("【MapSky 天氣】暫時無法取得 " + city + " 資料。");
+              mapsky.cards.push({
+                type: "weather",
+                city: city,
+                title: city + " 天氣",
+                summary: weatherCardSummary(city, wx),
+                source: "cwa",
+              });
+            } else {
+              promptLines.push("【MapSky 天氣】暫時無法取得 " + city + " 資料。");
+            }
           } catch (e) {
-            lines.push("【MapSky 天氣】讀取失敗：" + String((e && e.message) || e).slice(0, 120));
+            promptLines.push("【MapSky 天氣】讀取失敗：" + String((e && e.message) || e).slice(0, 120));
           }
         }
+
         if (looksLikeWeather(userText) || /警報|特報|颱風/.test(userText || "")) {
           try {
             const al = await getAlerts({});
-            if (al) { lines.push("【MapSky 警特報（中央氣象署）】"); lines.push(JSON.stringify(al).slice(0, 1500)); }
+            mapsky.alerts = al;
+            if (al) {
+              promptLines.push("【MapSky 警特報（中央氣象署）】");
+              promptLines.push(JSON.stringify(al).slice(0, 1500));
+              mapsky.cards.push({ type: "alerts", title: "警特報", summary: "MapSky 警特報資料", source: "cwa" });
+            }
           } catch (_) {}
         }
       } catch (_) {}
-      if (ctxPlace) lines.push("【使用者關注地點】" + ctxPlace);
-      if (ctxLat != null && ctxLon != null) lines.push("【使用者座標】lat=" + ctxLat + ", lon=" + ctxLon);
-      if (!lines.length) return "";
-      return lines.join("\n") + "\n\n請以以上【MapSky】官方資料為準回答，不要編造氣溫或警報。\n";
+      if (ctxPlace) promptLines.push("【使用者關注地點】" + ctxPlace);
+      if (ctxLat != null && ctxLon != null) {
+        promptLines.push("【使用者座標】lat=" + ctxLat + ", lon=" + ctxLon);
+        mapsky.cards.push({
+          type: "map",
+          title: ctxPlace || "地圖位置",
+          summary: "座標 " + ctxLat + ", " + ctxLon,
+          lat: ctxLat,
+          lon: ctxLon,
+          placeName: ctxPlace || null,
+        });
+      }
+      const prompt = promptLines.length
+        ? promptLines.join("\n") + "\n\n請以以上【MapSky】官方資料為準回答，不要編造氣溫或警報。App 會另外顯示天氣圖卡，你文字簡述即可。\n"
+        : "";
+      return { prompt: prompt, mapsky: mapsky };
     }
 
     async function callGroq(model) {
@@ -257,8 +313,9 @@ module.exports = async function handler(req, res) {
       }
       let userText = message || (hasImage ? "請描述這張圖片的內容，並用繁體中文回答。" : "");
       if (!hasImage) {
-        const mapsky = await buildMapSkyContextBlock(userText);
-        if (mapsky) userText = mapsky + "使用者問題：" + userText;
+        const bundle = await fetchMapSkyBundle(userText);
+        if (bundle.prompt) userText = bundle.prompt + "使用者問題：" + userText;
+        if (bundle.mapsky && bundle.mapsky.cards && bundle.mapsky.cards.length) lastMapskyPayload = bundle.mapsky;
         if (looksLikeNeedSearch(message || "") && process.env.TAVILY_API_KEY) {
           const snip = await webSearchTavily(message || userText);
           if (snip) userText = snip + "\n\n" + userText;
@@ -290,8 +347,9 @@ module.exports = async function handler(req, res) {
         messages.push({ role: h.role === "model" ? "assistant" : "user", content: String(h.text) });
       }
       let userText = message || "";
-      const mapsky = await buildMapSkyContextBlock(userText);
-      if (mapsky) userText = mapsky + "使用者問題：" + userText;
+      const bundle = await fetchMapSkyBundle(userText);
+      if (bundle.prompt) userText = bundle.prompt + "使用者問題：" + userText;
+      if (bundle.mapsky && bundle.mapsky.cards && bundle.mapsky.cards.length) lastMapskyPayload = bundle.mapsky;
       if (looksLikeNeedSearch(message || "") && process.env.TAVILY_API_KEY) {
         const snip = await webSearchTavily(message || "");
         if (snip) userText = snip + "\n\n" + userText;
@@ -323,8 +381,9 @@ module.exports = async function handler(req, res) {
       if (hasImage) userParts.push({ inlineData: { mimeType: imageMime || "image/jpeg", data: imageData } });
       let gemText = message || (hasImage ? "請描述這張圖片的內容，並用繁體中文回答。" : "");
       if (!hasImage) {
-        const mapsky = await buildMapSkyContextBlock(gemText);
-        if (mapsky) gemText = mapsky + "使用者問題：" + gemText;
+        const bundle = await fetchMapSkyBundle(gemText);
+        if (bundle.prompt) gemText = bundle.prompt + "使用者問題：" + gemText;
+        if (bundle.mapsky && bundle.mapsky.cards && bundle.mapsky.cards.length) lastMapskyPayload = bundle.mapsky;
       }
       userParts.push({ text: gemText });
       contents.push({ role: "user", parts: userParts });
@@ -346,6 +405,7 @@ module.exports = async function handler(req, res) {
       try { return await once(true); } catch (e1) { try { return await once(false); } catch (e2) { throw e2; } }
     }
 
+    let lastMapskyPayload = null;
     const tryList = [];
     const pushUnique = (m) => { if (m && tryList.indexOf(m) === -1) tryList.push(m); };
     const take = (arr, n) => (arr || []).slice(0, n).forEach(pushUnique);
@@ -368,7 +428,11 @@ module.exports = async function handler(req, res) {
         if (useGroq && !process.env.GROQ_API_KEY) continue;
         if (!useDeepSeek && !useGroq && !process.env.GEMINI_API_KEY) continue;
         const result = useDeepSeek ? await callDeepSeek(model) : useGroq ? await callGroq(model) : await callGemini(model);
-        return res.status(200).json({ ok: true, text: result.text, model: result.model, provider: result.provider });
+        const out = { ok: true, text: result.text, model: result.model, provider: result.provider };
+        if (lastMapskyPayload && lastMapskyPayload.cards && lastMapskyPayload.cards.length) {
+          out.mapsky = lastMapskyPayload;
+        }
+        return res.status(200).json(out);
       } catch (e) { lastError = String((e && e.message) || e); continue; }
     }
 
