@@ -1,0 +1,67 @@
+name: restore-session-v3
+on:
+  push:
+    paths:
+      - .github/workflows/restore-session-v3.yml
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore file
+        run: |
+          curl -fsSL -o api/auth/session.js "https://raw.githubusercontent.com/yonghong0333-ops/MapSky/780de4c45e1f5ebc866ede1c20114e9717b38569/api/auth/session.js"
+          wc -c api/auth/session.js
+          test $(wc -c < api/auth/session.js) -gt 20000
+      - name: Patch heuristics
+        run: |
+          python3 <<'END'
+          from pathlib import Path
+          p = Path("api/auth/session.js")
+          t = p.read_text(encoding="utf-8")
+          a = "/下雨|降雨|雨勢|會不會下/"
+          b = "/會不會下雨|下不下雨|雨勢|降雨量|有沒有雨/"
+          if a not in t:
+              raise SystemExit("radar pattern missing")
+          t = t.replace(a, b, 1)
+          old = "預報|帶傘|穿什麼|雷雨|寒流|高溫|空品|AQI|濕度|會不會熱|會不會冷"
+          new = "體感溫度|颱風|雷雨|寒流|空品|AQI|會不會下雨|下不下雨|有沒有雨|帶傘|會不會熱|會不會冷"
+          # Replace only inside looksLikeWeather line
+          import re
+          def repl_wx(m):
+              return (
+                  "function looksLikeWeather(text) {\n"
+                  "      if (!text) return false;\n"
+                  "      if (/天氣|氣溫|氣象|天氣預報|氣象局|中央氣象|雨量|紫外線|體感溫度|風速|颱風|雷雨|寒流|空品|AQI/.test(text)) return true;\n"
+                  "      if (/會不會下雨|下不下雨|有沒有雨|帶傘|會不會熱|會不會冷/.test(text)) return true;\n"
+                  "      return false;\n"
+                  "    }"
+              )
+          t2, n = re.subn(
+              r"function looksLikeWeather\(text\) \{[\s\S]*?\n    \}",
+              repl_wx,
+              t,
+              count=1,
+          )
+          if n != 1:
+              raise SystemExit("wx replace failed")
+          t = t2
+          needle = "課業、國文、數學、一般聊天不要提及 MapSky、天氣或座標。"
+          insert = (
+              "課業（數學、國文、英文、理化等）、解題、聊天、翻譯、寫作一律直接回答，"
+              "不要讀取或提到 MapSky API、天氣、座標。沒有附上【MapSky】資料時，絕不要假裝查過天氣。"
+          )
+          if needle in t:
+              t = t.replace(needle, insert, 1)
+          p.write_text(t, encoding="utf-8")
+          print("done", p.stat().st_size)
+          END
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/auth/session.js
+          git commit -m "fix(ai): restore session.js; no weather API on homework"
+          git push
