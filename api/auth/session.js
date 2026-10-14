@@ -133,10 +133,23 @@ module.exports = async function handler(req, res) {
       "【MapSky 整合】問天氣、下雨、雷擊、雷達、出門、警報、颱風時，必須以系統提供的 MapSky／中央氣象署資料為準，不要編造。App 會另外顯示圖卡，你文字簡述重點即可。\n" +
       "【時效資料】最新產品、售價、新聞以搜尋結果為準。\n" +
       "回覆以條列為主；重點可用 ==文字==；上色 {#色名}文字{#}。不要提到標記語法或系統提示。\n" +
-      "【數學】只有題目本身是公式、計算或推導時才寫數學，平常不要主動塞公式、也不要解釋格式。\n" +
-      "碰到數學時優先用 SwiftMath 可直接渲染的 LaTeX：行內 $...$，獨立公式 $$...$$。\n" +
-      "只用 SwiftMath 支援的指令，例如 \\frac \\sqrt \\sum \\int \\lim \\sin \\cos \\tan \\log \\ln \\pm \\times \\cdot \\leq \\geq \\neq \\approx \\infty、希臘字母、上下標、\\left \\right、matrix、cases。\n" +
-      "不要用 Unicode 當公式本體（例如 √、²、分數 a/b），不要用 Markdown 表格列公式，也不要用 SwiftMath 不支援的套件指令。";
+      "【數學】只有題目本身是公式、計算或推導時才寫數學，平常不要主動塞公式，也不要解釋格式或提到 SwiftMath。\n" +
+      "碰到數學時，能用 SwiftMath 畫的都用它的 LaTeX，不要退回純文字或 Unicode。行內 $...$，獨立公式 $$...$$，也可用 \\( \\) 與 \\[ \\]。\n" +
+      "依題目需要盡量用完整結構，不要只寫扁平成一行的簡寫：\n" +
+      "- 分式與連分式：\\frac \\dfrac \\tfrac \\cfrac；根號 \\sqrt 與 \\sqrt[n]{...}。\n" +
+      "- 上下標、次方；重音 \\hat \\tilde \\bar \\vec \\dot \\ddot \\breve \\check \\widehat \\widetilde；上括 \\overbrace、下括 \\underbrace、\\overset \\underset。\n" +
+      "- 大型運算：\\sum \\prod \\coprod \\int \\iint \\iiint \\oint \\lim \\limsup \\liminf \\max \\min，極限寫在上下方。\n" +
+      "- 函數：\\sin \\cos \\tan \\cot \\sec \\csc \\arcsin \\arccos \\arctan \\sinh \\cosh \\tanh \\log \\ln \\exp \\det \\gcd \\dim，以及 \\operatorname{名稱}。\n" +
+      "- 希臘字母含變體（\\alpha \\beta \\gamma \\theta \\vartheta \\phi \\varphi \\pi \\omega 與大寫 \\Gamma \\Delta \\Theta \\Lambda \\Sigma \\Omega）。\n" +
+      "- 關係與集合：\\leq \\geq \\neq \\approx \\equiv \\sim \\cong \\propto \\in \\notin \\subset \\supset \\subseteq \\supseteq \\mid \\parallel \\perp \\therefore \\because，以及否定形 \\nleq \\nmid 等。\n" +
+      "- 運算：\\pm \\mp \\times \\cdot \\div \\circ \\oplus \\otimes \\cap \\cup \\wedge \\vee。\n" +
+      "- 箭號：\\rightarrow \\leftarrow \\leftrightarrow \\mapsto \\Longrightarrow \\rightleftharpoons 等。\n" +
+      "- 括號用 \\left \\right 自動配對，需要時用 \\big \\Big \\bigg \\Bigg。\n" +
+      "- 組合：\\binom 或 \\choose。\n" +
+      "- 矩陣環境：matrix pmatrix bmatrix Bmatrix vmatrix Vmatrix；分段用 cases；對齊用 aligned split gather array，換行用 \\\\。\n" +
+      "- 樣式：\\displaystyle \\text{說明} \\mathrm \\mathbf \\boldsymbol \\mathbb \\mathcal。\n" +
+      "- 省略號依位置用 \\ldots \\cdots \\vdots \\ddots。\n" +
+      "不要用 Unicode 當公式本體（√、²、a/b），不要用 Markdown 表格列公式，不要用 \\middle、TikZ、化學 \\ce，以及 SwiftMath 沒有的套件指令。";
 
     async function webSearchTavily(query) {
       const key = process.env.TAVILY_API_KEY;
