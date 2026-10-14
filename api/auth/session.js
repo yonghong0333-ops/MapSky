@@ -96,6 +96,7 @@ module.exports = async function handler(req, res) {
     const GEMINI_MODELS = [
       "gemini-2.5-flash",
       "gemini-2.0-flash",
+      "gemini-flash-latest",
       "gemini-2.5-flash-lite",
     ];
     const GROQ_MODELS = [
@@ -111,12 +112,18 @@ module.exports = async function handler(req, res) {
       "deepseek-reasoner",
     ];
 
-    const ALLOWED = GEMINI_MODELS.concat(GROQ_MODELS).concat(DEEPSEEK_MODELS);
+    const ALLOWED = GEMINI_MODELS.concat(GROQ_MODELS).concat(DEEPSEEK_MODELS).concat(GROQ_VISION_MODELS);
     const envDefault = process.env.AI_DEFAULT_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const clientModel = typeof body.model === "string" ? body.model.trim() : "";
-    let preferred =
-      clientModel && ALLOWED.indexOf(clientModel) !== -1 ? clientModel : envDefault;
-    if (ALLOWED.indexOf(preferred) === -1) preferred = "gemini-2.5-flash";
+    let preferred = envDefault;
+    if (clientModel) {
+      if (ALLOWED.indexOf(clientModel) !== -1) preferred = clientModel;
+      else if (/^gemini[-_]/i.test(clientModel)) preferred = clientModel;
+      else if (/^deepseek/i.test(clientModel)) preferred = clientModel;
+      else if (/llama|gpt-oss|qwen|gemma|mixtral|meta-llama|openai\//i.test(clientModel)) preferred = clientModel;
+      else preferred = envDefault;
+    }
+    if (!preferred) preferred = "gemini-2.5-flash";
 
     const isDeepSeekModel = (m) =>
       DEEPSEEK_MODELS.indexOf(m) !== -1 ||
@@ -335,21 +342,21 @@ module.exports = async function handler(req, res) {
     if (hasImage) {
       if (process.env.GEMINI_API_KEY) {
         if (!isGroqModel(preferred) && !isDeepSeekModel(preferred)) pushUnique(preferred);
-        take(GEMINI_MODELS, 2);
+        take(GEMINI_MODELS, 3);
       }
       if (process.env.GROQ_API_KEY) take(GROQ_VISION_MODELS, 2);
     } else {
       pushUnique(preferred);
       if (isDeepSeekModel(preferred)) {
         take(DEEPSEEK_MODELS, 2);
-        if (process.env.GEMINI_API_KEY) take(GEMINI_MODELS, 1);
+        if (process.env.GEMINI_API_KEY) take(GEMINI_MODELS, 2);
         if (process.env.GROQ_API_KEY) take(GROQ_MODELS, 1);
       } else if (isGroqModel(preferred)) {
         take(GROQ_MODELS, 2);
-        if (process.env.GEMINI_API_KEY) take(GEMINI_MODELS, 1);
+        if (process.env.GEMINI_API_KEY) take(GEMINI_MODELS, 2);
         if (process.env.DEEPSEEK_API_KEY) take(DEEPSEEK_MODELS, 1);
       } else {
-        take(GEMINI_MODELS, 2);
+        take(GEMINI_MODELS, 3);
         if (process.env.DEEPSEEK_API_KEY) take(DEEPSEEK_MODELS, 1);
         if (process.env.GROQ_API_KEY) take(GROQ_MODELS, 1);
       }
@@ -386,14 +393,14 @@ module.exports = async function handler(req, res) {
     let zh = "目前 AI 服務暫時無法回應，請稍後再試。";
     if (/high demand|rate limit|overloaded|busy|resource exhausted|429/i.test(lastError)) {
       zh = "目前 AI 服務額度已滿或較忙碌，請稍後再試。";
-    } else if (/api.?key|not set|invalid.*key|permission|401|403/i.test(lastError)) {
+    } else if (/API[_ ]?key not set|api.?key.*invalid|invalid.*api.?key|permission denied|401|403|UNAUTHENTICATED/i.test(lastError)) {
       zh = "AI 金鑰無效或權限不足，請檢查 Vercel 環境變數。";
-    } else if (/not found|do not have access|decommissioned|invalid model/i.test(lastError)) {
-      zh = "所選模型目前不可用，請改選其他模型。";
+    } else if (/decommissioned|model .* not found|is not found for API version|do not have access to model|invalid model name/i.test(lastError)) {
+      zh = "所選模型目前不可用，請改選其他模型（建議 Gemini 2.5 Flash）。";
     } else if (lastError && lastError !== "AI request failed") {
-      zh = "AI 回應失敗：" + lastError.slice(0, 120);
+      zh = "AI 回應失敗：" + lastError.slice(0, 160);
     }
-    return res.status(503).json({ ok: false, error: zh, detail: lastError.slice(0, 300) });
+    return res.status(503).json({ ok: false, error: zh, detail: lastError.slice(0, 400) });
   }
 
   if (req.query.action === "providers") {
