@@ -99,8 +99,10 @@ module.exports = async function handler(req, res) {
       "gemini-flash-latest",
       "gemini-2.5-flash-lite",
     ];
+    // Groq：llama-3.3-70b 部分帳號已無權限，改用目前公開可用型號
     const GROQ_MODELS = [
-      "llama-3.3-70b-versatile",
+      "openai/gpt-oss-20b",
+      "openai/gpt-oss-120b",
       "llama-3.1-8b-instant",
     ];
     const GROQ_VISION_MODELS = [
@@ -117,7 +119,9 @@ module.exports = async function handler(req, res) {
     const clientModel = typeof body.model === "string" ? body.model.trim() : "";
     let preferred = envDefault;
     if (clientModel) {
-      if (ALLOWED.indexOf(clientModel) !== -1) preferred = clientModel;
+      if (clientModel === "llama-3.3-70b-versatile" || clientModel === "llama-3.1-70b-versatile") {
+        preferred = "openai/gpt-oss-20b";
+      } else if (ALLOWED.indexOf(clientModel) !== -1) preferred = clientModel;
       else if (/^gemini[-_]/i.test(clientModel)) preferred = clientModel;
       else if (/^deepseek/i.test(clientModel)) preferred = clientModel;
       else if (/llama|gpt-oss|qwen|gemma|mixtral|meta-llama|openai\//i.test(clientModel)) preferred = clientModel;
@@ -352,8 +356,9 @@ module.exports = async function handler(req, res) {
         if (process.env.GEMINI_API_KEY) take(GEMINI_MODELS, 2);
         if (process.env.GROQ_API_KEY) take(GROQ_MODELS, 1);
       } else if (isGroqModel(preferred)) {
-        take(GROQ_MODELS, 2);
-        if (process.env.GEMINI_API_KEY) take(GEMINI_MODELS, 2);
+        // Groq 型號常變／權限受限：立刻備援 Gemini，再試其他 Groq
+        if (process.env.GEMINI_API_KEY) take(GEMINI_MODELS, 3);
+        take(GROQ_MODELS, 3);
         if (process.env.DEEPSEEK_API_KEY) take(DEEPSEEK_MODELS, 1);
       } else {
         take(GEMINI_MODELS, 3);
