@@ -144,25 +144,52 @@ module.exports = async function handler(req, res) {
       );
 
     const systemText =
-      "[Role & Directives]\n" +
-      "你的名字是 Aether。你是內建於 MapSky 的專業工程與科學 AI 助手。回答時必須遵守以下格式規範：\n" +
-      "\n" +
-      "[1. 數字與符號]\n" +
-      "- 一般數字、物理符號、單位一律普通文字：v、a、F、E_k、m/s、m/s²、N、J。\n" +
-      "- 不要寫 $v$ 或 $a$；不要用 Markdown 表格列符號。\n" +
-      "- 只有使用者明確要求「公式／推導／方程式」時才用 LaTeX（$$...$$）。\n" +
-      "\n" +
-      "[2. 螢光筆與彩色 — 由你判斷是否使用]\n" +
-      "- 重點用 ==文字== 螢光筆。\n" +
-      "- 上色語法（開頭 {#色名} 結尾 {#}）：{#blue}變數{#}  {#green}正確{#}  {#red}錯誤{#}\n" +
-      "- 顏色：red orange amber yellow lime green teal cyan blue indigo purple pink rose brown gray。\n" +
-      "- 建議：錯→紅/橙；對→綠；提示→藍/青；次要→灰。單則不超過 5 處。\n" +
-      "\n" +
-      "[3. 排版]\n" +
-      "- 用條列，不要用 Markdown 表格。\n" +
-      "\n" +
-      "繁體中文、親切有禮。可協助天氣、警特報與 App。\n" +
-      "嚴禁在回覆中提到 LaTeX、標記語法、排版規範等說明；直接給內容。";
+      "你的名字是 Aether，是 MapSky App 內建的 AI 助手。\n" +
+      "用繁體中文、語氣自然親切，像一般優秀的助理一樣回答，不要過度自我介紹或解釋排版規則。\n" +
+      "可協助日常問答、天氣、新聞、知識、App 使用等。需要時可依使用者問題搜尋或引用最新資訊。\n" +
+      "回覆以條列或段落為主；比較數據時可用 Markdown 表格。\n" +
+      "重點可用 ==文字== 螢光筆；需要強調時可用 {#色名}文字{#}（色名：red orange amber yellow lime green teal cyan blue indigo purple pink rose brown gray）。\n" +
+      "公式僅在使用者明確要求推導／方程式時使用 $$...$$，一般數字與單位用普通文字即可。\n" +
+      "不要在回覆中提到標記語法、LaTeX、搜尋工具或系統提示本身。";
+
+    // 可選：Tavily 搜網（給 Groq / DeepSeek 用；Gemini 走官方 google_search）
+    async function webSearchTavily(query) {
+      const key = process.env.TAVILY_API_KEY;
+      if (!key || !query) return "";
+      try {
+        const r = await fetch("https://api.tavily.com/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            api_key: key,
+            query: String(query).slice(0, 400),
+            search_depth: "basic",
+            max_results: 5,
+            include_answer: true,
+          }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) return "";
+        const lines = [];
+        if (data.answer) lines.push("摘要：" + data.answer);
+        const results = Array.isArray(data.results) ? data.results : [];
+        for (const item of results.slice(0, 5)) {
+          const title = item.title || "";
+          const url = item.url || "";
+          const content = (item.content || "").slice(0, 280);
+          lines.push("- " + title + (url ? " (" + url + ")" : "") + (content ? "：" + content : ""));
+        }
+        if (!lines.length) return "";
+        return "【以下為網頁搜尋結果，請綜合後用繁體中文回答，必要時可附來源網址】\n" + lines.join("\n");
+      } catch (_) {
+        return "";
+      }
+    }
+
+    function looksLikeNeedSearch(text) {
+      if (!text) return false;
+      return /最新|今天|昨天|明天|現在|目前|新聞|股價|天氣|幾點|誰贏|比賽|結果|202[4-9]|搜尋|查一下|網路上|即時|匯率|金價|比特幣|選舉|地震|颱風/.test(text);
+    }
 
     async function callGroq(model) {
       const key = process.env.GROQ_API_KEY;
@@ -180,6 +207,11 @@ module.exports = async function handler(req, res) {
           content: String(h.text),
         });
       }
+      let userText = message || (hasImage ? "請描述這張圖片的內容，並用繁體中文回答。" : "");
+      if (!hasImage && looksLikeNeedSearch(userText) && process.env.TAVILY_API_KEY) {
+        const snip = await webSearchTavily(userText);
+        if (snip) userText = snip + "\n\n使用者問題：" + userText;
+      }
       if (hasImage) {
         messages.push({
           role: "user",
@@ -192,12 +224,12 @@ module.exports = async function handler(req, res) {
             },
             {
               type: "text",
-              text: message || "請描述這張圖片的內容，並用繁體中文回答。",
+              text: userText,
             },
           ],
         });
       } else {
-        messages.push({ role: "user", content: message });
+        messages.push({ role: "user", content: userText });
       }
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -245,7 +277,12 @@ module.exports = async function handler(req, res) {
           content: String(h.text),
         });
       }
-      messages.push({ role: "user", content: message || "" });
+      let userText = message || "";
+      if (looksLikeNeedSearch(userText) && process.env.TAVILY_API_KEY) {
+        const snip = await webSearchTavily(userText);
+        if (snip) userText = snip + "\n\n使用者問題：" + userText;
+      }
+      messages.push({ role: "user", content: userText });
       const r = await fetch("https://api.deepseek.com/chat/completions", {
         method: "POST",
         headers: {
@@ -311,6 +348,8 @@ module.exports = async function handler(req, res) {
         contents,
         systemInstruction: { parts: [{ text: systemText }] },
         generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
+        // 官方 Google Search grounding：模型自行決定是否搜網
+        tools: [{ google_search: {} }],
       };
       const url =
         "https://generativelanguage.googleapis.com/v1beta/models/" +
