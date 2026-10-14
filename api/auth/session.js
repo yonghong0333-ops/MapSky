@@ -101,15 +101,20 @@ module.exports = async function handler(req, res) {
 
     const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"];
     const GROQ_MODELS = ["openai/gpt-oss-20b", "openai/gpt-oss-120b", "llama-3.1-8b-instant"];
-    const GROQ_VISION_MODELS = ["meta-llama/llama-4-scout-17b-16e-instruct", "meta-llama/llama-4-maverick-17b-128e-instruct"];
+    const DEAD_GROQ_MODELS = {
+      "meta-llama/llama-4-maverick-17b-128e-instruct": "openai/gpt-oss-120b",
+      "meta-llama/llama-4-scout-17b-16e-instruct": "openai/gpt-oss-120b",
+      "llama-3.3-70b-versatile": "openai/gpt-oss-20b",
+      "llama-3.1-70b-versatile": "openai/gpt-oss-20b",
+    };
     const DEEPSEEK_MODELS = ["deepseek-chat", "deepseek-reasoner"];
 
-    const ALLOWED = GEMINI_MODELS.concat(GROQ_MODELS).concat(DEEPSEEK_MODELS).concat(GROQ_VISION_MODELS);
+    const ALLOWED = GEMINI_MODELS.concat(GROQ_MODELS).concat(DEEPSEEK_MODELS);
     const envDefault = process.env.AI_DEFAULT_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const clientModel = typeof body.model === "string" ? body.model.trim() : "";
     let preferred = envDefault;
     if (clientModel) {
-      if (clientModel === "llama-3.3-70b-versatile" || clientModel === "llama-3.1-70b-versatile") preferred = "openai/gpt-oss-20b";
+      if (DEAD_GROQ_MODELS[clientModel]) preferred = DEAD_GROQ_MODELS[clientModel];
       else if (ALLOWED.indexOf(clientModel) !== -1) preferred = clientModel;
       else if (/^gemini[-_]/i.test(clientModel)) preferred = clientModel;
       else if (/^deepseek/i.test(clientModel)) preferred = clientModel;
@@ -121,7 +126,7 @@ module.exports = async function handler(req, res) {
     const isDeepSeekModel = (m) => DEEPSEEK_MODELS.indexOf(m) !== -1 || String(m).startsWith("deepseek");
     const isGroqModel = (m) =>
       !isDeepSeekModel(m) && (
-        GROQ_MODELS.indexOf(m) !== -1 || GROQ_VISION_MODELS.indexOf(m) !== -1 ||
+        GROQ_MODELS.indexOf(m) !== -1 ||
         String(m).startsWith("llama") || String(m).startsWith("gemma") || String(m).startsWith("mixtral") ||
         String(m).startsWith("qwen") || String(m).startsWith("meta-llama") || String(m).startsWith("openai/") ||
         String(m).indexOf("llama") !== -1
@@ -360,7 +365,7 @@ module.exports = async function handler(req, res) {
       const key = process.env.GROQ_API_KEY;
       if (!key) throw new Error("GROQ_API_KEY not set");
       let useModel = model;
-      if (hasImage && GROQ_VISION_MODELS.indexOf(model) === -1) useModel = GROQ_VISION_MODELS[0];
+      if (hasImage) throw new Error("看圖請改走 Gemini，Groq 的 Llama 4 看圖模型已下架");
       const messages = [{ role: "system", content: systemText }];
       const history = Array.isArray(body.history) ? body.history : [];
       for (const h of history.slice(-20)) {
@@ -466,8 +471,10 @@ module.exports = async function handler(req, res) {
     const pushUnique = (m) => { if (m && tryList.indexOf(m) === -1) tryList.push(m); };
     const take = (arr, n) => (arr || []).slice(0, n).forEach(pushUnique);
     if (hasImage) {
-      if (process.env.GEMINI_API_KEY) { if (!isGroqModel(preferred) && !isDeepSeekModel(preferred)) pushUnique(preferred); take(GEMINI_MODELS, 3); }
-      if (process.env.GROQ_API_KEY) take(GROQ_VISION_MODELS, 2);
+      if (process.env.GEMINI_API_KEY) take(GEMINI_MODELS, 4);
+      else {
+        return res.status(503).json({ ok: false, error: "這張圖讀不了：Groq 的看圖模型 Llama 4 已下架。請在 Vercel 設定 GEMINI_API_KEY 後再試。" });
+      }
     } else {
       pushUnique(preferred);
       if (isDeepSeekModel(preferred)) { take(DEEPSEEK_MODELS, 2); if (process.env.GEMINI_API_KEY) take(GEMINI_MODELS, 2); if (process.env.GROQ_API_KEY) take(GROQ_MODELS, 1); }
@@ -498,7 +505,7 @@ module.exports = async function handler(req, res) {
     let zh = "目前 AI 服務暫時無法回應，請稍後再試。";
     if (/high demand|rate limit|overloaded|busy|resource exhausted|429/i.test(lastError)) zh = "目前 AI 服務額度已滿或較忙碌，請稍後再試。";
     else if (/API[_ ]?key not set|api.?key.*invalid|invalid.*api.?key|permission denied|401|403|UNAUTHENTICATED/i.test(lastError)) zh = "AI 金鑰無效或權限不足，請檢查 Vercel 環境變數。";
-    else if (/decommissioned|model .* not found|is not found for API version|do not have access to model|invalid model name/i.test(lastError)) zh = "所選模型目前不可用，請改選其他模型（建議 Gemini 2.5 Flash）。";
+    else if (/decommissioned|model .* not found|does not exist|is not found for API version|do not have access|invalid model name/i.test(lastError)) zh = "所選模型已下架或沒有權限，已無法使用 Llama 4。請改選 Gemini 2.5 Flash。";
     else if (lastError && lastError !== "AI request failed") zh = "AI 回應失敗：" + lastError.slice(0, 160);
     return res.status(503).json({ ok: false, error: zh, detail: lastError.slice(0, 400) });
   }
