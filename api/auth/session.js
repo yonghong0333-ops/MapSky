@@ -99,7 +99,6 @@ module.exports = async function handler(req, res) {
       "gemini-flash-latest",
       "gemini-2.5-flash-lite",
     ];
-    // Groq：llama-3.3-70b 部分帳號已無權限，改用目前公開可用型號
     const GROQ_MODELS = [
       "openai/gpt-oss-20b",
       "openai/gpt-oss-120b",
@@ -149,7 +148,8 @@ module.exports = async function handler(req, res) {
     const systemText =
       "你的名字是 Aether，是 MapSky App 內建的 AI 助手。\n" +
       "用繁體中文、語氣自然親切，像一般優秀的助理一樣回答，不要過度自我介紹或解釋排版規則。\n" +
-      "可協助日常問答、天氣、新聞、知識、App 使用等。需要時可依使用者問題搜尋或引用最新資訊。\n" +
+      "可協助日常問答、天氣、新聞、知識、App 使用等。需要時請搜尋或引用最新資訊。\n" +
+      "【時效資料】遇到「最新／現在／目前／售價／上市／哪一代」等問題（例如最新 iPhone、股價、新聞），必須以即時搜尋結果為準，不可沿用過時的產品代稱或價格。若搜尋結果與印象不符，以搜尋為準。\n" +
       "回覆以條列或段落為主；比較數據時可用 Markdown 表格。\n" +
       "重點可用 ==文字== 螢光筆；需要強調時可用 {#色名}文字{#}（色名：red orange amber yellow lime green teal cyan blue indigo purple pink rose brown gray）。\n" +
       "公式僅在使用者明確要求推導／方程式時使用 $$...$$，一般數字與單位用普通文字即可。\n" +
@@ -190,7 +190,7 @@ module.exports = async function handler(req, res) {
 
     function looksLikeNeedSearch(text) {
       if (!text) return false;
-      return /最新|今天|昨天|明天|現在|目前|新聞|股價|天氣|幾點|誰贏|比賽|結果|202[4-9]|搜尋|查一下|網路上|即時|匯率|金價|比特幣|選舉|地震|颱風/.test(text);
+      return /最新|今天|昨天|明天|現在|目前|新聞|股價|天氣|幾點|誰贏|比賽|結果|202[4-9]|搜尋|查一下|網路上|即時|匯率|金價|比特幣|選舉|地震|颱風|iPhone|售價|上市|哪一代|多少錢/.test(text);
     }
 
     async function callGroq(model) {
@@ -356,7 +356,6 @@ module.exports = async function handler(req, res) {
         if (process.env.GEMINI_API_KEY) take(GEMINI_MODELS, 2);
         if (process.env.GROQ_API_KEY) take(GROQ_MODELS, 1);
       } else if (isGroqModel(preferred)) {
-        // Groq 型號常變／權限受限：立刻備援 Gemini，再試其他 Groq
         if (process.env.GEMINI_API_KEY) take(GEMINI_MODELS, 3);
         take(GROQ_MODELS, 3);
         if (process.env.DEEPSEEK_API_KEY) take(DEEPSEEK_MODELS, 1);
