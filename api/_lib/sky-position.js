@@ -22,13 +22,11 @@ function normalize180(x) {
   return x;
 }
 
-/** 太陽位置 */
 function sunPosition(lat, lon, date) {
   const d = date instanceof Date ? date : new Date(date);
   const jd = toJulian(d);
   const T = (jd - 2451545.0) / 36525;
 
-  // 平黃經、平近點角
   const L0 = normalize360(280.46646 + 36000.76983 * T + 0.0003032 * T * T);
   const M = normalize360(357.52911 + 35999.05029 * T - 0.0001537 * T * T);
   const Mrad = M * DEG;
@@ -55,7 +53,6 @@ function sunPosition(lat, lon, date) {
   const ra = normalize360(alpha);
   const dec = delta;
 
-  // 格林威治恒星時
   const gmst =
     normalize360(
       280.46061837 +
@@ -82,7 +79,6 @@ function sunPosition(lat, lon, date) {
   let azimuth = Math.atan2(y, x) * RAD;
   azimuth = normalize360(azimuth);
 
-  // 折射近似（高度 > -1°）
   let altitudeApp = altitude;
   if (altitude > -1) {
     const R =
@@ -91,12 +87,10 @@ function sunPosition(lat, lon, date) {
     altitudeApp = altitude + R / 60;
   }
 
-  // 太陽距離（AU）近似
   const e = 0.016708634 - T * (0.000042037 + 0.0000001267 * T);
   const v = M + C;
   const r = (1.000001018 * (1 - e * e)) / (1 + e * Math.cos(v * DEG));
 
-  // 方程時（分鐘）近似
   const y2 = Math.tan(epsRad / 2);
   const y2s = y2 * y2;
   const eot =
@@ -125,7 +119,6 @@ function sunPosition(lat, lon, date) {
   };
 }
 
-/** 月亮位置（簡化 Meeus） */
 function moonPosition(lat, lon, date) {
   const d = date instanceof Date ? date : new Date(date);
   const jd = toJulian(d);
@@ -141,7 +134,6 @@ function moonPosition(lat, lon, date) {
   const Mpr = Mp * DEG;
   const Fr = F * DEG;
 
-  // 黃經主要項
   let lonEcl =
     Lp +
     6.289 * Math.sin(Mpr) +
@@ -152,14 +144,12 @@ function moonPosition(lat, lon, date) {
     0.114 * Math.sin(2 * Fr);
   lonEcl = normalize360(lonEcl);
 
-  // 黃緯
   let latEcl =
     5.128 * Math.sin(Fr) +
     0.281 * Math.sin(Mpr + Fr) +
     0.278 * Math.sin(Mpr - Fr) +
     0.173 * Math.sin(2 * Dr - Fr);
 
-  // 距離（地球半徑）
   const dist =
     385001 -
     20905 * Math.cos(Mpr) -
@@ -210,26 +200,27 @@ function moonPosition(lat, lon, date) {
     Math.sin(latRad) * Math.cos(haRad);
   let azimuth = normalize360(Math.atan2(y, x) * RAD);
 
-  // 月相：與太陽黃經差
   const sun = sunPosition(lat, lon, d);
   let elong = normalize360(lonEcl - sun.eclipticLongitude);
-  if (elong > 180) elong = 360 - elong;
-  const phaseAngle = elong;
+  // 相位角：0 新月、180 滿月（用 0～180 的 elong）
+  let phaseAngle = elong;
+  if (phaseAngle > 180) phaseAngle = 360 - phaseAngle;
+  // 照亮比例 0～100%
   const illumination = round4(0.5 * (1 - Math.cos(phaseAngle * DEG)) * 100);
+
+  // 盈虧方向：月亮黃經相對太陽
+  let waxing = normalize360(lonEcl - sun.eclipticLongitude);
+  if (waxing > 180) waxing = waxing - 360;
+  const isWaxing = waxing >= 0;
 
   let phaseLabel = "盈凸月";
   if (phaseAngle < 22.5) phaseLabel = "新月";
-  else if (phaseAngle < 67.5) phaseLabel = "蛾眉月";
-  else if (phaseAngle < 112.5) phaseLabel = "上弦月";
-  else if (phaseAngle < 157.5) phaseLabel = "盈凸月";
-  else if (phaseAngle < 202.5) phaseLabel = "滿月";
-  else if (phaseAngle < 247.5) phaseLabel = "虧凸月";
-  else if (phaseAngle < 292.5) phaseLabel = "下弦月";
-  else if (phaseAngle < 337.5) phaseLabel = "殘月";
-  else phaseLabel = "新月";
+  else if (phaseAngle < 67.5) phaseLabel = isWaxing ? "蛾眉月" : "殘月";
+  else if (phaseAngle < 112.5) phaseLabel = isWaxing ? "上弦月" : "下弦月";
+  else if (phaseAngle < 157.5) phaseLabel = isWaxing ? "盈凸月" : "虧凸月";
+  else phaseLabel = "滿月";
 
-  // 視直徑（角分）近似
-  const angularDiameterArcmin = round4((1738 / dist) * (180 * 60) / Math.PI);
+  const angularDiameterArcmin = round4((1738 / dist) * ((180 * 60) / Math.PI));
 
   return {
     body: "moon",
@@ -244,8 +235,10 @@ function moonPosition(lat, lon, date) {
     eclipticLatitude: round4(latEcl),
     distanceKm: Math.round(dist),
     illuminationPercent: illumination,
+    illumination: round4(illumination / 100),
     phaseAngle: round4(phaseAngle),
     phaseLabel,
+    isWaxing,
     angularDiameterArcmin,
     isUp: altitude > 0,
   };
@@ -258,10 +251,6 @@ function round6(n) {
   return Math.round(n * 1e6) / 1e6;
 }
 
-/**
- * 彙總一次觀測
- * @param {{ lat: number, lon: number, time?: string|Date }} opts
- */
 function computeSkyPosition(opts) {
   const lat = Number(opts.lat);
   const lon = Number(opts.lon);
@@ -292,6 +281,7 @@ function computeSkyPosition(opts) {
       altitude: "horizon 0, zenith 90, negative = below horizon",
       distanceSun: "AU",
       distanceMoon: "km",
+      illumination: "percent 0–100 of moon disk lit",
     },
     sun,
     moon,
@@ -302,14 +292,45 @@ function computeSkyPosition(opts) {
       moonAzimuth: moon.azimuth,
       moonPhase: moon.phaseLabel,
       moonIllumination: moon.illuminationPercent,
+      moonIlluminationFraction: moon.illumination,
       sunUp: sun.isUp,
       moonUp: moon.isUp,
     },
   };
 }
 
+/** 專用：月球照亮面積（百分比與 0～1） */
+function computeMoonIllumination(opts) {
+  const sky = computeSkyPosition(opts);
+  if (!sky.ok) return sky;
+  const m = sky.moon;
+  return {
+    ok: true,
+    source: "computed",
+    algorithm: "meeus-simplified",
+    time: sky.observer.time,
+    observer: sky.observer,
+    illuminationPercent: m.illuminationPercent,
+    illumination: m.illumination,
+    phaseAngle: m.phaseAngle,
+    phaseLabel: m.phaseLabel,
+    isWaxing: m.isWaxing,
+    moonAltitude: m.altitude,
+    moonAzimuth: m.azimuth,
+    distanceKm: m.distanceKm,
+    angularDiameterArcmin: m.angularDiameterArcmin,
+    isUp: m.isUp,
+    units: {
+      illuminationPercent: "0–100，月球視盤被太陽照亮的比例",
+      illumination: "0–1，同上",
+      phaseAngle: "degree，0 新月、90 上下弦、180 滿月",
+    },
+  };
+}
+
 module.exports = {
   computeSkyPosition,
+  computeMoonIllumination,
   sunPosition,
   moonPosition,
 };
