@@ -1,13 +1,12 @@
-// 合併日出日落 (sun)、月出月沒 (moon)、紫外線指數 (uv)、一週預報、
-// 以及即時太陽／月亮方位角與高度角 (position) 於同一支 serverless function。
-// type=position|sky：依「定位」計算——前端傳 lat/lon，或傳 city 用縣市中心。
 const { getSunTimes, getMoonTimes, getMoonPhaseImage, getUvIndexObservation, getWeeklyForecast } = require("../_lib/cwa");
 const { computeSkyPosition } = require("../_lib/sky-position");
+const { saveLastLocation, getLastLocation } = require("../_lib/last-location");
 const { resolveObserverLocation } = require("../_lib/tw-city-coords");
 const { requireSession } = require("../_lib/require-session");
 
 module.exports = async function handler(req, res) {
-  if (!requireSession(req, res)) return;
+  const payload = requireSession(req, res);
+  if (!payload) return;
 
   if (req.query.type === "moonphase") {
     try {
@@ -21,11 +20,10 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  // 依定位計算日月位置
-  // 優先：手機 GPS → lat & lon
-  // 後備：city=高雄市 → 縣市中心座標
-  // GET /api/weather/astro?type=position&lat=22.6273&lon=120.3014
-  // GET /api/weather/astro?type=position&city=%E9%AB%98%E9%9B%84%E5%B8%82
+  // type=position|sky：
+  // 1) 有 lat/lon → 計算並存「上次定位」
+  // 2) 沒有 → 用帳號上次定位（不預設任何縣市）
+  // 3) 明確傳 city 才用縣市中心
   if (req.query.type === "position" || req.query.type === "sky") {
     let body = req.body;
     if (typeof body === "string") {
@@ -38,19 +36,62 @@ module.exports = async function handler(req, res) {
     body = body || {};
     const q = req.query || {};
 
-    const loc = resolveObserverLocation({
-      lat: body.lat != null ? body.lat : q.lat,
-      lon: body.lon != null ? body.lon : q.lon,
-      lng: body.lng != null ? body.lng : q.lng,
-      city: body.city || q.city || body.label || q.label,
-      placeName: body.placeName || body.place || q.placeName,
-    });
+    const hasGps =
+      (body.lat != null || q.lat != null) &&
+      (body.lon != null || q.lon != null || body.lng != null || q.lng != null);
 
-    if (!loc.ok) {
+    let loc = null;
+
+    if (hasGps) {
+      loc = resolveObserverLocation({
+        lat: body.lat != null ? body.lat : q.lat,
+        lon: body.lon != null ? body.lon : q.lon,
+        lng: body.lng != null ? body.lng : q.lng,
+        city: body.city || q.city,
+        placeName: body.placeName || body.place || q.placeName,
+      });
+      if (loc.ok) {
+        await saveLastLocation(payload, {
+          lat: loc.lat,
+          lon: loc.lon,
+          city: loc.city || body.city || q.city,
+          placeName: loc.placeName,
+        });
+        loc.source = "gps";
+      }
+    } else if (body.city || q.city) {
+      loc = resolveObserverLocation({
+        city: body.city || q.city,
+        placeName: body.placeName || body.place || q.placeName,
+      });
+      if (loc.ok) {
+        await saveLastLocation(payload, {
+          lat: loc.lat,
+          lon: loc.lon,
+          city: loc.city,
+          placeName: loc.placeName,
+        });
+      }
+    } else {
+      const last = await getLastLocation(payload);
+      if (last) {
+        loc = {
+          ok: true,
+          lat: last.lat,
+          lon: last.lon,
+          source: "last-location",
+          city: last.city,
+          placeName: last.placeName,
+          updatedAt: last.updatedAt,
+        };
+      }
+    }
+
+    if (!loc || !loc.ok) {
       return res.status(400).json({
         ok: false,
-        reason: loc.reason || "missing-location",
-        hint: loc.hint || "請傳手機定位 lat+lon，或 city=高雄市",
+        reason: "no-location",
+        hint: "請先傳 lat+lon 寫入定位；之後沒定位會自動用上次。無預設縣市。",
       });
     }
 
@@ -64,6 +105,7 @@ module.exports = async function handler(req, res) {
     result.locationSource = loc.source;
     result.city = loc.city || null;
     result.placeName = loc.placeName || null;
+    if (loc.updatedAt) result.locationUpdatedAt = loc.updatedAt;
     if (result.observer) {
       result.observer.source = loc.source;
       result.observer.city = loc.city || null;
@@ -71,6 +113,28 @@ module.exports = async function handler(req, res) {
 
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).json(result);
+  }
+
+  // 讀／寫上次定位（前端橋接）
+  if (req.query.type === "last-location") {
+    if (req.method === "POST") {
+      let body = req.body;
+      if (typeof body === "string") {
+        try {
+          body = JSON.parse(body);
+        } catch {
+          body = {};
+        }
+      }
+      body = body || {};
+      const saved = await saveLastLocation(payload, body);
+      if (!saved) {
+        return res.status(400).json({ ok: false, reason: "invalid-lat-lon" });
+      }
+      return res.status(200).json({ ok: true, location: { ...saved, source: "gps" } });
+    }
+    const last = await getLastLocation(payload);
+    return res.status(200).json({ ok: true, location: last });
   }
 
   try {
