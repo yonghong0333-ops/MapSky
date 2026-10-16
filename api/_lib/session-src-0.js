@@ -1,0 +1,1 @@
+module.exports = 'const { parseCookies, serializeCookie } = require("../_lib/cookies");\n';
