@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>隱私權政策 - MapSky</title>
+<meta name="description" content="MapSky 隱私權政策：說明位置、帳號、裝置與氣象資料之收集與使用方式。" />
+<link rel="icon" href="icons/logo-dark.png" />
+<style>
+  :root {
+    --accent: #2b6ef2;
+    --text-main: #1f2937;
+    --text-muted: #6b7280;
+    --card-bg: #ffffff;
+    --card-border: #e5e9f2;
+    --page-bg: #f4f7fc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: var(--page-bg);
+    color: var(--text-main);
+    line-height: 1.75;
+  }
+  .page-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--card-border);
+    position: sticky;
+    top: 0;
+  }
+  .page-header img { width: 28px; height: 28px; border-radius: 7px; }
+  .page-header span { font-weight: 700; font-size: 16px; }
+  .page-header a.back-link {
+    margin-left: auto;
+    font-size: 13px;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .page-header a.back-link:hover { text-decoration: underline; }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+    padding-bottom: max(80px, env(safe-area-inset-bottom));
+  }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  .updated-at { color: var(--text-muted); font-size: 13px; margin: 0 0 32px; }
+  section { margin-bottom: 28px; }
+  h2 { font-size: 17px; margin: 0 0 10px; color: var(--text-main); }
+  p, li { color: #374151; font-size: 14.5px; }
+  ul { padding-left: 20px; margin: 8px 0; }
+  .intro-block p { margin: 0 0 14px; }
+  .closing-block {
+    text-align: center;
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--card-border);
+  }
+  .closing-block p { color: var(--text-muted); }
+  .closing-tagline { font-weight: 700; color: var(--text-main) !important; }
+  a.inline { color: var(--accent); font-weight: 600; text-decoration: none; }
+  a.inline:hover { text-decoration: underline; }
+  .legal-nav {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    margin: 0 0 28px; font-size: 13px;
+  }
+  .legal-nav a {
+    color: var(--accent); text-decoration: none; font-weight: 600;
+    padding: 6px 12px; border: 1px solid var(--card-border);
+    border-radius: 999px; background: var(--card-bg);
+  }
+  .legal-nav a:hover { border-color: var(--accent); }
+  .legal-nav a.current {
+    background: #e8f0fe;
+    border-color: var(--accent);
+  }
+  table.simple {
+    width: 100%; border-collapse: collapse; font-size: 13.5px;
+    margin: 10px 0 16px; background: var(--card-bg);
+    border: 1px solid var(--card-border); border-radius: 10px; overflow: hidden;
+  }
+  table.simple th, table.simple td {
+    text-align: left; padding: 10px 12px;
+    border-bottom: 1px solid var(--card-border); vertical-align: top;
+  }
+  table.simple th { background: #f8fafc; color: var(--text-main); font-weight: 600; }
+  table.simple tr:last-child td { border-bottom: none; }
+</style>
+</head>
+<body>
+  <header class="page-header">
+    <img src="icons/logo-dark.png" alt="MapSky" />
+    <span>MapSky</span>
+    <a class="back-link" href="/">← 回首頁</a>
+  </header>
+
+  <main>
+    <h1>MapSky 隱私權政策</h1>
+    <p class="updated-at">最近更新日期：2026 年 10 月 16 日</p>
+
+    <nav class="legal-nav" aria-label="法律文件">
+      <a href="/terms">服務條款</a>
+      <a class="current" href="/privacy">隱私權政策</a>
+    </nav>
+
+    <section class="intro-block">
+      <p>歡迎使用由 MapSky 開發團隊（以下稱「我們」或「MapSky」）開發與營運之行動應用程式、網站與相關服務（以下稱「本應用程式」或「本服務」）。我們重視您的個人隱私與資料安全。本政策說明本服務如何收集、處理、利用、傳輸及保護相關資訊。</p>
+      <p>請於下載、安裝、註冊、存取或使用本服務前詳閱本政策。開始使用即表示您已閱讀、理解並同意本政策。若不同意，請立即停止使用。</p>
+      <p>服務使用規範請另見 <a class="inline" href="/terms">《服務條款》</a>。</p>
+    </section>
+
+    <section>
+      <h2>一、我們收集的資訊與目的</h2>
+      <p>在合法、必要且最小化原則下，可能收集並處理下列資訊：</p>
+
+      <h2 style="font-size:15px;margin-top:18px">1. 位置資訊</h2>
+      <p><strong>內容：</strong>在您授權後，讀取精確或粗略位置（如 GPS 緯度、經度；系統提供時可能含海拔等），或由基地台／Wi‑Fi 推估之位置。</p>
+      <p><strong>目的：</strong></p>
+      <ul>
+        <li>取得並顯示您所在或指定區域之天氣、降雨機率與預報；</li>
+        <li>依觀測位置計算太陽／月亮高度角、方位角與月相等，供介面與視覺呈現；</li>
+        <li>（若有提供）驗證是否符合特定地區活動或功能之條件。</li>
+      </ul>
+      <p><strong>方式：</strong>僅在您於裝置系統開啟定位權限後讀取。預設以使用期間（前景）為主；僅在您另行明確同意時，才可能於背景使用定位。您可隨時在系統設定中關閉定位。</p>
+
+      <h2 style="font-size:15px;margin-top:18px">2. 帳號與登入資訊</h2>
+      <p><strong>內容：</strong>若您使用第三方登入或電子郵件驗證，可能取得識別碼、顯示名稱、頭像、電子郵件，以及您設定之暱稱、頭像等個人檔案資料。</p>
+      <p><strong>目的：</strong>維護登入狀態、同步設定與雲端功能（如對話紀錄）、會員相關服務，以及安全與客服需求。</p>
+
+      <h2 style="font-size:15px;margin-top:18px">3. 裝置與技術資訊</h2>
+      <p><strong>內容：</strong>裝置型號、作業系統與應用程式版本、顯示相關能力、語言、網路類型，以及錯誤／效能診斷資訊。</p>
+      <p><strong>目的：</strong>相容性與效能優化、錯誤排查、介面適配與服務穩定。</p>
+
+      <h2 style="font-size:15px;margin-top:18px">4. 交易與應用內購（若有提供）</h2>
+      <p><strong>內容：</strong>購買項目、時間、金額、商店訂單／收據識別資訊及對應權益狀態。</p>
+      <p><strong>目的：</strong>驗證內購權益、發放與恢復購買內容。</p>
+      <p><strong>說明：</strong>我們不會收集或儲存信用卡號、銀行密碼或 Apple Pay／Google Pay 等付款敏感憑證。金流由 App Store／Google Play 等官方機制處理。</p>
+
+      <h2 style="font-size:15px;margin-top:18px">5. 使用與互動紀錄（若有啟用）</h2>
+      <p><strong>內容：</strong>功能使用情形、頁面停留、偏好設定等彙總或去識別化之使用資料。</p>
+      <p><strong>目的：</strong>改善功能、介面與服務品質。</p>
+    </section>
+
+    <section>
+      <h2>二、後端傳輸與處理方式</h2>
+      <p>本服務透過加密連線（HTTPS／TLS）與 MapSky 後端伺服器通訊。</p>
+      <ul>
+        <li><strong>氣象與天文：</strong>在您授權或指定地點的前提下，裝置可能將縣市、座標等必要參數傳至後端，由後端向中央氣象署（CWA）等來源取得資料，或於伺服器端計算太陽／月亮位置後回傳裝置。</li>
+        <li><strong>登入與個人檔案：</strong>於已驗證工作階段下處理，與帳號權益相關。</li>
+        <li><strong>最小化：</strong>以達成服務目的所需為限。我們不會將個人資料出售、出租予無關之第三方行銷公司。若您已登入且請求中包含位置參數，該等資料可能與工作階段一併在伺服器端處理。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>三、第三方服務</h2>
+      <p>本服務可能涉及下列類型之第三方，其處理並受各該方政策約束：</p>
+      <table class="simple">
+        <thead><tr><th>類型</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td>中央氣象署（CWA）等開放資料</td><td>天氣、警特報、日出日落等</td></tr>
+          <tr><td>登入供應商（如 Google 等）</td><td>身份驗證</td></tr>
+          <tr><td>Apple App Store／StoreKit（若有內購）</td><td>付款與權益驗證</td></tr>
+          <tr><td>雲端託管與基礎設施</td><td>後端託管、傳輸與安全</td></tr>
+          <tr><td>推播相關服務（若您同意）</td><td>裝置推播通知</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>四、演示／競賽模式（若適用）</h2>
+      <p>本應用程式可能包含演示或模擬資料模式。於該模式下可能使用本機預載或虛擬位置與模擬氣象，並可離線運作，不為該模擬流程向伺服器傳送真實 GPS。實際產品模式仍依您的授權與網路狀態適用本政策。</p>
+    </section>
+
+    <section>
+      <h2>五、儲存、安全與保留</h2>
+      <ul>
+        <li><strong>安全：</strong>採用傳輸加密（TLS）、存取控管與伺服器端防護。任何系統無法保證絕對安全。</li>
+        <li><strong>裝置端：</strong>天氣快取、設定等可能存於您的裝置；卸載後通常一併移除（系統備份另有規定者除外）。</li>
+        <li><strong>保留：</strong>僅在必要期間內保留；目的消失或法定期限屆滿後刪除或去識別化。帳號刪除請求將於核對身分後合理期間內處理，法令要求保留者除外。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>六、您的權利與選擇</h2>
+      <ul>
+        <li><strong>定位：</strong>於系統設定中管理 MapSky 定位權限。</li>
+        <li><strong>通知：</strong>於系統設定中關閉本應用程式通知。</li>
+        <li><strong>卸載：</strong>可卸載本應用程式以停止於裝置上之進一步收集。</li>
+        <li><strong>查詢、更正、刪除等：</strong>依適用之法規，您得請求查詢、閱覽、複製、補充、更正，或請求停止收集、處理、利用或刪除相關個人資料。請以下列信箱與我們聯繫。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>七、未成年人</h2>
+      <p>我們不會在知情情況下收集未滿 13 歲（或您所在地法定年齡門檻）兒童之個人可識別資訊。未成年人請在監護人同意與陪同下使用。若發現未成年人未經同意提供個人資料，請與我們聯絡，我們將儘速處理。</p>
+    </section>
+
+    <section>
+      <h2>八、政策修訂</h2>
+      <p>我們得因法規、技術或功能調整修訂本政策，並於本頁或應用程式內更新「最近更新日期」。修訂後若您繼續使用本服務，視為知悉更新後內容。建議您定期查閱。</p>
+    </section>
+
+    <section>
+      <h2>九、聯絡我們</h2>
+      <p>若對本政策有疑問，或欲行使個人資料相關權利，請聯絡：</p>
+      <ul>
+        <li>團隊：MapSky 開發團隊</li>
+        <li>信箱：<a class="inline" href="mailto:mapskyapp@gmail.com">mapskyapp@gmail.com</a></li>
+      </ul>
+      <p>我們將在收到來信並核對身分後，於法定期限或合理期間內回覆。</p>
+    </section>
+
+    <div class="closing-block">
+      <p class="closing-tagline">MapSky Project</p>
+      <p>Weather, Simplified.</p>
+      <p class="updated-at">隱私權政策 · 2026 年 10 月 16 日</p>
+    </div>
+  </main>
+</body>
+</html>
