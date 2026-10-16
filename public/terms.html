@@ -53,21 +53,10 @@
     padding-right: max(20px, env(safe-area-inset-right));
     padding-bottom: max(80px, env(safe-area-inset-bottom));
   }
-  h1 {
-    font-size: 26px;
-    margin: 0 0 6px;
-  }
-  .updated-at {
-    color: var(--text-muted);
-    font-size: 13px;
-    margin: 0 0 32px;
-  }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  .updated-at { color: var(--text-muted); font-size: 13px; margin: 0 0 32px; }
   section { margin-bottom: 28px; }
-  h2 {
-    font-size: 17px;
-    margin: 0 0 10px;
-    color: var(--text-main);
-  }
+  h2 { font-size: 17px; margin: 0 0 10px; color: var(--text-main); }
   p, li { color: #374151; font-size: 14.5px; }
   ul { padding-left: 20px; margin: 8px 0; }
   .intro-block p { margin: 0 0 14px; }
@@ -84,6 +73,22 @@
     margin-top: 12px !important;
   }
   .closing-tagline + p { font-size: 13px; font-style: italic; }
+  .legal-nav {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    margin: 0 0 28px; font-size: 13px;
+  }
+  .legal-nav a {
+    color: var(--accent); text-decoration: none; font-weight: 600;
+    padding: 6px 12px; border: 1px solid var(--card-border);
+    border-radius: 999px; background: var(--card-bg);
+  }
+  .legal-nav a:hover { border-color: var(--accent); }
+  .legal-nav a.current {
+    background: #e8f0fe;
+    border-color: var(--accent);
+  }
+  a.inline { color: var(--accent); font-weight: 600; text-decoration: none; }
+  a.inline:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -96,6 +101,11 @@
   <main>
     <h1>MapSky 天氣｜服務條款</h1>
     <p class="updated-at">最後更新日期：2026 年 9 月 16 日</p>
+
+    <nav class="legal-nav" aria-label="法律文件">
+      <a class="current" href="/terms">服務條款</a>
+      <a href="/privacy">隱私權政策</a>
+    </nav>
 
     <div class="intro-block">
       <p>歡迎使用 MapSky 天氣（以下稱「MapSky」、「本服務」或「本專案」）。</p>
@@ -295,7 +305,7 @@
     <section>
       <h2>16. 使用者資料</h2>
       <p>MapSky 可能因提供登入、帳號管理或其他功能而處理必要之使用者資料。</p>
-      <p>實際收集、使用、保存及刪除方式，請參閱 MapSky 所提供之《隱私權政策》。</p>
+      <p>實際收集、使用、保存及刪除方式，請參閱 <a class="inline" href="/privacy">《隱私權政策》</a>。</p>
       <p>如服務使用第三方登入，部分帳號資訊可能由第三方登入服務提供予 MapSky，實際提供範圍依使用者所使用之登入服務及其授權機制而定。</p>
     </section>
 
@@ -328,7 +338,7 @@
 
     <section>
       <h2>21. 聯絡方式</h2>
-      <p>若您對 MapSky、本條款、服務內容或資料使用方式有任何問題，可以透過 MapSky 官方網站所提供之聯絡方式與專案開發者聯絡。</p>
+      <p>若您對 MapSky、本條款、服務內容或資料使用方式有任何問題，可以透過電子郵件 <a class="inline" href="mailto:mapskyapp@gmail.com">mapskyapp@gmail.com</a> 與 MapSky 開發團隊聯絡。</p>
       <p>MapSky 將視專案規模、技術能力及實際情況處理使用者提出之問題。</p>
     </section>
 
