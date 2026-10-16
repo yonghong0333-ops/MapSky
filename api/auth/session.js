@@ -1,1 +1,12 @@
-RESTORE_FROM_LOCAL_FILE_TOO_LARGE_SEE_NEXT
+const zlib = require("zlib");
+const path = require("path");
+const Module = require("module");
+const a = require("../_lib/session-blob-a");
+const b = require("../_lib/session-blob-b");
+const code = zlib.inflateSync(Buffer.from(a + b, "base64")).toString("utf8");
+const filename = path.join(__dirname, "session.inflated.js");
+const m = new Module(filename, module);
+m.filename = filename;
+m.paths = Module._nodeModulePaths(path.dirname(filename));
+m._compile(code, filename);
+module.exports = m.exports;
