@@ -3,6 +3,7 @@
  * 由 session.js ?action=mapsky-bridge 呼叫
  */
 const { getCity, getAlerts, getLightning, getRadarComposite, getWeeklyForecast, CWA_CITIES } = require("./cwa");
+const { computeSkyPosition } = require("./sky-position");
 
 function normCity(name) {
   if (!name) return "";
@@ -125,9 +126,6 @@ function attachWeekdays(days) {
   return days;
 }
 
-/**
- * @param {{ city?: string, placeName?: string, lat?: number, lon?: number, include?: string, refresh?: boolean }} opts
- */
 async function buildMapskyBridge(opts) {
   opts = opts || {};
   const cityRaw = opts.city || "";
@@ -159,6 +157,7 @@ async function buildMapskyBridge(opts) {
     alerts: null,
     lightning: null,
     radar: null,
+    sky: null,
     notes: [],
   };
   if (!cityRaw) out.notes.push("未指定 city，使用 " + city);
@@ -249,6 +248,36 @@ async function buildMapskyBridge(opts) {
       out.ui.cards.push({ type: "radar", id: "radar", title: "雷達回波", summary: "MapSky 雷達", imageUrl: imgUrl });
     } catch (e) {
       out.notes.push("雷達錯誤：" + String((e && e.message) || e).slice(0, 80));
+    }
+  }
+
+  if (want("astro") || want("position") || want("sky")) {
+    try {
+      const la = lat != null && !Number.isNaN(lat) ? lat : null;
+      const lo = lon != null && !Number.isNaN(lon) ? lon : null;
+      if (la != null && lo != null) {
+        out.sky = computeSkyPosition({ lat: la, lon: lo });
+        if (out.sky && out.sky.ok) {
+          out.ui.cards.push({
+            type: "sky",
+            id: "sky",
+            title: "太陽／月亮位置",
+            summary:
+              "日 高度 " + out.sky.summary.sunAltitude + "° 方位 " + out.sky.summary.sunAzimuth +
+              "° · 月 " + out.sky.summary.moonAltitude + "° / " + out.sky.summary.moonAzimuth +
+              "° · " + out.sky.summary.moonPhase,
+            sunAltitude: out.sky.summary.sunAltitude,
+            sunAzimuth: out.sky.summary.sunAzimuth,
+            moonAltitude: out.sky.summary.moonAltitude,
+            moonAzimuth: out.sky.summary.moonAzimuth,
+            moonPhase: out.sky.summary.moonPhase,
+          });
+        }
+      } else {
+        out.notes.push("astro 需要 lat/lon");
+      }
+    } catch (e) {
+      out.notes.push("astro 錯誤：" + String((e && e.message) || e).slice(0, 80));
     }
   }
 
