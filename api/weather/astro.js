@@ -1,5 +1,5 @@
 const { getSunTimes, getMoonTimes, getMoonPhaseImage, getUvIndexObservation, getWeeklyForecast } = require("../_lib/cwa");
-const { computeSkyPosition } = require("../_lib/sky-position");
+const { computeSkyPosition, computeMoonIllumination } = require("../_lib/sky-position");
 const { saveLastLocation, getLastLocation } = require("../_lib/last-location");
 const { resolveObserverLocation } = require("../_lib/tw-city-coords");
 const { requireSession } = require("../_lib/require-session");
@@ -20,10 +20,84 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  // type=position|sky：
-  // 1) 有 lat/lon → 計算並存「上次定位」
-  // 2) 沒有 → 用帳號上次定位（不預設任何縣市）
-  // 3) 明確傳 city 才用縣市中心
+  // 月球照亮面積百分比
+  // GET /api/weather/astro?type=illumination
+  // 可選 lat/lon；沒有則用上次定位；再沒有用參考點（百分比與地點幾乎無關）
+  if (req.query.type === "illumination" || req.query.type === "moon-illumination") {
+    let body = req.body;
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch {
+        body = {};
+      }
+    }
+    body = body || {};
+    const q = req.query || {};
+    const hasGps =
+      (body.lat != null || q.lat != null) &&
+      (body.lon != null || q.lon != null || body.lng != null || q.lng != null);
+    let loc = null;
+    if (hasGps) {
+      loc = resolveObserverLocation({
+        lat: body.lat != null ? body.lat : q.lat,
+        lon: body.lon != null ? body.lon : q.lon,
+        lng: body.lng != null ? body.lng : q.lng,
+        city: body.city || q.city,
+        placeName: body.placeName || body.place || q.placeName,
+      });
+      if (loc.ok) {
+        await saveLastLocation(payload, {
+          lat: loc.lat,
+          lon: loc.lon,
+          city: loc.city || body.city || q.city,
+          placeName: loc.placeName,
+        });
+        loc.source = "gps";
+      }
+    } else if (body.city || q.city) {
+      loc = resolveObserverLocation({
+        city: body.city || q.city,
+        placeName: body.placeName || body.place || q.placeName,
+      });
+      if (loc.ok) {
+        await saveLastLocation(payload, {
+          lat: loc.lat,
+          lon: loc.lon,
+          city: loc.city,
+          placeName: loc.placeName,
+        });
+      }
+    } else {
+      const last = await getLastLocation(payload);
+      if (last) {
+        loc = {
+          ok: true,
+          lat: last.lat,
+          lon: last.lon,
+          source: "last-location",
+          city: last.city,
+          placeName: last.placeName,
+          updatedAt: last.updatedAt,
+        };
+      }
+    }
+    if (!loc || !loc.ok) {
+      loc = { ok: true, lat: 0, lon: 120, source: "reference", city: null, placeName: null };
+    }
+    const result = computeMoonIllumination({
+      lat: loc.lat,
+      lon: loc.lon,
+      time: body.time || q.time || undefined,
+    });
+    if (!result.ok) return res.status(400).json(result);
+    result.locationSource = loc.source;
+    result.city = loc.city || null;
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).json(result);
+  }
+
+  // type=position|sky：有 lat/lon 存上次；沒有用上次；不預設縣市
   if (req.query.type === "position" || req.query.type === "sky") {
     let body = req.body;
     if (typeof body === "string") {
@@ -115,7 +189,6 @@ module.exports = async function handler(req, res) {
     return res.status(200).json(result);
   }
 
-  // 讀／寫上次定位（前端橋接）
   if (req.query.type === "last-location") {
     if (req.method === "POST") {
       let body = req.body;
