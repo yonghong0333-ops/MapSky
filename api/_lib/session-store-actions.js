@@ -2,9 +2,12 @@ const storeLib = require("./store");
 const { parseCookies } = require("./cookies");
 const { verify } = require("./jwt");
 const { isAdminSession } = require("./admin");
+const { tryHandleGacha } = require("./session-gacha-actions");
 
 /** @returns {Promise<boolean>} true if handled */
 async function tryHandleStore(req, res) {
+  if (await tryHandleGacha(req, res)) return true;
+
   const action = req.query && req.query.action;
   if (!action || !String(action).startsWith("store-")) return false;
 
