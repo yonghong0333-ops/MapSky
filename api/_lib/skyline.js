@@ -1,6 +1,6 @@
 /**
  * 城市天際線剪影：抽卡解鎖、綁定帳號
- * 資料在 Redis；圖可存 base64 或 repo 內相對路徑（僅能經 API 讀取）
+ * 免費期：PROMO_100_PERCENT 時強制高雄愛河灣 weight=100、其餘 0
  */
 const crypto = require("crypto");
 const fs = require("fs");
@@ -9,14 +9,17 @@ const { getRedisClient } = require("./redis-client");
 
 const SKY_PREFIX = "skyline:meta:";
 const SKY_INDEX = "skyline:index";
-const SKY_IMG = "skyline:img:"; // skyline:img:{id}:{slot}
-const USER_SKY = "skyline:user:"; // hash userKey -> skylineId -> JSON
+const SKY_IMG = "skyline:img:";
+const USER_SKY = "skyline:user:";
 const GACHA_IDEM = "skyline:gacha:idem:";
 const GACHA_TX = "skyline:gacha:tx:";
-const GACHA_RATE = "skyline:gacha:rate:"; // userKey -> count window
+const GACHA_RATE = "skyline:gacha:rate:";
 
 const SLOTS = ["day", "dusk", "night", "lights", "preview"];
 const SIGN_TTL_SEC = 10 * 60;
+
+const PROMO_FORCE_ID = "kaohsiung-love-river";
+const PROMO_100_PERCENT = true;
 
 function userKeyFromPayload(payload) {
   if (!payload || !payload.provider || !payload.profile || !payload.profile.id) return null;
@@ -79,7 +82,6 @@ const DEFAULT_SKYLINES = [
     rarity: "common",
     weight: 100,
     active: true,
-    // 圖未上傳前 paths 為 null；admin 上傳後寫入 Redis 圖位
     paths: { day: null, dusk: null, night: null, lights: null, preview: null },
   },
   {
@@ -92,7 +94,7 @@ const DEFAULT_SKYLINES = [
     baseline: 0.0,
     maxHeight: 0.48,
     rarity: "rare",
-    weight: 40,
+    weight: 0,
     active: true,
     paths: { day: null, dusk: null, night: null, lights: null, preview: null },
   },
@@ -110,6 +112,29 @@ async function ensureSeed() {
     const row = { ...s, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     await client.set(SKY_PREFIX + s.id, JSON.stringify(row));
     await client.sAdd(SKY_INDEX, s.id);
+  }
+}
+
+async function ensurePromoWeights() {
+  if (!PROMO_100_PERCENT) return;
+  await ensureSeed();
+  const client = await redis();
+  const ids = await client.sMembers(SKY_INDEX);
+  for (const id of ids || []) {
+    const raw = await client.get(SKY_PREFIX + id);
+    if (!raw) continue;
+    let m;
+    try {
+      m = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    const want = id === PROMO_FORCE_ID ? 100 : 0;
+    if (Number(m.weight) === want && (id !== PROMO_FORCE_ID || m.active !== false)) continue;
+    m.weight = want;
+    if (id === PROMO_FORCE_ID) m.active = true;
+    m.updatedAt = new Date().toISOString();
+    await client.set(SKY_PREFIX + id, JSON.stringify(m));
   }
 }
 
@@ -175,7 +200,6 @@ function toAppItem(meta, userKey) {
   if (meta.paths && (meta.paths.lights || meta.hasLights)) {
     item.lights = makeSignedUrl({ userKey, id: meta.id, slot: "lights", version: v });
   }
-  // 若尚未上傳任何圖，仍給 day 簽名 URL（取圖時 404）
   return item;
 }
 
@@ -226,7 +250,6 @@ async function rateLimitDraw(userKey) {
   const key = GACHA_RATE + userKey;
   const n = await client.incr(key);
   if (n === 1) await client.expire(key, 60);
-  // 每分鐘最多 20 次（免費期寬鬆）
   if (n > 20) return false;
   return true;
 }
@@ -236,7 +259,7 @@ async function gachaDraw(payload, { poolId, idempotencyKey, transactionId } = {}
   if (!userKey) return { ok: false, reason: "not-authenticated" };
 
   const client = await redis();
-  await ensureSeed();
+  await ensurePromoWeights();
 
   if (idempotencyKey) {
     const idemKey = GACHA_IDEM + userKey + ":" + String(idempotencyKey).slice(0, 128);
@@ -262,7 +285,6 @@ async function gachaDraw(payload, { poolId, idempotencyKey, transactionId } = {}
     return { ok: false, reason: "rate-limited" };
   }
 
-  // 免費期：不扣款。日後 IAP 在此驗證 JWS 後再往下。
   const pool = (await listAllMeta({ activeOnly: true })).filter((m) => (m.weight || 0) > 0);
   if (!pool.length) return { ok: false, reason: "empty-pool" };
 
@@ -281,6 +303,7 @@ async function gachaDraw(payload, { poolId, idempotencyKey, transactionId } = {}
   const result = {
     ok: true,
     poolId: poolId || "default",
+    free: true,
     won: {
       id: won.id,
       name: won.name,
@@ -302,7 +325,7 @@ async function gachaDraw(payload, { poolId, idempotencyKey, transactionId } = {}
 }
 
 async function gachaOdds() {
-  await ensureSeed();
+  await ensurePromoWeights();
   const pool = await listAllMeta({ activeOnly: true });
   const total = pool.reduce((s, m) => s + (Number(m.weight) || 0), 0) || 1;
   const byRarity = {};
@@ -324,7 +347,9 @@ async function gachaOdds() {
     ok: true,
     poolId: "default",
     free: true,
-    note: "目前為免費抽卡（尚未接 App Store 內購）",
+    note: PROMO_100_PERCENT
+      ? "免費期：" + PROMO_FORCE_ID + " 機率 100%"
+      : "目前為免費抽卡",
     rarities: Object.keys(byRarity).map((r) => ({
       rarity: r,
       probability: Math.round(byRarity[r] * 10000) / 10000,
@@ -366,7 +391,6 @@ async function upsertSkyline(body) {
   };
 
   const client = await redis();
-  // 可一次上傳多 slot base64：imagesBase64: { day: "...", night: "..." }
   const imagesBase64 = body.imagesBase64 || {};
   if (body.imageBase64 && body.slot) {
     imagesBase64[body.slot] = body.imageBase64;
@@ -375,7 +399,7 @@ async function upsertSkyline(body) {
     if (SLOTS.indexOf(slot) === -1) continue;
     let b64 = String(imagesBase64[slot] || "");
     b64 = b64.replace(/^data:image\/\w+;base64,/, "");
-    if (!b64 || b64.length > 2.5e6) continue; // ~2MB
+    if (!b64 || b64.length > 2.5e6) continue;
     await client.set(SKY_IMG + id + ":" + slot, b64);
     row.paths = row.paths || {};
     row.paths[slot] = "redis";
@@ -401,7 +425,6 @@ async function loadImageBuffer(id, slot) {
   const meta = await getMeta(id);
   const rel = meta && meta.paths && meta.paths[slot];
   if (rel && rel !== "redis" && typeof rel === "string") {
-    // 僅允許 repo 內 skyline-assets/ 相對路徑
     if (rel.startsWith("skyline-assets/") && !rel.includes("..")) {
       const full = path.join(process.cwd(), rel);
       if (fs.existsSync(full)) {
