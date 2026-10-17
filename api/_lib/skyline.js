@@ -1,6 +1,7 @@
 /**
  * 城市天際線剪影：抽卡解鎖、綁定帳號
  * 免費期：PROMO_100_PERCENT 時強制高雄愛河灣 weight=100、其餘 0
+ * 圖片可放 repo：skyline-assets/{id}/day.png（不必瀏覽器上傳）
  */
 const crypto = require("crypto");
 const fs = require("fs");
@@ -82,7 +83,14 @@ const DEFAULT_SKYLINES = [
     rarity: "common",
     weight: 100,
     active: true,
-    paths: { day: null, dusk: null, night: null, lights: null, preview: null },
+    paths: {
+      day: "skyline-assets/kaohsiung-love-river/day.png",
+      dusk: null,
+      night: null,
+      lights: null,
+      preview: null,
+    },
+    hasDay: true,
   },
   {
     id: "taipei-basin",
@@ -107,11 +115,29 @@ async function redis() {
 async function ensureSeed() {
   const client = await redis();
   const n = await client.sCard(SKY_INDEX);
-  if (n && n > 0) return;
-  for (const s of DEFAULT_SKYLINES) {
-    const row = { ...s, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-    await client.set(SKY_PREFIX + s.id, JSON.stringify(row));
-    await client.sAdd(SKY_INDEX, s.id);
+  if (!(n && n > 0)) {
+    for (const s of DEFAULT_SKYLINES) {
+      const row = { ...s, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      await client.set(SKY_PREFIX + s.id, JSON.stringify(row));
+      await client.sAdd(SKY_INDEX, s.id);
+    }
+  }
+  const repoDay = "skyline-assets/kaohsiung-love-river/day.png";
+  const full = path.join(process.cwd(), repoDay);
+  if (fs.existsSync(full)) {
+    const raw = await client.get(SKY_PREFIX + "kaohsiung-love-river");
+    if (raw) {
+      try {
+        const m = JSON.parse(raw);
+        if (!m.paths) m.paths = {};
+        if (m.paths.day !== "redis") {
+          m.paths.day = repoDay;
+          m.hasDay = true;
+          m.updatedAt = new Date().toISOString();
+          await client.set(SKY_PREFIX + "kaohsiung-love-river", JSON.stringify(m));
+        }
+      } catch (e) {}
+    }
   }
 }
 
@@ -257,10 +283,8 @@ async function rateLimitDraw(userKey) {
 async function gachaDraw(payload, { poolId, idempotencyKey, transactionId } = {}) {
   const userKey = userKeyFromPayload(payload);
   if (!userKey) return { ok: false, reason: "not-authenticated" };
-
   const client = await redis();
   await ensurePromoWeights();
-
   if (idempotencyKey) {
     const idemKey = GACHA_IDEM + userKey + ":" + String(idempotencyKey).slice(0, 128);
     const prev = await client.get(idemKey);
@@ -270,7 +294,6 @@ async function gachaDraw(payload, { poolId, idempotencyKey, transactionId } = {}
       } catch {}
     }
   }
-
   if (transactionId) {
     const txKey = GACHA_TX + String(transactionId).slice(0, 128);
     const prevTx = await client.get(txKey);
@@ -280,14 +303,11 @@ async function gachaDraw(payload, { poolId, idempotencyKey, transactionId } = {}
       } catch {}
     }
   }
-
   if (!(await rateLimitDraw(userKey))) {
     return { ok: false, reason: "rate-limited" };
   }
-
   const pool = (await listAllMeta({ activeOnly: true })).filter((m) => (m.weight || 0) > 0);
   if (!pool.length) return { ok: false, reason: "empty-pool" };
-
   const total = pool.reduce((s, m) => s + (Number(m.weight) || 0), 0);
   let r = Math.random() * total;
   let won = pool[pool.length - 1];
@@ -298,7 +318,6 @@ async function gachaDraw(payload, { poolId, idempotencyKey, transactionId } = {}
       break;
     }
   }
-
   const grant = await grantSkyline(userKey, won.id, "gacha");
   const result = {
     ok: true,
@@ -311,7 +330,6 @@ async function gachaDraw(payload, { poolId, idempotencyKey, transactionId } = {}
       duplicate: Boolean(grant.duplicate),
     },
   };
-
   if (idempotencyKey) {
     const idemKey = GACHA_IDEM + userKey + ":" + String(idempotencyKey).slice(0, 128);
     await client.set(idemKey, JSON.stringify(result), { EX: 60 * 60 * 24 * 7 });
@@ -371,7 +389,6 @@ async function upsertSkyline(body) {
     body.imagesBase64 ||
     (body.paths && JSON.stringify(body.paths) !== JSON.stringify(prev.paths));
   if (bump && prev.id) version = version + 1;
-
   const row = {
     ...prev,
     id,
@@ -389,12 +406,9 @@ async function upsertSkyline(body) {
     updatedAt: new Date().toISOString(),
     createdAt: prev.createdAt || new Date().toISOString(),
   };
-
   const client = await redis();
   const imagesBase64 = body.imagesBase64 || {};
-  if (body.imageBase64 && body.slot) {
-    imagesBase64[body.slot] = body.imageBase64;
-  }
+  if (body.imageBase64 && body.slot) imagesBase64[body.slot] = body.imageBase64;
   for (const slot of Object.keys(imagesBase64)) {
     if (SLOTS.indexOf(slot) === -1) continue;
     let b64 = String(imagesBase64[slot] || "");
@@ -409,7 +423,6 @@ async function upsertSkyline(body) {
     if (slot === "lights") row.hasLights = true;
     if (slot === "preview") row.hasPreview = true;
   }
-
   await client.set(SKY_PREFIX + id, JSON.stringify(row));
   await client.sAdd(SKY_INDEX, id);
   return row;
@@ -419,9 +432,7 @@ async function loadImageBuffer(id, slot) {
   if (SLOTS.indexOf(slot) === -1) return null;
   const client = await redis();
   const b64 = await client.get(SKY_IMG + id + ":" + slot);
-  if (b64) {
-    return { buffer: Buffer.from(b64, "base64"), contentType: "image/png" };
-  }
+  if (b64) return { buffer: Buffer.from(b64, "base64"), contentType: "image/png" };
   const meta = await getMeta(id);
   const rel = meta && meta.paths && meta.paths[slot];
   if (rel && rel !== "redis" && typeof rel === "string") {
@@ -438,11 +449,9 @@ async function loadImageBuffer(id, slot) {
 async function serveImage({ payload, query }) {
   const userKey = userKeyFromPayload(payload);
   if (!userKey) return { status: 401, body: { ok: false, reason: "not-authenticated" } };
-
   let id = String(query.id || "");
   let slot = String(query.slot || "day");
   let version = Number(query.v || query.version || 1);
-
   if (query.sig) {
     const v = verifySignedQuery(query, userKey);
     if (!v.ok) return { status: 403, body: { ok: false, reason: v.reason } };
@@ -450,22 +459,13 @@ async function serveImage({ payload, query }) {
     slot = v.slot;
     version = v.version;
   }
-
-  if (SLOTS.indexOf(slot) === -1) {
-    return { status: 400, body: { ok: false, reason: "bad-slot" } };
-  }
-
+  if (SLOTS.indexOf(slot) === -1) return { status: 400, body: { ok: false, reason: "bad-slot" } };
   const owns = await userOwns(userKey, id);
   if (!owns) return { status: 403, body: { ok: false, reason: "not-owned" } };
-
   const meta = await getMeta(id);
-  if (!meta || meta.active === false) {
-    return { status: 404, body: { ok: false, reason: "not-found" } };
-  }
-
+  if (!meta || meta.active === false) return { status: 404, body: { ok: false, reason: "not-found" } };
   const img = await loadImageBuffer(id, slot);
   if (!img) return { status: 404, body: { ok: false, reason: "no-image" } };
-
   return {
     status: 200,
     headers: {
