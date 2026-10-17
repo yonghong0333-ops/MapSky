@@ -3,6 +3,22 @@
   "cleanUrls": true,
   "rewrites": [
     {
+      "source": "/api/store/gacha-odds",
+      "destination": "/api/auth/session?action=gacha-odds"
+    },
+    {
+      "source": "/api/store/gacha-draw",
+      "destination": "/api/auth/session?action=gacha-draw"
+    },
+    {
+      "source": "/api/weather/skyline-image",
+      "destination": "/api/weather/astro?type=skyline-image"
+    },
+    {
+      "source": "/api/weather/skyline",
+      "destination": "/api/weather/astro?type=skyline-list"
+    },
+    {
       "source": "/api/auth/callback/microsoft",
       "destination": "/api/auth/callback?provider=microsoft"
     },
@@ -15,60 +31,29 @@
     {
       "source": "/(.*)",
       "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
-        }
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
       ]
     },
     {
       "source": "/index.html",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, must-revalidate"
-        }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
     },
     {
       "source": "/",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, must-revalidate"
-        }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
     },
     {
       "source": "/renderer.js",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, must-revalidate"
-        }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
     },
     {
       "source": "/style.css",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, must-revalidate"
-        }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
     },
     {
       "source": "/web-shim.js",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, must-revalidate"
-        }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
     }
   ],
   "redirects": [
