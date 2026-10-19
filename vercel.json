@@ -3,6 +3,10 @@
   "cleanUrls": true,
   "rewrites": [
     {
+      "source": "/api/weather/cloud",
+      "destination": "/api/weather/wind?type=cloud"
+    },
+    {
       "source": "/api/store/gacha-odds",
       "destination": "/api/auth/session?action=gacha-odds"
     },
