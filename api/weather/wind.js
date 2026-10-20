@@ -8,37 +8,60 @@ const { requireSession } = require("../_lib/require-session");
 module.exports = async function handler(req, res) {
   if (!requireSession(req, res)) return;
   try {
-    if (req.query.type === "cloud" || req.query.type === "cloud-cover") {
+    const q = req.query || {};
+    // transit= 由 vercel rewrite 注入，不會蓋掉客戶端的 type=
+    const transit = String(q.transit || "").toLowerCase();
+
+    if (q.type === "cloud" || q.type === "cloud-cover") {
       const result = await getCloudObservation({
-        forceRefresh: req.query.refresh === "1",
-        county: req.query.county || req.query.label || null,
+        forceRefresh: q.refresh === "1",
+        county: q.county || q.label || null,
       });
       res.setHeader("Cache-Control", "public, max-age=60");
       return res.status(result.ok ? 200 : 502).json(result);
     }
 
     if (
-      req.query.type === "krtc" ||
-      req.query.type === "metro" ||
-      req.query.type === "kaohsiung-mrt"
+      transit === "krtc" ||
+      q.type === "krtc" ||
+      q.type === "metro" ||
+      q.type === "kaohsiung-mrt"
     ) {
-      const result = await handleKrtcQuery(req.query);
+      // 若 rewrite 誤把 type 設成 krtc，仍允許用 action 指定
+      const query = { ...q };
+      if (query.type === "krtc" || query.type === "metro" || query.type === "kaohsiung-mrt") {
+        delete query.type;
+      }
+      const result = await handleKrtcQuery(query);
       const status = result.ok ? 200 : result.reason === "tdx-not-configured" ? 503 : 502;
       res.setHeader("Cache-Control", "no-store");
       return res.status(status).json(result);
     }
 
-    if (req.query.type === "tra" || req.query.type === "taiwan-rail" || req.query.type === "rail") {
-      const result = await handleTraQuery(req.query);
+    if (transit === "tra" || q.type === "tra" || q.type === "taiwan-rail" || q.type === "rail") {
+      const query = { ...q };
+      if (query.type === "tra" || query.type === "taiwan-rail" || query.type === "rail") {
+        delete query.type;
+      }
+      const result = await handleTraQuery(query);
       const status =
-        result.ok ? 200 : result.reason === "tdx-not-configured" ? 503 : result.reason === "missing-stationId" ? 400 : 502;
+        result.ok
+          ? 200
+          : result.reason === "tdx-not-configured"
+            ? 503
+            : result.reason === "missing-stationId"
+              ? 400
+              : 502;
       res.setHeader("Cache-Control", "no-store");
       return res.status(status).json(result);
     }
 
-    // 高鐵：GET /api/transit/thsr 或 /api/weather/wind?type=thsr
-    if (req.query.type === "thsr" || req.query.type === "hsr" || req.query.type === "high-speed") {
-      const result = await handleThsrQuery(req.query);
+    if (transit === "thsr" || q.type === "thsr" || q.type === "hsr" || q.type === "high-speed") {
+      const query = { ...q };
+      if (query.type === "thsr" || query.type === "hsr" || query.type === "high-speed") {
+        delete query.type;
+      }
+      const result = await handleThsrQuery(query);
       const status =
         result.ok
           ? 200
@@ -51,7 +74,7 @@ module.exports = async function handler(req, res) {
       return res.status(status).json(result);
     }
 
-    const result = await getWindObservation({ forceRefresh: req.query.refresh === "1" });
+    const result = await getWindObservation({ forceRefresh: q.refresh === "1" });
     res.status(200).json(result);
   } catch (e) {
     res.status(502).json({ ok: false, reason: e.message });
