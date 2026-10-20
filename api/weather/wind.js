@@ -2,6 +2,7 @@ const { getWindObservation } = require("../_lib/cwa");
 const { getCloudObservation } = require("../_lib/cloud-obs");
 const { handleKrtcQuery } = require("../_lib/krtc");
 const { handleTraQuery } = require("../_lib/tra");
+const { handleThsrQuery } = require("../_lib/thsr");
 const { requireSession } = require("../_lib/require-session");
 
 module.exports = async function handler(req, res) {
@@ -27,10 +28,25 @@ module.exports = async function handler(req, res) {
       return res.status(status).json(result);
     }
 
-    // 臺鐵：GET /api/transit/tra 或 /api/weather/wind?type=tra
     if (req.query.type === "tra" || req.query.type === "taiwan-rail" || req.query.type === "rail") {
       const result = await handleTraQuery(req.query);
-      const status = result.ok ? 200 : result.reason === "tdx-not-configured" ? 503 : result.reason === "missing-stationId" ? 400 : 502;
+      const status =
+        result.ok ? 200 : result.reason === "tdx-not-configured" ? 503 : result.reason === "missing-stationId" ? 400 : 502;
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(status).json(result);
+    }
+
+    // 高鐵：GET /api/transit/thsr 或 /api/weather/wind?type=thsr
+    if (req.query.type === "thsr" || req.query.type === "hsr" || req.query.type === "high-speed") {
+      const result = await handleThsrQuery(req.query);
+      const status =
+        result.ok
+          ? 200
+          : result.reason === "tdx-not-configured"
+            ? 503
+            : result.reason === "missing-stations" || result.reason === "missing-stationId"
+              ? 400
+              : 502;
       res.setHeader("Cache-Control", "no-store");
       return res.status(status).json(result);
     }
