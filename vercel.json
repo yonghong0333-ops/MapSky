@@ -3,6 +3,10 @@
   "cleanUrls": true,
   "rewrites": [
     {
+      "source": "/api/transit/thsr",
+      "destination": "/api/weather/wind?type=thsr"
+    },
+    {
       "source": "/api/transit/tra",
       "destination": "/api/weather/wind?type=tra"
     },
