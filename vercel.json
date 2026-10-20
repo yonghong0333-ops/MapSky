@@ -4,15 +4,15 @@
   "rewrites": [
     {
       "source": "/api/transit/thsr",
-      "destination": "/api/weather/wind?type=thsr"
+      "destination": "/api/weather/wind?transit=thsr"
     },
     {
       "source": "/api/transit/tra",
-      "destination": "/api/weather/wind?type=tra"
+      "destination": "/api/weather/wind?transit=tra"
     },
     {
       "source": "/api/transit/krtc",
-      "destination": "/api/weather/wind?type=krtc"
+      "destination": "/api/weather/wind?transit=krtc"
     },
     {
       "source": "/api/weather/cloud",
