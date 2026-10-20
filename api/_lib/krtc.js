@@ -5,6 +5,8 @@
  *
  * 環境變數：TDX_CLIENT_ID、TDX_CLIENT_SECRET
  * 申請：https://tdx.transportdata.tw/
+ *
+ * 注意：vercel rewrite 用 transit=krtc，客戶端 type=stations|sequence|live 會保留
  */
 const fs = require("fs");
 const os = require("os");
@@ -14,11 +16,11 @@ const TOKEN_URL =
   "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token";
 const API_BASE = "https://tdx.transportdata.tw/api/basic/v2/Rail/Metro";
 
-const CACHE_TTL_STATIC_MS = 6 * 60 * 60 * 1000; // 站點／路線 6 小時
-const CACHE_TTL_LIVE_MS = 20 * 1000; // 即時看板 20 秒
+const CACHE_TTL_STATIC_MS = 6 * 60 * 60 * 1000;
+const CACHE_TTL_LIVE_MS = 20 * 1000;
 const TOKEN_SKEW_MS = 60 * 1000;
 
-let memoryToken = null; // { access_token, expiresAt }
+let memoryToken = null;
 
 function tmpPath(name) {
   return path.join(os.tmpdir(), `nexora-krtc-${name}.json`);
@@ -95,14 +97,21 @@ async function tdxGet(apiPath, { query = "" } = {}) {
   return { ok: true, data };
 }
 
-/** 正規化路線參數：R/紅線、O/橘線、C|G|LRT/輕軌 */
 function normalizeLineKey(raw) {
   if (raw == null || raw === "") return null;
   const s = String(raw).trim().toUpperCase();
   if (s === "R" || s === "RED" || s.includes("紅")) return "R";
   if (s === "O" || s === "ORANGE" || s.includes("橘") || s.includes("橙")) return "O";
-  if (s === "G" || s === "GREEN" || s === "C" || s === "LRT" || s.includes("綠") || s.includes("輕軌") || s.includes("環狀")) {
-    return "C"; // 輕軌站碼多為 C1…
+  if (
+    s === "G" ||
+    s === "GREEN" ||
+    s === "C" ||
+    s === "LRT" ||
+    s.includes("綠") ||
+    s.includes("輕軌") ||
+    s.includes("環狀")
+  ) {
+    return "C";
   }
   if (s.startsWith("R")) return "R";
   if (s.startsWith("O")) return "O";
@@ -150,7 +159,7 @@ function lineMeta(key) {
       color: "#00a19b",
       system: "KLRT",
       systemName: "高雄輕軌",
-      note: "高雄捷運本體無「綠線」；此為環狀輕軌（若前端以綠線指輕軌可對應此線）",
+      note: "高雄捷運本體無「綠線」；此為環狀輕軌",
     };
   }
   return null;
@@ -189,16 +198,17 @@ async function fetchLiveBoard(system) {
   return { ok: true, data: list, cached: false };
 }
 
-function mapStation(s, lineKey) {
+function mapStation(s) {
   const id = s.StationID || s.StationId;
+  const lat = s.StationPosition && (s.StationPosition.PositionLat || s.StationPosition.lat);
+  const lon = s.StationPosition && (s.StationPosition.PositionLon || s.StationPosition.lon);
   return {
     stationId: id,
     nameZh: (s.StationName && (s.StationName.Zh_tw || s.StationName.Zh)) || s.StationName || id,
     nameEn: (s.StationName && s.StationName.En) || null,
-    lineKey: lineKey || stationLineOf(id),
-    lat: s.StationPosition && (s.StationPosition.PositionLat || s.StationPosition.lat),
-    lon: s.StationPosition && (s.StationPosition.PositionLon || s.StationPosition.lon),
-    address: s.StationAddress || null,
+    lineKey: stationLineOf(id),
+    lat: lat != null ? Number(lat) : null,
+    lon: lon != null ? Number(lon) : null,
   };
 }
 
@@ -211,7 +221,7 @@ function mapLive(row) {
       (row.DestinationName && (row.DestinationName.Zh_tw || row.DestinationName.Zh)) ||
       row.DestinationStationName ||
       null,
-    estimateTime: row.EstimateTime != null ? Number(row.EstimateTime) : null, // 秒；0=進站
+    estimateTime: row.EstimateTime != null ? Number(row.EstimateTime) : null,
     estimateMinutes:
       row.EstimateTime != null && Number.isFinite(Number(row.EstimateTime))
         ? Math.max(0, Math.round(Number(row.EstimateTime) / 60))
@@ -221,7 +231,6 @@ function mapLive(row) {
   };
 }
 
-/** 路線列表（紅／橘／輕軌） */
 function listLines() {
   return {
     ok: true,
@@ -230,7 +239,6 @@ function listLines() {
   };
 }
 
-/** 站點清單，可依 line 過濾 */
 async function listStations({ line = null } = {}) {
   const key = normalizeLineKey(line);
   const systems = key === "C" ? ["KLRT"] : key ? ["KRTC"] : ["KRTC", "KLRT"];
@@ -241,19 +249,25 @@ async function listStations({ line = null } = {}) {
     for (const s of res.data) {
       const mapped = mapStation(s);
       if (key && mapped.lineKey !== key) continue;
-      stations.push({ ...mapped, system: sys });
+      stations.push(mapped);
     }
   }
   stations.sort((a, b) => String(a.stationId).localeCompare(String(b.stationId)));
+  // 前端約定欄位
+  const slim = stations.map((s) => ({
+    stationId: s.stationId,
+    nameZh: s.nameZh,
+    lat: s.lat,
+    lon: s.lon,
+  }));
   return {
     ok: true,
     line: key ? lineMeta(key) : null,
-    count: stations.length,
-    stations,
+    count: slim.length,
+    stations: slim,
   };
 }
 
-/** 某線站序 */
 async function stationSequence({ line } = {}) {
   const key = normalizeLineKey(line) || "R";
   const meta = lineMeta(key);
@@ -262,17 +276,15 @@ async function stationSequence({ line } = {}) {
   const res = await fetchStationOfLine(system);
   if (!res.ok) return res;
 
-  // StationOfLine：各 Direction 的 Stations[]
   const sequences = [];
   for (const route of res.data || []) {
     const lineId = String(route.LineID || route.LineId || "");
-    // KRTC 紅線 LineID 可能為 R 或含 R；輕軌可能不同
     const match =
       key === "R"
         ? lineId === "R" || lineId.startsWith("R")
         : key === "O"
           ? lineId === "O" || lineId.startsWith("O")
-          : true; // KLRT 全收
+          : true;
     if (key !== "C" && !match) continue;
     const stops = (route.Stations || []).map((st, i) => ({
       sequence: st.Sequence != null ? st.Sequence : i + 1,
@@ -286,10 +298,23 @@ async function stationSequence({ line } = {}) {
       stops,
     });
   }
-  return { ok: true, line: meta, sequences };
+
+  const primary = sequences.find((s) => s.direction === 0) || sequences[0] || null;
+  const stationIds = primary
+    ? primary.stops
+        .slice()
+        .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+        .map((s) => s.stationId)
+    : [];
+
+  return {
+    ok: true,
+    line: meta,
+    stationIds,
+    sequences,
+  };
 }
 
-/** 即時到站看板 */
 async function liveBoard({ line = null, stationId = null } = {}) {
   const key = normalizeLineKey(line);
   const sid = stationId ? String(stationId).trim().toUpperCase() : null;
@@ -328,10 +353,6 @@ async function liveBoard({ line = null, stationId = null } = {}) {
   };
 }
 
-/**
- * 統一入口
- * type: lines | stations | sequence | live | summary
- */
 async function handleKrtcQuery(query) {
   const q = query || {};
   const type = String(q.type || q.action || "summary").toLowerCase();
@@ -345,7 +366,6 @@ async function handleKrtcQuery(query) {
     return liveBoard({ line, stationId });
   }
 
-  // summary：三線資訊 + 可選即時摘要
   const lines = listLines();
   const cred = getCredentials();
   return {
