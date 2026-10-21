@@ -1,5 +1,6 @@
 /**
  * krtc loader
+ * - lines：TDX Shape 真實軌道 WKT（geometry）
  * - sequence：地圖只回一條 mapPolyline（順逆行同軌，勿雙向重畫）
  * - timetable：優先 StationTimeTable
  * - live：分鐘／進站中
@@ -150,7 +151,6 @@ function simplifySequenceForMap(seq) {
   if (!seq || !seq.ok) return seq;
 
   const sequences = Array.isArray(seq.sequences) ? seq.sequences : [];
-  // 選站數最多的一條當「地圖主線」；同長則 direction===0
   let primary = null;
   for (const s of sequences) {
     const n = (s.stops && s.stops.length) || s.stopCount || 0;
@@ -158,14 +158,12 @@ function simplifySequenceForMap(seq) {
     if (!primary || n > pn || (n === pn && s.direction === 0)) primary = s;
   }
 
-  // 相容舊欄位 stationIds
   let stationIds = Array.isArray(seq.stationIds) ? seq.stationIds.slice() : [];
   let orderedStops = Array.isArray(seq.orderedStops) ? seq.orderedStops.slice() : [];
 
   if (primary && Array.isArray(primary.stops) && primary.stops.length) {
     const sorted = primary.stops.slice().sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
     stationIds = sorted.map((s) => s.stationId);
-    // 若已有 orderedStops 含 lat/lon 就保留；否則用 stops
     if (!orderedStops.length) {
       orderedStops = sorted.map((s) => ({
         sequence: s.sequence,
@@ -177,7 +175,6 @@ function simplifySequenceForMap(seq) {
     }
   }
 
-  // 方向僅作資訊，不供畫線
   const directions = sequences.map((s) => ({
     direction: s.direction,
     lineId: s.lineId || null,
@@ -188,16 +185,13 @@ function simplifySequenceForMap(seq) {
   return {
     ok: true,
     line: seq.line || null,
-    // 地圖只畫這條
     mapPolyline: {
       stationIds,
       orderedStops,
-      // 環狀輕軌可閉合
       closed: seq.line && seq.line.lineKey === "C",
     },
     stationIds,
     orderedStops,
-    // 順逆行資訊（勿用來重畫第二條線）
     directions,
     directionCount: directions.length,
     note:
@@ -447,6 +441,155 @@ async function buildUpcoming(mod, query) {
   };
 }
 
+// ── TDX Shape：真實軌道線形（WKT）────────────────────────────────
+const METRO_API_BASE = "https://tdx.transportdata.tw/api/basic/v2/Rail/Metro";
+const TOKEN_URL =
+  "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token";
+const CACHE_TTL_STATIC_MS = 6 * 60 * 60 * 1000;
+const TOKEN_SKEW_MS = 60 * 1000;
+
+let memoryToken = null;
+const shapeMem = {};
+
+function shapeTmp(name) {
+  const path = require("path");
+  const os = require("os");
+  return path.join(os.tmpdir(), `nexora-krtc-${name}.json`);
+}
+
+function readShapeCache(name, ttlMs) {
+  if (shapeMem[name] && Date.now() - shapeMem[name].fetchedAt < ttlMs) {
+    return shapeMem[name].data;
+  }
+  try {
+    const fs = require("fs");
+    const raw = JSON.parse(fs.readFileSync(shapeTmp(name), "utf-8"));
+    if (raw && raw.fetchedAt && Date.now() - raw.fetchedAt < ttlMs) {
+      shapeMem[name] = raw;
+      return raw.data;
+    }
+  } catch {
+    /* no cache */
+  }
+  return null;
+}
+
+function writeShapeCache(name, data) {
+  const payload = { data, fetchedAt: Date.now() };
+  shapeMem[name] = payload;
+  try {
+    const fs = require("fs");
+    fs.writeFileSync(shapeTmp(name), JSON.stringify(payload), "utf-8");
+  } catch {
+    /* ignore */
+  }
+}
+
+async function getMetroAccessToken() {
+  const clientId = process.env.TDX_CLIENT_ID || "";
+  const clientSecret = process.env.TDX_CLIENT_SECRET || "";
+  if (!clientId || !clientSecret) {
+    return { ok: false, reason: "tdx-not-configured" };
+  }
+  if (memoryToken && memoryToken.expiresAt > Date.now() + TOKEN_SKEW_MS) {
+    return { ok: true, token: memoryToken.access_token };
+  }
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    client_id: clientId,
+    client_secret: clientSecret,
+  });
+  const resp = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  if (!resp.ok) {
+    const t = await resp.text().catch(() => "");
+    return { ok: false, reason: "tdx-token-failed", detail: String(t).slice(0, 200) };
+  }
+  const json = await resp.json();
+  const expiresIn = Number(json.expires_in) || 3600;
+  memoryToken = {
+    access_token: json.access_token,
+    expiresAt: Date.now() + expiresIn * 1000,
+  };
+  return { ok: true, token: memoryToken.access_token };
+}
+
+async function tdxMetroGet(apiPath, query) {
+  const tok = await getMetroAccessToken();
+  if (!tok.ok) return tok;
+  const q = query ? (apiPath.includes("?") ? "&" : "?") + query : "";
+  const url = `${METRO_API_BASE}${apiPath}${q}`;
+  const resp = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${tok.token}`,
+      Accept: "application/json",
+    },
+  });
+  if (!resp.ok) {
+    const t = await resp.text().catch(() => "");
+    return { ok: false, reason: "tdx-http", status: resp.status, detail: String(t).slice(0, 300) };
+  }
+  return { ok: true, data: await resp.json() };
+}
+
+/** TDX Rail/Metro/Shape — Geometry 為 WKT（經度在前） */
+async function fetchShape(system) {
+  const cacheKey = `shape-${system}`;
+  const cached = readShapeCache(cacheKey, CACHE_TTL_STATIC_MS * 4);
+  if (cached) return { ok: true, data: cached, cached: true };
+  const res = await tdxMetroGet(`/Shape/${system}`, "$format=JSON");
+  if (!res.ok) return res;
+  const list = Array.isArray(res.data) ? res.data : [];
+  writeShapeCache(cacheKey, list);
+  return { ok: true, data: list, cached: false };
+}
+
+function normalizeLineKeyLocal(raw) {
+  if (raw == null || raw === "") return null;
+  const s = String(raw).trim().toUpperCase();
+  if (s === "R" || s === "RED" || s.includes("紅")) return "R";
+  if (s === "O" || s === "ORANGE" || s.includes("橘") || s.includes("橙")) return "O";
+  if (s === "G" || s === "GREEN" || s === "C" || s === "LRT" || s.includes("綠") || s.includes("輕軌") || s.includes("環狀"))
+    return "C";
+  if (s.startsWith("R")) return "R";
+  if (s.startsWith("O")) return "O";
+  if (s.startsWith("C")) return "C";
+  return s;
+}
+
+/**
+ * listLines + 每條線 geometry（WKT；多段用 ; 串）
+ * 抓不到線形時 geometry=null，App 退回站序連線
+ */
+async function listLinesWithShape(mod) {
+  const base = typeof mod.listLines === "function" ? await mod.listLines() : mod.listLines();
+  if (!base || !base.ok) return base;
+  const geoms = { R: [], O: [], C: [] };
+  for (const sys of ["KRTC", "KLRT"]) {
+    const res = await fetchShape(sys);
+    if (!res.ok) continue;
+    for (const row of res.data || []) {
+      const name =
+        row.LineName && (row.LineName.Zh_tw || row.LineName.Zh || row.LineName);
+      const key = normalizeLineKeyLocal(row.LineID || row.LineNo || name);
+      if (key && geoms[key] && row.Geometry) geoms[key].push(String(row.Geometry));
+    }
+  }
+  const lines = (base.lines || []).map((l) => ({
+    ...l,
+    geometry: geoms[l.lineKey] && geoms[l.lineKey].length ? geoms[l.lineKey].join(";") : null,
+  }));
+  return {
+    ...base,
+    lines,
+    shapeSource: "tdx-metro-shape",
+    note: "geometry 為 TDX Shape WKT（經度在前）。無 geometry 時請用 mapPolyline 站序連線。",
+  };
+}
+
 async function handleKrtcQuery(query) {
   const mod = await loadRemote();
   const q = query || {};
@@ -465,6 +608,10 @@ async function handleKrtcQuery(query) {
     return buildUpcoming(mod, q);
   }
 
+  if (type === "lines" || type === "line") {
+    return listLinesWithShape(mod);
+  }
+
   if (type === "sequence" || type === "station-of-line") {
     const seq = await mod.stationSequence({ line: q.line || q.lineId || null });
     return simplifySequenceForMap(seq);
@@ -481,7 +628,9 @@ async function handleKrtcQuery(query) {
 
 module.exports = {
   handleKrtcQuery,
-  listLines: async (...a) => (await loadRemote()).listLines(...a),
+  listLines: async (...a) => listLinesWithShape(await loadRemote()),
+  listLinesWithShape: async () => listLinesWithShape(await loadRemote()),
+  fetchShape,
   listStations: async (...a) => (await loadRemote()).listStations(...a),
   stationSequence: async (opts) => {
     const mod = await loadRemote();
