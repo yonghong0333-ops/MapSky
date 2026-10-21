@@ -1,6 +1,6 @@
 /**
- * krtc loader + 終點站名 + 後續班次展開
- * 核心邏輯從 fa4291 載入；timetable/upcoming 補 destinationName，並依班距補多個時刻
+ * krtc loader + 終點站名 + 後續班次 + 即時「幾分鐘」
+ * 核心邏輯從 fa4291 載入
  */
 const https = require("https");
 
@@ -13,7 +13,6 @@ const LINE_TERMINALS = {
   C: ["旅運中心", "前鎮之星"],
 };
 
-// 預設尖峰／離峰班距（分鐘），TDX Frequency 抓不到時用
 const DEFAULT_HEADWAY = { R: 6, O: 7, C: 10 };
 
 function loadRemote() {
@@ -95,6 +94,48 @@ function hhmmAdd(hhmm, addMins) {
   return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
 }
 
+/**
+ * KRTC LiveBoard 的 EstimateTime 多數已是「分鐘」；
+ * 舊邏輯一律 /60 會變成永遠 0 → 永遠「進站中」。
+ * 規則：raw > 90 當秒；否則當分鐘。
+ */
+function normalizeEstimateMinutes(it) {
+  const raw = it.estimateTime != null ? Number(it.estimateTime) : null;
+  if (raw != null && Number.isFinite(raw)) {
+    if (raw > 90) return Math.max(0, Math.round(raw / 60));
+    return Math.max(0, Math.round(raw));
+  }
+  if (it.estimateMinutes != null && Number.isFinite(Number(it.estimateMinutes))) {
+    const m = Number(it.estimateMinutes);
+    // 若舊邏輯已 /60 成 0，但 estimateTime 還在，上面會處理；這裡保留
+    return Math.max(0, Math.round(m));
+  }
+  return null;
+}
+
+function statusLabel(mins) {
+  if (mins == null) return null;
+  if (mins <= 0) return "進站中";
+  return `${mins} 分鐘`;
+}
+
+function enrichLiveItems(items) {
+  return (items || []).map((it) => {
+    const name = (it.destinationName || it.tripHeadSign || "").trim() || null;
+    const estimateMinutes = normalizeEstimateMinutes(it);
+    const label = statusLabel(estimateMinutes);
+    return {
+      ...it,
+      destinationName: name,
+      headsign: name ? "往" + name : null,
+      estimateMinutes,
+      statusLabel: label,
+      // 前端 badge 直接用這個
+      waitText: label,
+    };
+  });
+}
+
 function collectDestinations(result) {
   const set = new Map();
   const add = (name, direction) => {
@@ -113,7 +154,6 @@ function collectDestinations(result) {
 }
 
 function pickHeadway(result, lk) {
-  // 從 frequency 欄位試著讀
   const freqs = result.frequency || [];
   for (const f of freqs) {
     const off = f.offPeakHeadwayMins || f.OffPeakHeadway;
@@ -123,11 +163,6 @@ function pickHeadway(result, lk) {
   return DEFAULT_HEADWAY[lk] || 8;
 }
 
-/**
- * 每個終點至少要有若干個「接下來」時刻：
- * - 以 live 的當班為第一筆（可為進站中）
- * - 再依班距往後推 3～4 班
- */
 function enrichUpcoming(result, stationId) {
   if (!result || !result.ok) return result;
   const rawItems = Array.isArray(result.items) ? result.items : [];
@@ -138,7 +173,6 @@ function enrichUpcoming(result, stationId) {
     dests = LINE_TERMINALS[lk].map((name, i) => ({ destinationName: name, direction: i }));
   }
 
-  // 先把既有 item 補好站名
   const fixed = rawItems.map((it, idx) => {
     let name = (it.destinationName || it.tripHeadSign || "").trim();
     if (!name || name === "一" || name === "-") {
@@ -148,18 +182,21 @@ function enrichUpcoming(result, stationId) {
         name = (byDir || dests[idx % dests.length]).destinationName;
       } else name = null;
     }
+    const estimateMinutes = normalizeEstimateMinutes(it);
     return {
       ...it,
       destinationName: name,
       headsign: name ? "往" + name : null,
+      estimateMinutes,
+      statusLabel: statusLabel(estimateMinutes),
+      waitText: statusLabel(estimateMinutes),
     };
   });
 
   const headway = pickHeadway(result, lk);
   const now = result.now || taiwanNowHHMM();
-  const slotsPerDest = 4; // 每個方向顯示幾個時刻
+  const slotsPerDest = 4;
 
-  // 依終點分組，取該方向最早一班當基準
   const byDest = new Map();
   for (const it of fixed) {
     const name = it.destinationName;
@@ -167,31 +204,26 @@ function enrichUpcoming(result, stationId) {
     if (!byDest.has(name)) byDest.set(name, []);
     byDest.get(name).push(it);
   }
-
-  // 若 live 完全沒終點，用 dests 建空組
   if (byDest.size === 0 && dests.length) {
     for (const d of dests) byDest.set(d.destinationName, []);
   }
 
   const expanded = [];
   for (const [name, list] of byDest.entries()) {
-    // 基準時間：live 最早一班，否則現在
     list.sort((a, b) => (minutesOf(a.departureTime) ?? 1e9) - (minutesOf(b.departureTime) ?? 1e9));
     let base = list[0] && list[0].departureTime ? list[0].departureTime : now;
-    const dir = list[0] && list[0].direction != null ? list[0].direction : (dests.find((d) => d.destinationName === name) || {}).direction;
+    const dir =
+      list[0] && list[0].direction != null
+        ? list[0].direction
+        : (dests.find((d) => d.destinationName === name) || {}).direction;
 
-    // 若基準是「現在／進站中」，下一班從 headway 後開始多推；進站那班仍保留
     const times = new Set();
     if (list[0] && list[0].departureTime) times.add(list[0].departureTime);
 
-    // 從 base 往後依班距推
-    let t = base;
-    // 若第一筆就是現在，從下一班開始補
     const baseMin = minutesOf(base);
     const nowMin = minutesOf(now);
     let startOffset = 0;
     if (baseMin != null && nowMin != null && Math.abs(baseMin - nowMin) <= 1) {
-      // 進站中／即將到：保留當班，後續從 +headway 開始
       startOffset = headway;
     }
     for (let i = 0; i < slotsPerDest + 2; i++) {
@@ -201,20 +233,16 @@ function enrichUpcoming(result, stationId) {
       if (next) times.add(next);
       if (times.size >= slotsPerDest) break;
     }
-
-    // 若 list 裡已有其他 live 時刻也併入
     for (const it of list) {
       if (it.departureTime) times.add(it.departureTime);
     }
 
     const sorted = [...times].sort((a, b) => (minutesOf(a) ?? 0) - (minutesOf(b) ?? 0));
-    // 只留「現在起」附近的 slotsPerDest 個
     const upcoming = sorted
       .filter((t) => {
         const m = minutesOf(t);
         if (m == null || nowMin == null) return true;
-        // 允許現在前後 1 分鐘（進站中）
-        return m >= nowMin - 1 || m < 5; // 跨日凌晨另議，先簡化
+        return m >= nowMin - 1 || m < 5;
       })
       .slice(0, slotsPerDest);
 
@@ -225,6 +253,8 @@ function enrichUpcoming(result, stationId) {
         destinationName: name,
         direction: dir != null ? dir : null,
         estimateMinutes: est,
+        statusLabel: statusLabel(est),
+        waitText: statusLabel(est),
         source: list[0] && list[0].source === "live" && t === list[0].departureTime ? "live" : "frequency-estimate",
         stationId: stationId || null,
         lineKey: lk,
@@ -233,7 +263,6 @@ function enrichUpcoming(result, stationId) {
     }
   }
 
-  // 排序：先終點名，再時間
   expanded.sort((a, b) => {
     const dn = String(a.destinationName || "").localeCompare(String(b.destinationName || ""), "zh-Hant");
     if (dn !== 0) return dn;
@@ -270,10 +299,7 @@ async function handleKrtcQuery(query) {
   }
 
   if ((type === "live" || type === "liveboard" || type === "board") && result && result.ok && Array.isArray(result.items)) {
-    result.items = result.items.map((it) => {
-      const name = (it.destinationName || it.tripHeadSign || "").trim() || null;
-      return { ...it, destinationName: name, headsign: name ? "往" + name : null };
-    });
+    result.items = enrichLiveItems(result.items);
   }
 
   return result;
@@ -284,7 +310,12 @@ module.exports = {
   listLines: async (...a) => (await loadRemote()).listLines(...a),
   listStations: async (...a) => (await loadRemote()).listStations(...a),
   stationSequence: async (...a) => (await loadRemote()).stationSequence(...a),
-  liveBoard: async (...a) => (await loadRemote()).liveBoard(...a),
+  liveBoard: async (...a) => {
+    const mod = await loadRemote();
+    const r = await mod.liveBoard(...a);
+    if (r && r.ok && Array.isArray(r.items)) r.items = enrichLiveItems(r.items);
+    return r;
+  },
   firstLastTrain: async (...a) => (await loadRemote()).firstLastTrain(...a),
   frequency: async (...a) => (await loadRemote()).frequency(...a),
   stationTimetable: async (...a) => (await loadRemote()).stationTimetable(...a),
