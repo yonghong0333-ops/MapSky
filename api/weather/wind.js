@@ -10,7 +10,6 @@ module.exports = async function handler(req, res) {
   if (!requireSession(req, res)) return;
   try {
     const q = req.query || {};
-    // transit= 由 vercel rewrite 注入，不會蓋掉客戶端的 type=
     const transit = String(q.transit || "").toLowerCase();
 
     if (q.type === "cloud" || q.type === "cloud-cover") {
@@ -33,7 +32,14 @@ module.exports = async function handler(req, res) {
         delete query.type;
       }
       const result = await handleKrtcQuery(query);
-      const status = result.ok ? 200 : result.reason === "tdx-not-configured" ? 503 : 502;
+      const status =
+        result.ok
+          ? 200
+          : result.reason === "tdx-not-configured"
+            ? 503
+            : result.reason === "tdx-rate-limit"
+              ? 429
+              : 502;
       res.setHeader("Cache-Control", "no-store");
       return res.status(status).json(result);
     }
@@ -49,9 +55,11 @@ module.exports = async function handler(req, res) {
           ? 200
           : result.reason === "tdx-not-configured"
             ? 503
-            : result.reason === "missing-stationId"
-              ? 400
-              : 502;
+            : result.reason === "tdx-rate-limit"
+              ? 429
+              : result.reason === "missing-stationId"
+                ? 400
+                : 502;
       res.setHeader("Cache-Control", "no-store");
       return res.status(status).json(result);
     }
@@ -67,9 +75,11 @@ module.exports = async function handler(req, res) {
           ? 200
           : result.reason === "tdx-not-configured"
             ? 503
-            : result.reason === "missing-stations" || result.reason === "missing-stationId"
-              ? 400
-              : 502;
+            : result.reason === "tdx-rate-limit"
+              ? 429
+              : result.reason === "missing-stations" || result.reason === "missing-stationId"
+                ? 400
+                : 502;
       res.setHeader("Cache-Control", "no-store");
       return res.status(status).json(result);
     }
