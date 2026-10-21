@@ -1,6 +1,7 @@
 /**
- * krtc loader + 終點站名 + 後續班次 + 即時「幾分鐘」
- * 核心邏輯從 fa4291 載入
+ * krtc loader
+ * - 即時：補分鐘／進站中
+ * - 接下來發車：優先 TDX StationTimeTable（對齊官網），沒有才班距推估
  */
 const https = require("https");
 
@@ -80,7 +81,9 @@ function minutesOf(hhmm) {
   if (!hhmm) return null;
   const m = String(hhmm).match(/^(\d{1,2}):(\d{2})/);
   if (!m) return null;
-  return Number(m[1]) * 60 + Number(m[2]);
+  let h = Number(m[1]);
+  if (h >= 24) h -= 24;
+  return h * 60 + Number(m[2]);
 }
 
 function hhmmAdd(hhmm, addMins) {
@@ -94,11 +97,16 @@ function hhmmAdd(hhmm, addMins) {
   return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
 }
 
-/**
- * KRTC LiveBoard 的 EstimateTime 多數已是「分鐘」；
- * 舊邏輯一律 /60 會變成永遠 0 → 永遠「進站中」。
- * 規則：raw > 90 當秒；否則當分鐘。
- */
+function normalizeClock(hhmm) {
+  if (!hhmm) return null;
+  const m = String(hhmm).match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return String(hhmm).slice(0, 5);
+  let h = Number(m[1]);
+  const mi = m[2];
+  if (h >= 24) return `${String(h - 24).padStart(2, "0")}:${mi}`;
+  return `${String(h).padStart(2, "0")}:${mi}`;
+}
+
 function normalizeEstimateMinutes(it) {
   const raw = it.estimateTime != null ? Number(it.estimateTime) : null;
   if (raw != null && Number.isFinite(raw)) {
@@ -106,9 +114,7 @@ function normalizeEstimateMinutes(it) {
     return Math.max(0, Math.round(raw));
   }
   if (it.estimateMinutes != null && Number.isFinite(Number(it.estimateMinutes))) {
-    const m = Number(it.estimateMinutes);
-    // 若舊邏輯已 /60 成 0，但 estimateTime 還在，上面會處理；這裡保留
-    return Math.max(0, Math.round(m));
+    return Math.max(0, Math.round(Number(it.estimateMinutes)));
   }
   return null;
 }
@@ -130,27 +136,87 @@ function enrichLiveItems(items) {
       headsign: name ? "往" + name : null,
       estimateMinutes,
       statusLabel: label,
-      // 前端 badge 直接用這個
       waitText: label,
     };
   });
 }
 
-function collectDestinations(result) {
-  const set = new Map();
-  const add = (name, direction) => {
-    const n = (name || "").trim();
-    if (!n || n === "一" || n === "-") return;
-    const key = n + "|" + (direction == null ? "" : String(direction));
-    if (!set.has(key)) set.set(key, { destinationName: n, direction: direction == null ? null : Number(direction) });
-  };
-  for (const it of result.items || []) {
-    add(it.destinationName || it.tripHeadSign, it.direction);
+function weekdayServiceOk(serviceDay) {
+  // ServiceDay 可能是物件 {Monday:true,...} 或略過
+  if (!serviceDay || typeof serviceDay !== "object") return true;
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const d = new Date();
+  // 台灣時區星期
+  const tw = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
+  const name = days[tw.getDay()];
+  if (serviceDay[name] === false) return false;
+  if (serviceDay[name] === true) return true;
+  // 有些用 0/1
+  if (serviceDay[name] === 0) return false;
+  return true;
+}
+
+/** 從 StationTimeTable 結果抽出「現在之後」的班次 */
+function itemsFromStationTimetable(st, stationId, nowHHMM, limitPerDest) {
+  if (!st || !st.ok || !Array.isArray(st.items) || !st.items.length) return null;
+  const nowMin = minutesOf(nowHHMM);
+  const byDest = new Map();
+
+  for (const row of st.items) {
+    if (!weekdayServiceOk(row.serviceDay)) continue;
+    const t = normalizeClock(row.departureTime || row.arrivalTime);
+    if (!t) continue;
+    const tm = minutesOf(t);
+    if (tm == null || nowMin == null) continue;
+    // 只取現在起 3 小時內（含稍早 1 分）
+    if (tm < nowMin - 1) continue;
+    if (tm > nowMin + 180) continue;
+
+    let name = (row.destinationName || "").trim();
+    if (!name) {
+      // 用 direction 對終點
+      const lk = lineKeyOfStation(stationId);
+      if (lk && LINE_TERMINALS[lk]) {
+        const idx = row.direction != null ? Number(row.direction) % 2 : 0;
+        name = LINE_TERMINALS[lk][idx] || LINE_TERMINALS[lk][0];
+      } else name = "—";
+    }
+    if (!byDest.has(name)) byDest.set(name, []);
+    byDest.get(name).push({
+      departureTime: t,
+      destinationName: name,
+      direction: row.direction != null ? Number(row.direction) : null,
+      estimateMinutes: Math.max(0, tm - nowMin),
+      source: "timetable",
+      stationId: stationId || null,
+      headsign: "往" + name,
+      statusLabel: statusLabel(Math.max(0, tm - nowMin)),
+      waitText: statusLabel(Math.max(0, tm - nowMin)),
+    });
   }
-  for (const it of result.firstLast || []) {
-    add(it.destinationName, it.direction);
+
+  if (!byDest.size) return null;
+
+  const out = [];
+  for (const [name, list] of byDest.entries()) {
+    list.sort((a, b) => minutesOf(a.departureTime) - minutesOf(b.departureTime));
+    // 去重同一分鐘
+    const seen = new Set();
+    let n = 0;
+    for (const it of list) {
+      if (seen.has(it.departureTime)) continue;
+      seen.add(it.departureTime);
+      out.push(it);
+      n++;
+      if (n >= (limitPerDest || 4)) break;
+    }
   }
-  return [...set.values()];
+  out.sort((a, b) => {
+    const dn = String(a.destinationName).localeCompare(String(b.destinationName), "zh-Hant");
+    if (dn !== 0) return dn;
+    return minutesOf(a.departureTime) - minutesOf(b.departureTime);
+  });
+  return out;
 }
 
 function pickHeadway(result, lk) {
@@ -163,12 +229,24 @@ function pickHeadway(result, lk) {
   return DEFAULT_HEADWAY[lk] || 8;
 }
 
-function enrichUpcoming(result, stationId) {
+function collectDestinations(result) {
+  const set = new Map();
+  const add = (name, direction) => {
+    const n = (name || "").trim();
+    if (!n || n === "一" || n === "-") return;
+    const key = n + "|" + (direction == null ? "" : String(direction));
+    if (!set.has(key)) set.set(key, { destinationName: n, direction: direction == null ? null : Number(direction) });
+  };
+  for (const it of result.items || []) add(it.destinationName || it.tripHeadSign, it.direction);
+  for (const it of result.firstLast || []) add(it.destinationName, it.direction);
+  return [...set.values()];
+}
+
+function enrichUpcomingFallback(result, stationId) {
   if (!result || !result.ok) return result;
   const rawItems = Array.isArray(result.items) ? result.items : [];
   const lk = lineKeyOfStation(stationId) || (result.line && result.line.lineKey) || null;
   let dests = collectDestinations(result);
-
   if (!dests.length && lk && LINE_TERMINALS[lk]) {
     dests = LINE_TERMINALS[lk].map((name, i) => ({ destinationName: name, direction: i }));
   }
@@ -196,13 +274,11 @@ function enrichUpcoming(result, stationId) {
   const headway = pickHeadway(result, lk);
   const now = result.now || taiwanNowHHMM();
   const slotsPerDest = 4;
-
   const byDest = new Map();
   for (const it of fixed) {
-    const name = it.destinationName;
-    if (!name) continue;
-    if (!byDest.has(name)) byDest.set(name, []);
-    byDest.get(name).push(it);
+    if (!it.destinationName) continue;
+    if (!byDest.has(it.destinationName)) byDest.set(it.destinationName, []);
+    byDest.get(it.destinationName).push(it);
   }
   if (byDest.size === 0 && dests.length) {
     for (const d of dests) byDest.set(d.destinationName, []);
@@ -211,21 +287,17 @@ function enrichUpcoming(result, stationId) {
   const expanded = [];
   for (const [name, list] of byDest.entries()) {
     list.sort((a, b) => (minutesOf(a.departureTime) ?? 1e9) - (minutesOf(b.departureTime) ?? 1e9));
-    let base = list[0] && list[0].departureTime ? list[0].departureTime : now;
+    const base = list[0] && list[0].departureTime ? list[0].departureTime : now;
     const dir =
       list[0] && list[0].direction != null
         ? list[0].direction
         : (dests.find((d) => d.destinationName === name) || {}).direction;
-
     const times = new Set();
     if (list[0] && list[0].departureTime) times.add(list[0].departureTime);
-
     const baseMin = minutesOf(base);
     const nowMin = minutesOf(now);
     let startOffset = 0;
-    if (baseMin != null && nowMin != null && Math.abs(baseMin - nowMin) <= 1) {
-      startOffset = headway;
-    }
+    if (baseMin != null && nowMin != null && Math.abs(baseMin - nowMin) <= 1) startOffset = headway;
     for (let i = 0; i < slotsPerDest + 2; i++) {
       const add = startOffset + headway * i;
       if (add === 0 && times.size) continue;
@@ -233,10 +305,7 @@ function enrichUpcoming(result, stationId) {
       if (next) times.add(next);
       if (times.size >= slotsPerDest) break;
     }
-    for (const it of list) {
-      if (it.departureTime) times.add(it.departureTime);
-    }
-
+    for (const it of list) if (it.departureTime) times.add(it.departureTime);
     const sorted = [...times].sort((a, b) => (minutesOf(a) ?? 0) - (minutesOf(b) ?? 0));
     const upcoming = sorted
       .filter((t) => {
@@ -245,7 +314,6 @@ function enrichUpcoming(result, stationId) {
         return m >= nowMin - 1 || m < 5;
       })
       .slice(0, slotsPerDest);
-
     for (const t of upcoming) {
       const est = minutesOf(t) != null && nowMin != null ? Math.max(0, minutesOf(t) - nowMin) : null;
       expanded.push({
@@ -275,6 +343,53 @@ function enrichUpcoming(result, stationId) {
     headwayMinutes: headway,
     items: expanded,
     count: expanded.length,
+    scheduleSource: "frequency-estimate",
+  };
+}
+
+async function buildUpcoming(mod, query) {
+  const stationId = query.stationId || query.station || null;
+  const line = query.line || null;
+  const now = taiwanNowHHMM();
+
+  // 1) 真實站別時刻表
+  let st = null;
+  try {
+    if (stationId && typeof mod.stationTimetable === "function") {
+      st = await mod.stationTimetable({ line, stationId });
+    }
+  } catch (_) {
+    st = null;
+  }
+  const fromTable = itemsFromStationTimetable(st, stationId, now, 4);
+  if (fromTable && fromTable.length) {
+    return {
+      ok: true,
+      stationId,
+      line: (st && st.line) || null,
+      now,
+      count: fromTable.length,
+      items: fromTable,
+      scheduleSource: "station-timetable",
+      note: "依 TDX 站別時刻表（與官網班表同源結構）",
+    };
+  }
+
+  // 2) fallback：原本 live + 班距
+  let base = null;
+  try {
+    if (typeof mod.upcomingDepartures === "function") {
+      base = await mod.upcomingDepartures({ line, stationId });
+    } else if (typeof mod.timetableSummary === "function") {
+      base = await mod.timetableSummary({ line, stationId });
+    }
+  } catch (_) {
+    base = { ok: true, items: [] };
+  }
+  const enriched = enrichUpcomingFallback(base || { ok: true, items: [] }, stationId);
+  return {
+    ...enriched,
+    note: (st && st.note) || "TDX 站別時刻表無資料，改以即時／班距推估（可能與官網不完全一致）",
   };
 }
 
@@ -282,8 +397,6 @@ async function handleKrtcQuery(query) {
   const mod = await loadRemote();
   const q = query || {};
   const type = String(q.type || q.action || "summary").toLowerCase();
-  const stationId = q.stationId || q.station || null;
-  const result = await mod.handleKrtcQuery(query);
 
   if (
     type === "timetable" ||
@@ -295,8 +408,10 @@ async function handleKrtcQuery(query) {
     type === "station_timetable" ||
     type === "stt"
   ) {
-    return enrichUpcoming(result, stationId);
+    return buildUpcoming(mod, q);
   }
+
+  const result = await mod.handleKrtcQuery(query);
 
   if ((type === "live" || type === "liveboard" || type === "board") && result && result.ok && Array.isArray(result.items)) {
     result.items = enrichLiveItems(result.items);
@@ -319,18 +434,8 @@ module.exports = {
   firstLastTrain: async (...a) => (await loadRemote()).firstLastTrain(...a),
   frequency: async (...a) => (await loadRemote()).frequency(...a),
   stationTimetable: async (...a) => (await loadRemote()).stationTimetable(...a),
-  timetableSummary: async (...a) => {
-    const mod = await loadRemote();
-    const r = await mod.timetableSummary(...a);
-    const sid = (a[0] && a[0].stationId) || null;
-    return enrichUpcoming(r, sid);
-  },
-  upcomingDepartures: async (...a) => {
-    const mod = await loadRemote();
-    const r = await mod.upcomingDepartures(...a);
-    const sid = (a[0] && a[0].stationId) || null;
-    return enrichUpcoming(r, sid);
-  },
+  timetableSummary: async (opts) => buildUpcoming(await loadRemote(), opts || {}),
+  upcomingDepartures: async (opts) => buildUpcoming(await loadRemote(), opts || {}),
   getCredentials: () => {
     const clientId = process.env.TDX_CLIENT_ID || "";
     const clientSecret = process.env.TDX_CLIENT_SECRET || "";
