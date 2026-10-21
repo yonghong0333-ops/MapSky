@@ -13,7 +13,7 @@ const TOKEN_URL =
 const API_BASE = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA";
 
 const CACHE_TTL_STATIC_MS = 6 * 60 * 60 * 1000;
-const CACHE_TTL_LIVE_MS = 30 * 1000;
+const CACHE_TTL_LIVE_MS = 60 * 1000;
 const TOKEN_SKEW_MS = 60 * 1000;
 
 let memoryToken = null;
@@ -38,61 +38,18 @@ function writeCache(name, data) {
   }
 }
 
+const tdxShared = require("./tdx-shared");
+
 function getCredentials() {
-  const clientId = process.env.TDX_CLIENT_ID || "";
-  const clientSecret = process.env.TDX_CLIENT_SECRET || "";
-  return { clientId, clientSecret, configured: Boolean(clientId && clientSecret) };
+  return tdxShared.getCredentials();
 }
 
 async function getAccessToken() {
-  const { clientId, clientSecret, configured } = getCredentials();
-  if (!configured) {
-    return { ok: false, reason: "tdx-not-configured", hint: "請在 Vercel 設定 TDX_CLIENT_ID、TDX_CLIENT_SECRET" };
-  }
-  if (memoryToken && memoryToken.expiresAt > Date.now() + TOKEN_SKEW_MS) {
-    return { ok: true, token: memoryToken.access_token };
-  }
-  const body = new URLSearchParams({
-    grant_type: "client_credentials",
-    client_id: clientId,
-    client_secret: clientSecret,
-  });
-  const resp = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
-  });
-  if (!resp.ok) {
-    const t = await resp.text().catch(() => "");
-    return { ok: false, reason: "tdx-token-failed", detail: String(t).slice(0, 200) };
-  }
-  const json = await resp.json();
-  const expiresIn = Number(json.expires_in) || 3600;
-  memoryToken = {
-    access_token: json.access_token,
-    expiresAt: Date.now() + expiresIn * 1000,
-  };
-  return { ok: true, token: memoryToken.access_token };
+  return tdxShared.getAccessToken();
 }
 
 async function tdxGet(apiPath, query) {
-  const tok = await getAccessToken();
-  if (!tok.ok) return tok;
-  const q = query ? (apiPath.includes("?") ? "&" : "?") + query : "";
-  const url = `${API_BASE}${apiPath}${q}`;
-  const resp = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${tok.token}`,
-      Accept: "application/json",
-    },
-  });
-  if (!resp.ok) {
-    const t = await resp.text().catch(() => "");
-    return { ok: false, reason: "tdx-http", status: resp.status, detail: String(t).slice(0, 300) };
-  }
-  const data = await resp.json();
-  // v3 常包在 Stations / StationLiveBoards 等
-  return { ok: true, data };
+  return tdxShared.tdxGet(API_BASE, apiPath, query);
 }
 
 function zhName(obj) {
@@ -123,7 +80,7 @@ function mapLiveBoard(row) {
     trainNo: row.TrainNo || null,
     trainTypeCode: row.TrainTypeCode || null,
     trainTypeName: zhName(row.TrainTypeName) || row.TrainTypeCode || null,
-    direction: row.Direction != null ? Number(row.Direction) : null, // 0 順行 1 逆行
+    direction: row.Direction != null ? Number(row.Direction) : null,
     endingStationId: row.EndingStationID || null,
     endingStationName: zhName(row.EndingStationName),
     tripLine: row.TripLine != null ? Number(row.TripLine) : null,
@@ -131,8 +88,7 @@ function mapLiveBoard(row) {
     arrivalTime: row.ArrivalTime || null,
     departureTime: row.DepartureTime || null,
     delayMinutes: delay,
-    status:
-      delay == null ? null : delay <= 0 ? "準點" : delay < 5 ? "小誤點" : "誤點",
+    status: delay == null ? null : delay <= 0 ? "準點" : delay < 5 ? "小誤點" : "誤點",
     platform: row.PlatformID || row.PlatformNo || null,
     srcUpdateTime: row.UpdateTime || row.SrcUpdateTime || null,
   };
@@ -141,7 +97,7 @@ function mapLiveBoard(row) {
 async function listStations({ q = null, city = null } = {}) {
   const cacheKey = "stations";
   let list = readCache(cacheKey, CACHE_TTL_STATIC_MS);
-  let cached = true;
+  let cached = Boolean(list);
   if (!list) {
     const res = await tdxGet("/Station", "$format=JSON&$top=500");
     if (!res.ok) return res;
@@ -197,13 +153,29 @@ async function stationLiveBoard({ stationId } = {}) {
   const cached = readCache(cacheKey, CACHE_TTL_LIVE_MS);
   if (cached) return { ok: true, cached: true, stationId: sid, ...cached };
 
-  // 優先單站 endpoint
+  const stale = tdxShared.readCache("tra", cacheKey, 0, { allowStaleMs: 10 * 60 * 1000 });
+
   let res = await tdxGet(`/StationLiveBoard/Station/${encodeURIComponent(sid)}`, "$format=JSON&$top=50");
-  if (!res.ok) {
-    // fallback：全站再 filter
-    res = await tdxGet("/StationLiveBoard", `$format=JSON&$top=300&$filter=StationID eq '${sid.replace(/'/g, "")}'`);
+  if (!res.ok && res.reason !== "tdx-rate-limit") {
+    res = await tdxGet(
+      "/StationLiveBoard",
+      `$format=JSON&$top=300&$filter=StationID eq '${sid.replace(/'/g, "")}'`
+    );
   }
-  if (!res.ok) return res;
+  if (!res.ok) {
+    if (stale && stale.data) {
+      return {
+        ok: true,
+        cached: true,
+        stale: true,
+        stationId: sid,
+        ...stale.data,
+        note: res.reason === "tdx-rate-limit" ? "TDX 限流中，顯示稍早資料" : "上游失敗，顯示稍早資料",
+        upstreamReason: res.reason,
+      };
+    }
+    return res;
+  }
 
   const raw = res.data;
   const list = Array.isArray(raw)
@@ -221,66 +193,43 @@ async function stationLiveBoard({ stationId } = {}) {
     updatedAt: new Date().toISOString(),
   };
   writeCache(cacheKey, payload);
+  try {
+    tdxShared.writeCache("tra", cacheKey, payload);
+  } catch (_) {}
   return { ok: true, cached: false, stationId: sid, ...payload };
 }
 
 async function trainLiveBoard({ trainNo } = {}) {
-  const cacheKey = trainNo ? `train-${trainNo}` : "train-all";
+  const cacheKey = `train-${trainNo || "all"}`;
   const cached = readCache(cacheKey, CACHE_TTL_LIVE_MS);
   if (cached) return { ok: true, cached: true, ...cached };
-
   let pathApi = "/TrainLiveBoard";
-  let query = "$format=JSON&$top=200";
+  let query = "$format=JSON&$top=100";
   if (trainNo) {
     pathApi = `/TrainLiveBoard/TrainNo/${encodeURIComponent(String(trainNo).trim())}`;
-    query = "$format=JSON";
   }
   const res = await tdxGet(pathApi, query);
   if (!res.ok) return res;
   const raw = res.data;
   const list = Array.isArray(raw) ? raw : raw.TrainLiveBoards || raw.TrainLiveBoard || [];
-  const items = list.map((row) => ({
-    trainNo: row.TrainNo,
-    trainTypeName: zhName(row.TrainTypeName) || row.TrainTypeCode,
-    stationId: row.StationID,
-    stationName: zhName(row.StationName),
-    trainStationStatus: row.TrainStationStatus, // 0 到站 1 離站 等
-    delayMinutes: row.DelayTime != null ? Number(row.DelayTime) : null,
-    updateTime: row.UpdateTime || null,
-  }));
-  const payload = { count: items.length, items, updatedAt: new Date().toISOString() };
+  const payload = { count: list.length, trains: list, updatedAt: new Date().toISOString() };
   writeCache(cacheKey, payload);
-  return { ok: true, cached: false, trainNo: trainNo || null, ...payload };
+  return { ok: true, cached: false, ...payload };
 }
 
 async function alerts() {
-  const cacheKey = "alert";
-  const cached = readCache(cacheKey, 60 * 1000);
-  if (cached) return { ok: true, cached: true, alerts: cached };
   const res = await tdxGet("/Alert", "$format=JSON&$top=50");
   if (!res.ok) return res;
   const raw = res.data;
-  const list = Array.isArray(raw) ? raw : raw.Alerts || raw.Alert || [];
-  const alerts = list.map((a) => ({
-    title: zhName(a.Title) || a.AlertID,
-    description: zhName(a.Description),
-    status: a.Status,
-    level: a.Level,
-    scope: a.Scope,
-    effect: a.Effect,
-    updateTime: a.UpdateTime || a.PublishTime,
-  }));
-  writeCache(cacheKey, alerts);
-  return { ok: true, cached: false, alerts };
+  const list = Array.isArray(raw) ? raw : raw.Alerts || [];
+  return { ok: true, count: list.length, alerts: list };
 }
 
-/** 統一入口 */
 async function handleTraQuery(query) {
   const q = query || {};
   const type = String(q.type || q.action || "summary").toLowerCase();
-
-  if (type === "stations") {
-    return listStations({ q: q.q || q.name || null, city: q.city || null });
+  if (type === "stations" || type === "list") {
+    return listStations({ q: q.q || q.keyword || q.name, city: q.city });
   }
   if (type === "lines") return listLines();
   if (type === "live" || type === "liveboard" || type === "board") {
@@ -290,7 +239,6 @@ async function handleTraQuery(query) {
     return trainLiveBoard({ trainNo: q.trainNo || q.train || null });
   }
   if (type === "alert" || type === "alerts") return alerts();
-
   const cred = getCredentials();
   return {
     ok: true,
@@ -298,22 +246,11 @@ async function handleTraQuery(query) {
     system: "TRA",
     systemName: "臺灣鐵路",
     usage: {
-      stations: "?type=stations&q=高雄 或 &city=高雄市",
+      stations: "?type=stations&q=新左營",
+      live: "?type=live&stationId=4340",
       lines: "?type=lines",
-      live: "?type=live&stationId=4400",
-      train: "?type=train&trainNo=123",
       alerts: "?type=alerts",
     },
-    commonStations: [
-      { stationId: "1000", nameZh: "臺北" },
-      { stationId: "1080", nameZh: "桃園" },
-      { stationId: "1100", nameZh: "新竹" },
-      { stationId: "3300", nameZh: "臺中" },
-      { stationId: "4220", nameZh: "臺南" },
-      { stationId: "4340", nameZh: "新左營" },
-      { stationId: "4400", nameZh: "高雄" },
-      { stationId: "4420", nameZh: "鳳山" },
-    ],
   };
 }
 
