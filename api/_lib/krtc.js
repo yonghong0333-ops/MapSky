@@ -130,6 +130,42 @@ function zhOf(obj) {
   return obj.Zh_tw || obj.Zh || obj.En || null;
 }
 
+function taiwanNowParts() {
+  const fmt = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Taipei",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(new Date()).map((p) => [p.type, p.value]));
+  return {
+    hhmm: `${parts.hour}:${parts.minute}`,
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    minutes: Number(parts.hour) * 60 + Number(parts.minute),
+  };
+}
+
+function hhmmAdd(hhmm, addMins) {
+  if (!hhmm || typeof hhmm !== "string") return null;
+  const m = hhmm.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  let total = Number(m[1]) * 60 + Number(m[2]) + Number(addMins || 0);
+  total = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
+  const h = Math.floor(total / 60);
+  const mi = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+}
+
+function minutesOf(hhmm) {
+  if (!hhmm) return null;
+  const m = String(hhmm).match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
 async function fetchStations(system) {
   const cacheKey = `stations-${system}`;
   const cached = readCache(cacheKey, CACHE_TTL_STATIC_MS);
@@ -393,7 +429,7 @@ async function stationTimetable({ line = null, stationId = null } = {}) {
   const key = normalizeLineKey(line);
   const sid = stationId ? String(stationId).trim().toUpperCase() : null;
   if (!sid) {
-    return { ok: false, reason: "missing-stationId", hint: "請帶 stationId（如 R11），或改用 type=first-last / type=frequency" };
+    return { ok: false, reason: "missing-stationId", hint: "請帶 stationId（如 R11）" };
   }
   const sys = stationLineOf(sid) === "C" ? "KLRT" : "KRTC";
   const res = await fetchStationTimeTable(sys);
@@ -404,7 +440,7 @@ async function stationTimetable({ line = null, stationId = null } = {}) {
       line: key ? lineMeta(key) : lineMeta(stationLineOf(sid)),
       count: 0,
       items: [],
-      note: "TDX StationTimeTable 無法取得，請用 type=first-last 或 type=frequency",
+      note: "TDX StationTimeTable 無法取得",
     };
   }
   const trips = [];
@@ -444,18 +480,142 @@ async function stationTimetable({ line = null, stationId = null } = {}) {
       });
     }
   }
-  trips.sort((a, b) => String(a.departureTime || a.arrivalTime || "").localeCompare(String(b.departureTime || b.arrivalTime || "")));
+  trips.sort((a, b) => String(a.departureTime || "").localeCompare(String(b.departureTime || "")));
   return {
     ok: true,
     stationId: sid,
     line: key ? lineMeta(key) : lineMeta(stationLineOf(sid)),
     count: trips.length,
     items: trips,
-    note: trips.length ? null : "此站可能無逐班時刻；請用 type=first-last 或 type=frequency",
+  };
+}
+
+/** 接下來發車時刻：即時換算鐘點 + 首末班 + 班距推估 */
+async function upcomingDepartures({ line = null, stationId = null } = {}) {
+  const key = normalizeLineKey(line);
+  const sid = stationId ? String(stationId).trim().toUpperCase() : null;
+  if (!sid) {
+    return { ok: false, reason: "missing-stationId", hint: "需要 stationId，例如 R7" };
+  }
+
+  const now = taiwanNowParts();
+  const items = [];
+
+  const live = await liveBoard({ line: key, stationId: sid });
+  if (live.ok && Array.isArray(live.items)) {
+    for (const row of live.items) {
+      let dep = null;
+      let estMin = row.estimateMinutes;
+      if (row.estimateTime === 0 || estMin === 0) {
+        dep = now.hhmm;
+        estMin = 0;
+      } else if (estMin != null && Number.isFinite(estMin)) {
+        dep = hhmmAdd(now.hhmm, estMin);
+      }
+      items.push({
+        departureTime: dep,
+        destinationName: row.destinationName || row.tripHeadSign || null,
+        direction: row.direction,
+        estimateMinutes: estMin,
+        source: "live",
+        stationId: sid,
+        lineKey: row.lineKey || key,
+      });
+    }
+  }
+
+  const fl = await firstLastTrain({ line: key, stationId: sid });
+  if (fl.ok && Array.isArray(fl.items)) {
+    for (const row of fl.items) {
+      for (const [label, t] of [
+        ["first", row.firstTrainTime],
+        ["last", row.lastTrainTime],
+      ]) {
+        if (!t) continue;
+        const tm = minutesOf(t);
+        if (tm == null) continue;
+        if (label === "last" && tm < now.minutes - 5) continue;
+        const t5 = t.length >= 5 ? t.slice(0, 5) : t;
+        if (items.some((x) => x.departureTime === t5 && x.destinationName === row.destinationName)) continue;
+        items.push({
+          departureTime: t5,
+          destinationName: row.destinationName || (label === "first" ? "首班" : "末班"),
+          direction: row.direction,
+          estimateMinutes: tm >= now.minutes ? tm - now.minutes : null,
+          source: label === "first" ? "first-train" : "last-train",
+          stationId: sid,
+          lineKey: row.lineKey || key,
+        });
+      }
+    }
+  }
+
+  if (items.filter((x) => x.source === "live").length === 0) {
+    const freq = await frequency({ line: key || stationLineOf(sid) });
+    let headway = 8;
+    if (freq.ok && freq.items && freq.items.length) {
+      const h = freq.items.find((x) => x.offPeakHeadwayMins || x.peakHeadwayMins) || freq.items[0];
+      const peak =
+        (now.minutes >= 7 * 60 && now.minutes <= 9 * 60) ||
+        (now.minutes >= 17 * 60 && now.minutes <= 19 * 60);
+      if (peak && h.peakHeadwayMins) headway = h.peakHeadwayMins;
+      else if (h.offPeakHeadwayMins) headway = h.offPeakHeadwayMins;
+      else if (h.peakHeadwayMins) headway = h.peakHeadwayMins;
+    }
+    for (let i = 1; i <= 4; i++) {
+      items.push({
+        departureTime: hhmmAdd(now.hhmm, headway * i),
+        destinationName: null,
+        direction: null,
+        estimateMinutes: headway * i,
+        source: "frequency-estimate",
+        stationId: sid,
+        lineKey: key || stationLineOf(sid),
+        note: `依班距約 ${headway} 分鐘推估`,
+      });
+    }
+  }
+
+  items.sort((a, b) => {
+    const ma = minutesOf(a.departureTime);
+    const mb = minutesOf(b.departureTime);
+    if (ma == null && mb == null) return 0;
+    if (ma == null) return 1;
+    if (mb == null) return -1;
+    const aa = ma < now.minutes - 30 ? ma + 24 * 60 : ma;
+    const bb = mb < now.minutes - 30 ? mb + 24 * 60 : mb;
+    return aa - bb;
+  });
+
+  return {
+    ok: true,
+    stationId: sid,
+    line: key ? lineMeta(key) : lineMeta(stationLineOf(sid)),
+    now: now.hhmm,
+    count: items.length,
+    items,
+    firstLast: fl.ok ? fl.items : [],
+    updatedAt: new Date().toISOString(),
   };
 }
 
 async function timetableSummary({ line = null, stationId = null } = {}) {
+  const sid = stationId ? String(stationId).trim().toUpperCase() : null;
+  if (sid) {
+    const up = await upcomingDepartures({ line, stationId: sid });
+    const freq = await frequency({ line: line || stationLineOf(sid) }).catch(() => ({ items: [] }));
+    return {
+      ok: true,
+      line: up.line || (line ? lineMeta(normalizeLineKey(line)) : null),
+      stationId: sid,
+      now: up.now,
+      count: up.count,
+      items: up.items || [],
+      firstLast: up.firstLast || [],
+      frequency: freq.items || [],
+      updatedAt: up.updatedAt,
+    };
+  }
   const [fl, freq] = await Promise.all([
     firstLastTrain({ line, stationId }).catch((e) => ({ ok: true, items: [], reason: e.message })),
     frequency({ line }).catch((e) => ({ ok: true, items: [], reason: e.message })),
@@ -463,13 +623,11 @@ async function timetableSummary({ line = null, stationId = null } = {}) {
   return {
     ok: true,
     line: line ? lineMeta(normalizeLineKey(line)) : null,
-    stationId: stationId ? String(stationId).trim().toUpperCase() : null,
+    stationId: null,
+    items: [],
     firstLast: fl.items || [],
     frequency: freq.items || [],
-    errors: {
-      firstLast: fl.note || null,
-      frequency: freq.note || null,
-    },
+    note: "請帶 stationId 以取得接下來發車時刻",
   };
 }
 
@@ -484,9 +642,15 @@ async function handleKrtcQuery(query) {
   if (type === "sequence" || type === "station-of-line") return stationSequence({ line });
   if (type === "live" || type === "liveboard" || type === "board") return liveBoard({ line, stationId });
   if (type === "timetable" || type === "schedule") return timetableSummary({ line, stationId });
+  if (type === "upcoming" || type === "next" || type === "departures") return upcomingDepartures({ line, stationId });
   if (type === "first-last" || type === "firstlast" || type === "first_last") return firstLastTrain({ line, stationId });
   if (type === "frequency" || type === "headway") return frequency({ line });
-  if (type === "station-timetable" || type === "station_timetable" || type === "stt") return stationTimetable({ line, stationId });
+  if (type === "station-timetable" || type === "station_timetable" || type === "stt") {
+    const st = await stationTimetable({ line, stationId });
+    if (st.ok && st.count > 0) return st;
+    const up = await upcomingDepartures({ line, stationId });
+    return { ...up, note: st.note || "無表定逐班，改以即時／班距推估", fallback: true };
+  }
 
   const lines = listLines();
   const cred = getCredentials();
@@ -499,11 +663,11 @@ async function handleKrtcQuery(query) {
       lines: "?type=lines",
       stations: "?type=stations&line=R|O|C",
       sequence: "?type=sequence&line=R",
-      live: "?type=live&stationId=R11",
-      timetable: "?type=timetable&line=R",
-      firstLast: "?type=first-last&stationId=R11",
+      live: "?type=live&stationId=R7",
+      timetable: "?type=timetable&stationId=R7",
+      upcoming: "?type=upcoming&stationId=R7",
+      firstLast: "?type=first-last&stationId=R7",
       frequency: "?type=frequency&line=R",
-      stationTimetable: "?type=station-timetable&stationId=R11",
     },
   };
 }
@@ -518,6 +682,7 @@ module.exports = {
   frequency,
   stationTimetable,
   timetableSummary,
+  upcomingDepartures,
   getCredentials,
   normalizeLineKey,
 };
