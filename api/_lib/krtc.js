@@ -1,7 +1,8 @@
 /**
  * krtc loader
- * - 即時：補分鐘／進站中
- * - 接下來發車：優先 TDX StationTimeTable（對齊官網），沒有才班距推估
+ * - sequence：地圖只回一條 mapPolyline（順逆行同軌，勿雙向重畫）
+ * - timetable：優先 StationTimeTable
+ * - live：分鐘／進站中
  */
 const https = require("https");
 
@@ -141,22 +142,80 @@ function enrichLiveItems(items) {
   });
 }
 
+/**
+ * 地圖用站序：每個 line 只給一條 polyline
+ * 順行／逆行走同一條實體軌道，畫兩次會變雙線／三線
+ */
+function simplifySequenceForMap(seq) {
+  if (!seq || !seq.ok) return seq;
+
+  const sequences = Array.isArray(seq.sequences) ? seq.sequences : [];
+  // 選站數最多的一條當「地圖主線」；同長則 direction===0
+  let primary = null;
+  for (const s of sequences) {
+    const n = (s.stops && s.stops.length) || s.stopCount || 0;
+    const pn = primary ? (primary.stops && primary.stops.length) || primary.stopCount || 0 : -1;
+    if (!primary || n > pn || (n === pn && s.direction === 0)) primary = s;
+  }
+
+  // 相容舊欄位 stationIds
+  let stationIds = Array.isArray(seq.stationIds) ? seq.stationIds.slice() : [];
+  let orderedStops = Array.isArray(seq.orderedStops) ? seq.orderedStops.slice() : [];
+
+  if (primary && Array.isArray(primary.stops) && primary.stops.length) {
+    const sorted = primary.stops.slice().sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+    stationIds = sorted.map((s) => s.stationId);
+    // 若已有 orderedStops 含 lat/lon 就保留；否則用 stops
+    if (!orderedStops.length) {
+      orderedStops = sorted.map((s) => ({
+        sequence: s.sequence,
+        stationId: s.stationId,
+        nameZh: s.nameZh || null,
+        lat: s.lat != null ? s.lat : null,
+        lon: s.lon != null ? s.lon : null,
+      }));
+    }
+  }
+
+  // 方向僅作資訊，不供畫線
+  const directions = sequences.map((s) => ({
+    direction: s.direction,
+    lineId: s.lineId || null,
+    stopCount: (s.stops && s.stops.length) || s.stopCount || 0,
+    label: s.direction === 0 ? "順行" : s.direction === 1 ? "逆行" : "方向" + s.direction,
+  }));
+
+  return {
+    ok: true,
+    line: seq.line || null,
+    // 地圖只畫這條
+    mapPolyline: {
+      stationIds,
+      orderedStops,
+      // 環狀輕軌可閉合
+      closed: seq.line && seq.line.lineKey === "C",
+    },
+    stationIds,
+    orderedStops,
+    // 順逆行資訊（勿用來重畫第二條線）
+    directions,
+    directionCount: directions.length,
+    note:
+      seq.line && seq.line.lineKey === "C"
+        ? "環狀輕軌順行／逆行共軌，地圖請只畫 mapPolyline 一條。"
+        : "順行／逆行共軌，地圖請只畫 mapPolyline 一條，不要把 sequences 雙向都畫上。",
+  };
+}
+
 function weekdayServiceOk(serviceDay) {
-  // ServiceDay 可能是物件 {Monday:true,...} 或略過
   if (!serviceDay || typeof serviceDay !== "object") return true;
   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const d = new Date();
-  // 台灣時區星期
-  const tw = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
+  const tw = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
   const name = days[tw.getDay()];
-  if (serviceDay[name] === false) return false;
-  if (serviceDay[name] === true) return true;
-  // 有些用 0/1
-  if (serviceDay[name] === 0) return false;
+  if (serviceDay[name] === false || serviceDay[name] === 0) return false;
   return true;
 }
 
-/** 從 StationTimeTable 結果抽出「現在之後」的班次 */
 function itemsFromStationTimetable(st, stationId, nowHHMM, limitPerDest) {
   if (!st || !st.ok || !Array.isArray(st.items) || !st.items.length) return null;
   const nowMin = minutesOf(nowHHMM);
@@ -168,13 +227,11 @@ function itemsFromStationTimetable(st, stationId, nowHHMM, limitPerDest) {
     if (!t) continue;
     const tm = minutesOf(t);
     if (tm == null || nowMin == null) continue;
-    // 只取現在起 3 小時內（含稍早 1 分）
     if (tm < nowMin - 1) continue;
     if (tm > nowMin + 180) continue;
 
     let name = (row.destinationName || "").trim();
     if (!name) {
-      // 用 direction 對終點
       const lk = lineKeyOfStation(stationId);
       if (lk && LINE_TERMINALS[lk]) {
         const idx = row.direction != null ? Number(row.direction) % 2 : 0;
@@ -198,9 +255,8 @@ function itemsFromStationTimetable(st, stationId, nowHHMM, limitPerDest) {
   if (!byDest.size) return null;
 
   const out = [];
-  for (const [name, list] of byDest.entries()) {
+  for (const [, list] of byDest.entries()) {
     list.sort((a, b) => minutesOf(a.departureTime) - minutesOf(b.departureTime));
-    // 去重同一分鐘
     const seen = new Set();
     let n = 0;
     for (const it of list) {
@@ -352,7 +408,6 @@ async function buildUpcoming(mod, query) {
   const line = query.line || null;
   const now = taiwanNowHHMM();
 
-  // 1) 真實站別時刻表
   let st = null;
   try {
     if (stationId && typeof mod.stationTimetable === "function") {
@@ -371,11 +426,10 @@ async function buildUpcoming(mod, query) {
       count: fromTable.length,
       items: fromTable,
       scheduleSource: "station-timetable",
-      note: "依 TDX 站別時刻表（與官網班表同源結構）",
+      note: "依 TDX 站別時刻表",
     };
   }
 
-  // 2) fallback：原本 live + 班距
   let base = null;
   try {
     if (typeof mod.upcomingDepartures === "function") {
@@ -389,7 +443,7 @@ async function buildUpcoming(mod, query) {
   const enriched = enrichUpcomingFallback(base || { ok: true, items: [] }, stationId);
   return {
     ...enriched,
-    note: (st && st.note) || "TDX 站別時刻表無資料，改以即時／班距推估（可能與官網不完全一致）",
+    note: (st && st.note) || "TDX 站別時刻表無資料，改以即時／班距推估",
   };
 }
 
@@ -411,6 +465,11 @@ async function handleKrtcQuery(query) {
     return buildUpcoming(mod, q);
   }
 
+  if (type === "sequence" || type === "station-of-line") {
+    const seq = await mod.stationSequence({ line: q.line || q.lineId || null });
+    return simplifySequenceForMap(seq);
+  }
+
   const result = await mod.handleKrtcQuery(query);
 
   if ((type === "live" || type === "liveboard" || type === "board") && result && result.ok && Array.isArray(result.items)) {
@@ -424,7 +483,11 @@ module.exports = {
   handleKrtcQuery,
   listLines: async (...a) => (await loadRemote()).listLines(...a),
   listStations: async (...a) => (await loadRemote()).listStations(...a),
-  stationSequence: async (...a) => (await loadRemote()).stationSequence(...a),
+  stationSequence: async (opts) => {
+    const mod = await loadRemote();
+    const seq = await mod.stationSequence(opts || {});
+    return simplifySequenceForMap(seq);
+  },
   liveBoard: async (...a) => {
     const mod = await loadRemote();
     const r = await mod.liveBoard(...a);
