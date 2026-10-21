@@ -144,7 +144,7 @@ async function fetchStations(system) {
 async function fetchStationOfLine(system) {
   const cacheKey = `sol-${system}`;
   const cached = readCache(cacheKey, CACHE_TTL_STATIC_MS);
-  if (cached) return { ok: true, data: list, cached: true };
+  if (cached) return { ok: true, data: cached, cached: true };
   const res = await tdxGet(`/StationOfLine/${system}`, { query: "$format=JSON" });
   if (!res.ok) return res;
   const list = Array.isArray(res.data) ? res.data : [];
@@ -167,7 +167,6 @@ async function fetchFirstLast(system) {
   const cacheKey = `firstlast-${system}`;
   const cached = readCache(cacheKey, CACHE_TTL_STATIC_MS);
   if (cached) return { ok: true, data: cached, cached: true };
-  // TDX 正確路徑是 FirstLastTimetable（不是 FirstLastTrain）
   const res = await tdxGet(`/FirstLastTimetable/${system}`, { query: "$format=JSON&$top=500" });
   if (!res.ok) return res;
   const list = Array.isArray(res.data) ? res.data : [];
@@ -461,7 +460,6 @@ async function timetableSummary({ line = null, stationId = null } = {}) {
     firstLastTrain({ line, stationId }).catch((e) => ({ ok: true, items: [], reason: e.message })),
     frequency({ line }).catch((e) => ({ ok: true, items: [], reason: e.message })),
   ]);
-  // 一律 200，避免前端「接下來的發車時刻」整段 502
   return {
     ok: true,
     line: line ? lineMeta(normalizeLineKey(line)) : null,
@@ -469,8 +467,8 @@ async function timetableSummary({ line = null, stationId = null } = {}) {
     firstLast: fl.items || [],
     frequency: freq.items || [],
     errors: {
-      firstLast: fl.count === 0 && fl.note ? fl.note : null,
-      frequency: freq.count === 0 && freq.note ? freq.note : null,
+      firstLast: fl.note || null,
+      frequency: freq.note || null,
     },
   };
 }
