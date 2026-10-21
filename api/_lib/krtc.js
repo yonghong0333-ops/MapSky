@@ -144,7 +144,7 @@ async function fetchStations(system) {
 async function fetchStationOfLine(system) {
   const cacheKey = `sol-${system}`;
   const cached = readCache(cacheKey, CACHE_TTL_STATIC_MS);
-  if (cached) return { ok: true, data: cached, cached: true };
+  if (cached) return { ok: true, data: list, cached: true };
   const res = await tdxGet(`/StationOfLine/${system}`, { query: "$format=JSON" });
   if (!res.ok) return res;
   const list = Array.isArray(res.data) ? res.data : [];
@@ -167,7 +167,8 @@ async function fetchFirstLast(system) {
   const cacheKey = `firstlast-${system}`;
   const cached = readCache(cacheKey, CACHE_TTL_STATIC_MS);
   if (cached) return { ok: true, data: cached, cached: true };
-  const res = await tdxGet(`/FirstLastTrain/${system}`, { query: "$format=JSON&$top=500" });
+  // TDX 正確路徑是 FirstLastTimetable（不是 FirstLastTrain）
+  const res = await tdxGet(`/FirstLastTimetable/${system}`, { query: "$format=JSON&$top=500" });
   if (!res.ok) return res;
   const list = Array.isArray(res.data) ? res.data : [];
   writeCache(cacheKey, list);
@@ -314,7 +315,16 @@ async function firstLastTrain({ line = null, stationId = null } = {}) {
   const items = [];
   for (const sys of systems) {
     const res = await fetchFirstLast(sys);
-    if (!res.ok) return res;
+    if (!res.ok) {
+      return {
+        ok: true,
+        line: key ? lineMeta(key) : null,
+        stationId: sid,
+        count: 0,
+        items: [],
+        note: "TDX FirstLastTimetable 無法取得（" + (res.reason || res.status || "error") + "）",
+      };
+    }
     for (const row of res.data || []) {
       const id = String(row.StationID || "");
       if (sid && id !== sid) continue;
@@ -323,7 +333,9 @@ async function firstLastTrain({ line = null, stationId = null } = {}) {
       items.push({
         stationId: id,
         stationName: zhOf(row.StationName) || id,
-        lineKey: lk,
+        lineKey: lk || (row.LineID ? String(row.LineID)[0] : null),
+        lineId: row.LineID || null,
+        direction: row.Direction != null ? Number(row.Direction) : null,
         destinationStationId: row.DestinationStationID || null,
         destinationName: zhOf(row.DestinationStationName),
         trainType: row.TrainType || null,
@@ -344,21 +356,35 @@ async function frequency({ line = null } = {}) {
   const items = [];
   for (const sys of systems) {
     const res = await fetchFrequency(sys);
-    if (!res.ok) return res;
+    if (!res.ok) {
+      return { ok: true, line: key ? lineMeta(key) : null, count: 0, items: [], note: "TDX Frequency 無法取得" };
+    }
     for (const row of res.data || []) {
       const lineId = String(row.LineID || row.LineId || "");
-      const lk = lineId.startsWith("R") || lineId === "R" ? "R" : lineId.startsWith("O") || lineId === "O" ? "O" : sys === "KLRT" ? "C" : null;
+      const lk =
+        lineId.startsWith("R") || lineId === "R"
+          ? "R"
+          : lineId.startsWith("O") || lineId === "O"
+            ? "O"
+            : sys === "KLRT"
+              ? "C"
+              : null;
       if (key && lk !== key) continue;
-      items.push({
-        lineId,
-        lineKey: lk,
-        serviceDay: row.ServiceDay || null,
-        peakHeadwayMins: row.PeakHeadway != null ? Number(row.PeakHeadway) : null,
-        offPeakHeadwayMins: row.OffPeakHeadway != null ? Number(row.OffPeakHeadway) : null,
-        startTime: row.StartTime || null,
-        endTime: row.EndTime || null,
-        system: sys,
-      });
+      const headways = Array.isArray(row.Headways) && row.Headways.length ? row.Headways : [row];
+      for (const h of headways) {
+        items.push({
+          lineId,
+          lineKey: lk,
+          routeId: row.RouteID || null,
+          direction: row.Direction != null ? Number(row.Direction) : null,
+          serviceDay: row.ServiceDay || h.ServiceDay || null,
+          peakHeadwayMins: h.PeakHeadway != null ? Number(h.PeakHeadway) : null,
+          offPeakHeadwayMins: h.OffPeakHeadway != null ? Number(h.OffPeakHeadway) : null,
+          startTime: h.StartTime || row.StartTime || null,
+          endTime: h.EndTime || row.EndTime || null,
+          system: sys,
+        });
+      }
     }
   }
   return { ok: true, line: key ? lineMeta(key) : null, count: items.length, items };
@@ -372,7 +398,16 @@ async function stationTimetable({ line = null, stationId = null } = {}) {
   }
   const sys = stationLineOf(sid) === "C" ? "KLRT" : "KRTC";
   const res = await fetchStationTimeTable(sys);
-  if (!res.ok) return res;
+  if (!res.ok) {
+    return {
+      ok: true,
+      stationId: sid,
+      line: key ? lineMeta(key) : lineMeta(stationLineOf(sid)),
+      count: 0,
+      items: [],
+      note: "TDX StationTimeTable 無法取得，請用 type=first-last 或 type=frequency",
+    };
+  }
   const trips = [];
   for (const row of res.data || []) {
     const id = String(row.StationID || "");
@@ -417,26 +452,25 @@ async function stationTimetable({ line = null, stationId = null } = {}) {
     line: key ? lineMeta(key) : lineMeta(stationLineOf(sid)),
     count: trips.length,
     items: trips,
-    note: trips.length
-      ? null
-      : "此站 TDX 可能未提供逐班時刻；高雄捷運多以首末班＋班距為主，請用 type=first-last 或 type=frequency",
+    note: trips.length ? null : "此站可能無逐班時刻；請用 type=first-last 或 type=frequency",
   };
 }
 
 async function timetableSummary({ line = null, stationId = null } = {}) {
-  const [fl, freq] = await Promise.all([firstLastTrain({ line, stationId }), frequency({ line })]);
-  if (!fl.ok) return fl;
-  if (!freq.ok) return freq;
+  const [fl, freq] = await Promise.all([
+    firstLastTrain({ line, stationId }).catch((e) => ({ ok: true, items: [], reason: e.message })),
+    frequency({ line }).catch((e) => ({ ok: true, items: [], reason: e.message })),
+  ]);
+  // 一律 200，避免前端「接下來的發車時刻」整段 502
   return {
     ok: true,
     line: line ? lineMeta(normalizeLineKey(line)) : null,
     stationId: stationId ? String(stationId).trim().toUpperCase() : null,
-    firstLast: fl.items,
-    frequency: freq.items,
-    usage: {
-      firstLast: "?type=first-last&line=R 或 &stationId=R11",
-      frequency: "?type=frequency&line=R",
-      stationTimetable: "?type=station-timetable&stationId=R11",
+    firstLast: fl.items || [],
+    frequency: freq.items || [],
+    errors: {
+      firstLast: fl.count === 0 && fl.note ? fl.note : null,
+      frequency: freq.count === 0 && freq.note ? freq.note : null,
     },
   };
 }
