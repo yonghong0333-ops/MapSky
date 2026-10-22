@@ -5,6 +5,7 @@ const { handleTraQuery } = require("../_lib/tra");
 const { handleThsrQuery } = require("../_lib/thsr");
 const { handleYoubikeQuery } = require("../_lib/youbike");
 const { handleSuspensionQuery } = require("../_lib/school-closure");
+const { handleClosuresRequest } = require("../_lib/closures");
 const { requireSession } = require("../_lib/require-session");
 
 module.exports = async function handler(req, res) {
@@ -12,6 +13,10 @@ module.exports = async function handler(req, res) {
   try {
     const q = req.query || {};
     const transit = String(q.transit || "").toLowerCase();
+
+    if (q.type === "closures" || q.type === "closure-settings") {
+      return await handleClosuresRequest(req, res);
+    }
 
     if (q.type === "cloud" || q.type === "cloud-cover") {
       const result = await getCloudObservation({
@@ -78,11 +83,9 @@ module.exports = async function handler(req, res) {
       return res.status(status).json(result);
     }
 
-    if (transit === "thsr" || q.type === "thsr" || q.type === "hsr" || q.type === "high-speed") {
+    if (transit === "thsr" || q.type === "thsr" || q.type === "hsr") {
       const query = { ...q };
-      if (query.type === "thsr" || query.type === "hsr" || query.type === "high-speed") {
-        delete query.type;
-      }
+      if (query.type === "thsr" || query.type === "hsr") delete query.type;
       const result = await handleThsrQuery(query);
       const status =
         result.ok
@@ -91,39 +94,30 @@ module.exports = async function handler(req, res) {
             ? 503
             : result.reason === "tdx-rate-limit"
               ? 429
-              : result.reason === "missing-stations" || result.reason === "missing-stationId"
-                ? 400
-                : 502;
+              : 502;
       res.setHeader("Cache-Control", "no-store");
       return res.status(status).json(result);
     }
 
-    if (
-      transit === "youbike" ||
-      transit === "bike" ||
-      q.type === "youbike" ||
-      q.type === "bike"
-    ) {
+    if (transit === "youbike" || q.type === "youbike" || q.type === "bike") {
       const query = { ...q };
-      if (query.type === "youbike" || query.type === "bike") {
-        delete query.type;
-      }
+      if (query.type === "youbike" || query.type === "bike") delete query.type;
       const result = await handleYoubikeQuery(query);
-      const status =
-        result.ok
-          ? 200
-          : result.reason === "missing-lat-lon" || result.reason === "missing-stationId"
-            ? 400
-            : result.reason === "not-found"
-              ? 404
-              : 502;
-      res.setHeader("Cache-Control", "public, max-age=30");
+      const status = result.ok ? 200 : 502;
+      res.setHeader("Cache-Control", "no-store");
       return res.status(status).json(result);
     }
 
-    const result = await getWindObservation({ forceRefresh: q.refresh === "1" });
-    res.status(200).json(result);
+    // default: wind observation
+    const result = await getWindObservation({
+      forceRefresh: q.refresh === "1",
+      stationId: q.stationId || q.station || null,
+      county: q.county || null,
+    });
+    res.setHeader("Cache-Control", "public, max-age=60");
+    return res.status(result.ok ? 200 : 502).json(result);
   } catch (e) {
-    res.status(502).json({ ok: false, reason: e.message });
+    console.error("[wind]", e);
+    return res.status(500).json({ ok: false, reason: "internal", detail: String(e.message || e).slice(0, 200) });
   }
 };
