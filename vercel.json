@@ -3,6 +3,10 @@
   "cleanUrls": true,
   "rewrites": [
     {
+      "source": "/api/weather/closures",
+      "destination": "/api/weather/status?closures=1"
+    },
+    {
       "source": "/api/weather/suspension",
       "destination": "/api/weather/wind?type=suspension"
     },

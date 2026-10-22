@@ -18,6 +18,7 @@ const { getAllIosTokens, removeIosToken } = require("../_lib/apns-store");
 const { sendApnsPush, isConfigured: isApnsConfigured } = require("../_lib/apns");
 const { getBetaTesters, addBetaTester, removeBetaTester } = require("../_lib/beta-testers");
 const { getAdventureSkipList, addAdventureSkip, removeAdventureSkip } = require("../_lib/adventure-skip");
+const { getClosures, saveClosures } = require("../_lib/closures");
 
 // 一般登入使用者打這支只會拿到 hasKey（給前端判斷要不要顯示「尚未設定授權碼」提示）。
 // 管理員加上 ?admin=1 才會多回傳後台管理要看的系統狀態，不是隨便誰都看得到。
@@ -27,6 +28,29 @@ const { getAdventureSkipList, addAdventureSkip, removeAdventureSkip } = require(
 module.exports = async function handler(req, res) {
   const payload = requireSession(req, res);
   if (!payload) return;
+
+  // 停班停課（管理員手動設定）：GET 取得目前設定（登入使用者都能看）；
+  // POST ?admin=1&action=save 管理員整份儲存。對外網址是 /api/weather/closures，
+  // 在 vercel.json 改寫到這裡（Hobby 方案函式數量有上限，所以不另開檔案）。
+  if (req.query.closures === "1") {
+    if (req.method === "POST") {
+      if (req.query.admin !== "1" || req.query.action !== "save") {
+        return res.status(400).json({ ok: false, reason: "bad-request" });
+      }
+      if (!(await isAdminSession(payload))) {
+        return res.status(403).json({ ok: false, reason: "not-admin" });
+      }
+      try {
+        const doc = await saveClosures(req.body, payload);
+        return res.status(200).json({ ok: true, updatedAt: doc.updatedAt });
+      } catch (e) {
+        return res.status(400).json({ ok: false, reason: e.reason || "save-failed" });
+      }
+    }
+    const doc = await getClosures();
+    res.setHeader("Cache-Control", "private, max-age=10");
+    return res.status(200).json({ ok: true, enabled: doc.enabled, updatedAt: doc.updatedAt, counties: doc.counties });
+  }
 
   // ---- POST：後台操作，用 action 區分要做什麼 ----
   if (req.method === "POST") {
