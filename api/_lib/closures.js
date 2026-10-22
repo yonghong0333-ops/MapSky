@@ -1,69 +1,121 @@
 const { handleSuspensionQuery } = require("./school-closure");
 const COUNTIES = ["基隆市","臺北市","新北市","桃園市","新竹市","新竹縣","苗栗縣","臺中市","彰化縣","南投縣","雲林縣","嘉義市","嘉義縣","臺南市","高雄市","屏東縣","宜蘭縣","花蓮縣","臺東縣","澎湖縣","金門縣","連江縣"];
+
+function taipeiYmd(offsetDays = 0) {
+  const d = new Date(Date.now() + offsetDays * 86400000);
+  const f = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" });
+  return f.format(d);
+}
+function taipeiHour() {
+  const f = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei", hour: "2-digit", hourCycle: "h23" });
+  return Number(f.formatToParts(new Date()).find((p) => p.type === "hour").value);
+}
+
 function mapDgpaStatus(day) {
-  if (!day) return "none";
-  const w = day.work || day.status || "none";
+  if (!day) return "pending";
+  const w = day.work || day.status || "";
+  const text = String(day.text || "");
+  if (/尚未宣布/.test(text) || w === "unknown") return "pending";
   if (w === "suspended" || w === "closed") return "closed";
   if (w === "partial") return "normal";
   if (w === "normal") return "normal";
-  if (w === "unknown" || w === "pending") return "pending";
-  return "none";
+  if (w === "out_of_alert" || w === "none") return "none";
+  if (w === "pending") return "pending";
+  // 沒有明確狀態 → 尚未宣布（不要當照常）
+  if (!w) return "pending";
+  return "pending";
 }
+
 function paintTier(entry) {
-  if (!entry) return "none";
-  const st = entry.status || "none";
+  if (!entry) return "pending";
+  const st = entry.status || "pending";
   const districts = entry.districts || {};
   if (Object.values(districts).some((s) => s === "closed")) return "partial";
   if (st === "closed") return "closed";
   if (st === "normal") return "normal";
   if (st === "pending") return "pending";
-  return "none";
+  if (st === "none") return "none";
+  return "pending";
 }
-async function handleClosuresRequest(req, res) {
-  const suspension = await handleSuspensionQuery({ type: "suspension", day: "all" });
+
+function buildSide(suspension, side) {
   const counties = {};
   const mapPaint = {};
   for (const name of COUNTIES) {
     const it = (suspension.items || []).find((x) => x.county === name);
-    const day = (it && it.today) || {};
+    const day = side === "tomorrow" ? (it && it.tomorrow) || {} : (it && it.today) || {};
     let status = mapDgpaStatus(day);
     const districts = {};
-    for (const [dn, ds] of Object.entries((it && it.districtsToday) || {})) {
+    const rawDist = side === "tomorrow" ? (it && it.districtsTomorrow) || {} : (it && it.districtsToday) || {};
+    for (const [dn, ds] of Object.entries(rawDist)) {
       if (ds === "closed" || ds === "suspended" || ds === "partial") districts[dn] = "closed";
+      else if (ds === "normal") districts[dn] = "normal";
     }
-    if (Object.keys(districts).length && status === "closed") status = "normal";
-    counties[name] = { status, source: "dgpa", forDate: null, ...(Object.keys(districts).length ? { districts } : {}) };
-    mapPaint[name] = paintTier(counties[name]);
-  }
-  const tomorrowCounties = {};
-  const tomorrowMapPaint = {};
-  for (const name of COUNTIES) {
-    const it = (suspension.items || []).find((x) => x.county === name);
-    const day = (it && it.tomorrow) || {};
-    let status = mapDgpaStatus(day);
-    const districts = {};
-    for (const [dn, ds] of Object.entries((it && it.districtsTomorrow) || {})) {
-      if (ds === "closed" || ds === "suspended" || ds === "partial") districts[dn] = "closed";
-    }
-    if (Object.keys(districts).length) {
+    // 有分區停班 → 縣市不要 closed，讓 paint 變黃
+    if (Object.keys(districts).length && Object.values(districts).some((s) => s === "closed")) {
       if (status === "closed" || status === "pending" || status === "none") status = "normal";
-    } else if (!status || status === "none") {
-      status = "pending";
     }
-    tomorrowCounties[name] = { status, source: "dgpa", forDate: null, note: status === "pending" ? "尚未宣布" : undefined, ...(Object.keys(districts).length ? { districts } : {}) };
-    tomorrowMapPaint[name] = paintTier(tomorrowCounties[name]);
+    const entry = {
+      status,
+      source: "dgpa",
+      forDate: side === "tomorrow" ? taipeiYmd(1) : taipeiYmd(0),
+      note: status === "pending" ? "尚未宣布" : day.text || null,
+    };
+    if (Object.keys(districts).length) entry.districts = districts;
+    counties[name] = entry;
+    mapPaint[name] = paintTier(entry);
   }
-  const enabled = Boolean(suspension && suspension.ok);
+  return { counties, mapPaint };
+}
+
+async function handleClosuresRequest(req, res) {
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    return res.status(405).json({ ok: false, reason: "method-not-allowed" });
+  }
+  const suspension = await handleSuspensionQuery({ type: "suspension", day: "all" });
+  const hour = taipeiHour();
+  const today = buildSide(suspension, "today");
+  const tomorrow = buildSide(suspension, "tomorrow");
+  const updatedAt = new Date().toISOString();
+
   return res.status(200).json({
     ok: true,
-    enabled,
-    counties,
-    mapPaint,
-    tomorrowCounties,
-    tomorrowMapPaint,
-    dgpa: { ok: Boolean(suspension && suspension.ok), counties: {} },
-    scheduleLifecycle: { afterSix: true, hour: 19 },
-    notice: "minimal-restore-mapPaint",
+    enabled: Boolean(suspension && suspension.ok),
+    forDate: taipeiYmd(0),
+    taipeiToday: taipeiYmd(0),
+    taipeiTomorrow: taipeiYmd(1),
+    updatedAt,
+    counties: today.counties,
+    mapPaint: today.mapPaint,
+    tomorrowCounties: hour >= 18 ? tomorrow.counties : {},
+    tomorrowMapPaint: hour >= 18 ? tomorrow.mapPaint : {},
+    dgpa: {
+      ok: Boolean(suspension && suspension.ok),
+      updatedAt: suspension && suspension.updatedAt,
+      hasAnySuspension: Boolean(suspension && suspension.hasAnySuspension),
+      counties: today.counties,
+    },
+    scheduleLifecycle: {
+      hour,
+      afterSix: hour >= 18,
+      rule: "尚未宣布=pending(灰)；照常=normal(藍)僅在人事行政總處明確宣布；分區=partial(黃)",
+    },
   });
 }
-module.exports = { handleClosuresRequest, mergeClosures: () => ({ counties: {}, conflicts: [] }), buildDgpaInfo: () => ({}), mapDgpaStatus, loadManual: async () => ({}), saveManual: async () => ({ ok: false }), manualForDate: () => ({}), applyScheduleLifecycle: (m) => ({ manual: m, dirty: false, events: [], today: "", tomorrow: "", hour: 0 }), paintTier, buildMapPaint: (c) => { const o={}; for (const k of Object.keys(c||{})) o[k]=paintTier(c[k]); return o; } };
+
+module.exports = {
+  handleClosuresRequest,
+  mergeClosures: () => ({ counties: {}, conflicts: [] }),
+  buildDgpaInfo: () => ({}),
+  mapDgpaStatus,
+  loadManual: async () => ({}),
+  saveManual: async () => ({ ok: false }),
+  manualForDate: () => ({}),
+  applyScheduleLifecycle: (m) => ({ manual: m, dirty: false, events: [], today: taipeiYmd(0), tomorrow: taipeiYmd(1), hour: taipeiHour() }),
+  paintTier,
+  buildMapPaint: (c) => {
+    const o = {};
+    for (const k of Object.keys(c || {})) o[k] = paintTier(c[k]);
+    return o;
+  },
+};
