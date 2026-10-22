@@ -238,7 +238,11 @@ async function handleClosuresRequest(req, res) {
   const dgpa = buildDgpaInfo(suspension);
   const { counties, conflicts } = mergeClosures(manual, dgpa);
 
-  const enabled = Boolean(manual.enabled);
+  // Redis 明確關過（有 updatedAt 且 enabled=false）才關閉；否則 DGPA 正常就顯示
+  const enabled =
+    manual.updatedAt && manual.enabled === false
+      ? false
+      : Boolean(manual.enabled) || Boolean(dgpa.ok);
   const payload = {
     ok: true,
     enabled,
