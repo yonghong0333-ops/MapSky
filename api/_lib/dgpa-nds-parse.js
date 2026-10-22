@@ -183,17 +183,12 @@ function parseNdsHtml(html) {
 
   for (const county of COUNTIES) {
     const re = new RegExp(
-      `<td[^>]*>\\s*(?:<[^>]+>\\s*)*${county}\\s*(?:</[^>]+>\\s*)*</td>\\s*<td[^>]*>([\\s\\S]*?)</td>`,
-      "i"
-    );
-    // fix double escape - use single backslash in actual file
-    const re2 = new RegExp(
       "<td[^>]*>\\s*(?:<[^>]+>\\s*)*" +
         county +
         "\\s*(?:</[^>]+>\\s*)*</td>\\s*<td[^>]*>([\\s\\S]*?)</td>",
       "i"
     );
-    const m = html.match(re2);
+    const m = html.match(re);
     if (!m) continue;
     const block = parseCountyBlock(m[1]);
     items.push({
