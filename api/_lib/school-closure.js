@@ -2,14 +2,8 @@
  * 天然災害停班停課 — 行政院人事行政總處 (DGPA)
  * 來源：https://www.dgpa.gov.tw/typh/daily/nds.html
  *
- * type 用法（經 wind 或 /api/weather/suspension）：
- *   ?type=suspension
- *   ?type=suspension&county=高雄市
- *   ?day=today|tomorrow|all
- *
- * 18:00（臺北）換日：見 ./closureRollover.js
- * 適用日 00:00 後仍「尚未宣布」→「未納入警戒區」（軟狀態）
- * 人事行政總處之後若有新公告 → 一律覆蓋軟狀態
+ * 分區/學校停班 → partial + districts（地圖黃）
+ * 全縣停班 → suspended（地圖紅）
  */
 const fs = require("fs");
 const os = require("os");
@@ -21,62 +15,24 @@ const {
   rolloverCounties,
   stampForDate,
 } = require("./closureRollover");
+const dgpaNds = require("./dgpa-nds-parse");
 
 const SOURCE_URL = "https://www.dgpa.gov.tw/typh/daily/nds.html";
 const CACHE_TTL_MS = 3 * 60 * 1000;
 const STALE_MS = 30 * 60 * 1000;
 
-const COUNTIES = [
-  "基隆市",
-  "臺北市",
-  "新北市",
-  "桃園市",
-  "新竹市",
-  "新竹縣",
-  "苗栗縣",
-  "臺中市",
-  "彰化縣",
-  "南投縣",
-  "雲林縣",
-  "嘉義市",
-  "嘉義縣",
-  "臺南市",
-  "高雄市",
-  "屏東縣",
-  "宜蘭縣",
-  "花蓮縣",
-  "臺東縣",
-  "澎湖縣",
-  "金門縣",
-  "連江縣",
+const COUNTIES = dgpaNds.COUNTIES || [
+  "基隆市", "臺北市", "新北市", "桃園市", "新竹市", "新竹縣", "苗栗縣",
+  "臺中市", "彰化縣", "南投縣", "雲林縣", "嘉義市", "嘉義縣", "臺南市",
+  "高雄市", "屏東縣", "宜蘭縣", "花蓮縣", "臺東縣", "澎湖縣", "金門縣", "連江縣",
 ];
 
 const ALIAS = {
-  台北市: "臺北市",
-  台中市: "臺中市",
-  台南市: "臺南市",
-  台東縣: "臺東縣",
-  台北: "臺北市",
-  台中: "臺中市",
-  台南: "臺南市",
-  高雄: "高雄市",
-  新北: "新北市",
-  桃園: "桃園市",
-  新竹: "新竹市",
-  苗栗: "苗栗縣",
-  彰化: "彰化縣",
-  南投: "南投縣",
-  雲林: "雲林縣",
-  嘉義: "嘉義市",
-  屏東: "屏東縣",
-  宜蘭: "宜蘭縣",
-  花蓮: "花蓮縣",
-  台東: "臺東縣",
-  澎湖: "澎湖縣",
-  金門: "金門縣",
-  連江: "連江縣",
-  馬祖: "連江縣",
-  基隆: "基隆市",
+  台北市: "臺北市", 台中市: "臺中市", 台南市: "臺南市", 台東縣: "臺東縣",
+  台北: "臺北市", 台中: "臺中市", 台南: "臺南市", 高雄: "高雄市", 新北: "新北市",
+  桃園: "桃園市", 新竹: "新竹市", 苗栗: "苗栗縣", 彰化: "彰化縣", 南投: "南投縣",
+  雲林: "雲林縣", 嘉義: "嘉義市", 屏東: "屏東縣", 宜蘭: "宜蘭縣", 花蓮: "花蓮縣",
+  台東: "臺東縣", 澎湖: "澎湖縣", 金門: "金門縣", 連江: "連江縣", 馬祖: "連江縣", 基隆: "基隆市",
 };
 
 function tmpPath(name) {
@@ -116,27 +72,6 @@ function normalizeCounty(raw) {
   return s;
 }
 
-function classifyPhrase(text) {
-  const t = String(text || "");
-  const workSuspended = /停止上班/.test(t) && !/照常上班/.test(t);
-  const schoolSuspended = /停止上課/.test(t) && !/照常上課/.test(t);
-  const partial = /下午|晚上|中午|起停止|延後|提早/.test(t);
-  let work = "normal";
-  let school = "normal";
-  if (workSuspended) work = partial ? "partial" : "suspended";
-  if (schoolSuspended) school = partial ? "partial" : "suspended";
-  if (/照常上班/.test(t)) work = "normal";
-  if (/照常上課/.test(t)) school = "normal";
-  if (/未納入警戒區|不納入警戒/.test(t)) {
-    work = "out_of_alert";
-    school = "out_of_alert";
-  } else if (/尚未宣布|尚未列入警戒區|尚無訊息|無停班停課訊息/.test(t)) {
-    work = "unknown";
-    school = "unknown";
-  }
-  return { work, school, text: t.trim() };
-}
-
 function emptyDay() {
   return { work: "normal", school: "normal", text: "照常上班、照常上課" };
 }
@@ -152,7 +87,6 @@ function isUndeclared(day) {
   return w === "unknown" || s === "unknown";
 }
 
-/** 可被人事行政總處新公告覆蓋的軟狀態 */
 function isSoftStatus(day) {
   if (!day) return true;
   const soft = (x) => x === "unknown" || x === "out_of_alert" || x == null;
@@ -165,11 +99,6 @@ function isDgpaExplicit(day) {
   return w === "suspended" || w === "partial" || w === "normal" || w === "out_of_alert";
 }
 
-/**
- * 過了適用日 forDate 的 00:00（臺北）仍「尚未宣布」→ 改成「未納入警戒區」。
- * 已設成停止／照常／部分的不改動。
- * out_of_alert 為軟狀態：下一次 DGPA 有明確公告時會被覆蓋。
- */
 function expireUndeclaredDay(day, forDate, now = new Date()) {
   if (!isUndeclared(day)) return day || emptyDay();
   const f = new Intl.DateTimeFormat("en-CA", {
@@ -181,9 +110,7 @@ function expireUndeclaredDay(day, forDate, now = new Date()) {
   const o = Object.fromEntries(f.map((p) => [p.type, p.value]));
   const today = `${o.year}-${o.month}-${o.day}`;
   const applicable = forDate || today;
-  if (today >= applicable) {
-    return outOfAlertDay();
-  }
+  if (today >= applicable) return outOfAlertDay();
   return day;
 }
 
@@ -194,153 +121,8 @@ function parseDgpaUpdatedToYmd(updatedAt) {
   return `${m[1]}-${String(m[2]).padStart(2, "0")}-${String(m[3]).padStart(2, "0")}`;
 }
 
-function parseCountyBlock(statusHtml) {
-  const plain = String(statusHtml || "")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\r/g, "")
-    .trim();
-
-  const notes = [];
-  let todayText = "";
-  let tomorrowText = "";
-
-  const lines = plain
-    .split(/\n+/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  for (const line of lines) {
-    if (/^今天/.test(line)) {
-      todayText = line.replace(/^今天/, "").replace(/^[：:\s]+/, "");
-    } else if (/^明天/.test(line)) {
-      tomorrowText = line.replace(/^明天/, "").replace(/^[：:\s]+/, "");
-    } else if (/區[：:]/.test(line) || /鄉[：:]/.test(line) || /鎮[：:]/.test(line) || /市[：:]/.test(line)) {
-      notes.push(line);
-    } else if (!todayText && /停止|照常|上班|上課/.test(line)) {
-      todayText = line;
-    }
-  }
-
-  if (!todayText && /今天/.test(plain)) {
-    const m = plain.match(/今天([^明]*)/);
-    if (m) todayText = m[1].replace(/[。．]\s*$/, "").trim();
-  }
-  if (!tomorrowText && /明天/.test(plain)) {
-    const m = plain.match(/明天(.*)$/);
-    if (m) tomorrowText = m[1].replace(/[。．]\s*$/, "").trim();
-  }
-
-  return {
-    today: classifyPhrase(todayText || (plain.includes("明天") ? "照常上班、照常上課" : plain)),
-    tomorrow: classifyPhrase(tomorrowText || "照常上班、照常上課"),
-    notes,
-    raw: plain,
-  };
-}
-
-function buildAllNormal(updatedAt, message) {
-  return {
-    ok: true,
-    updatedAt,
-    source: "dgpa",
-    sourceUrl: SOURCE_URL,
-    sourceName: "行政院人事行政總處",
-    hasAnySuspension: false,
-    message: message || "無停班停課訊息。",
-    count: COUNTIES.length,
-    items: COUNTIES.map((county) => ({
-      county,
-      today: emptyDay(),
-      tomorrow: emptyDay(),
-      notes: [],
-    })),
-  };
-}
-
 function parseNdsHtml(html) {
-  const updateMatch =
-    html.match(/更新時間[：:]\s*([0-9]{4}\/[0-9]{1,2}\/[0-9]{1,2}\s+[0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?)/) ||
-    html.match(/更新時間[：:]\s*([^<\n]+)/);
-  const updatedAt = updateMatch ? String(updateMatch[1]).trim() : null;
-
-  if (/無停班停課訊息/.test(html)) {
-    return buildAllNormal(updatedAt, "無停班停課訊息。");
-  }
-
-  const items = [];
-  const rowRe =
-    /<tr[^>]*>\s*<td[^>]*>\s*([^<]+?)\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>\s*<\/tr>/gi;
-  let m;
-  while ((m = rowRe.exec(html)) !== null) {
-    let name = m[1].replace(/\s+/g, "").trim();
-    name = name.replace(/台/g, "臺");
-    if (!COUNTIES.includes(name) && !ALIAS[name]) {
-      if (/縣市名稱|是否停止/.test(name)) continue;
-    }
-    const county = normalizeCounty(name);
-    if (!COUNTIES.includes(county)) continue;
-    const block = parseCountyBlock(m[2]);
-    items.push({
-      county,
-      today: block.today,
-      tomorrow: block.tomorrow,
-      notes: block.notes,
-      raw: block.raw,
-    });
-  }
-
-  if (!items.length) {
-    const text = html
-      .replace(/<script[\s\S]*?<\/script>/gi, "")
-      .replace(/<style[\s\S]*?<\/style>/gi, "")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/tr>/gi, "\n")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/g, " ");
-    for (const county of COUNTIES) {
-      const idx = text.indexOf(county);
-      if (idx < 0) continue;
-      const slice = text.slice(idx + county.length, idx + county.length + 200);
-      const block = parseCountyBlock(slice);
-      items.push({
-        county,
-        today: block.today,
-        tomorrow: block.tomorrow,
-        notes: block.notes,
-        raw: block.raw,
-      });
-    }
-  }
-
-  const seen = new Set(items.map((i) => i.county));
-  for (const c of COUNTIES) {
-    if (!seen.has(c)) {
-      items.push({ county: c, today: emptyDay(), tomorrow: emptyDay(), notes: [] });
-    }
-  }
-  items.sort((a, b) => COUNTIES.indexOf(a.county) - COUNTIES.indexOf(b.county));
-
-  const hasAny = items.some(
-    (i) =>
-      i.today.work !== "normal" ||
-      i.today.school !== "normal" ||
-      i.tomorrow.work !== "normal" ||
-      i.tomorrow.school !== "normal"
-  );
-
-  return {
-    ok: true,
-    updatedAt,
-    source: "dgpa",
-    sourceUrl: SOURCE_URL,
-    sourceName: "行政院人事行政總處",
-    hasAnySuspension: hasAny,
-    message: hasAny ? null : "無停班停課訊息。",
-    count: items.length,
-    items,
-  };
+  return dgpaNds.parseNdsHtml(html);
 }
 
 async function fetchNds() {
@@ -386,6 +168,7 @@ function filterPayload(payload, { county, day } = {}) {
         status: expireUndeclaredDay(i.today, forDate, now),
         forDate,
         notes: i.notes,
+        districts: i.districtsToday || i.districts || {},
       };
     });
   } else if (d === "tomorrow" || d === "明日" || d === "明天") {
@@ -396,6 +179,7 @@ function filterPayload(payload, { county, day } = {}) {
         status: expireUndeclaredDay(i.tomorrow, forDate, now),
         forDate,
         notes: i.notes,
+        districts: i.districtsTomorrow || {},
       };
     });
   }
@@ -418,10 +202,10 @@ function filterPayload(payload, { county, day } = {}) {
 function statusFromDay(day) {
   if (!day) return { status: "normal", work: "normal", school: "normal", text: "照常上班、照常上課" };
   const suspended =
-    (day.work && day.work !== "normal" && day.work !== "unknown" && day.work !== "out_of_alert") ||
-    (day.school && day.school !== "normal" && day.school !== "unknown" && day.school !== "out_of_alert");
+    (day.work && day.work !== "normal" && day.work !== "unknown" && day.work !== "out_of_alert" && day.work !== "partial") ||
+    (day.school && day.school !== "normal" && day.school !== "unknown" && day.school !== "out_of_alert" && day.school !== "partial");
   return {
-    status: suspended ? "closed" : day.work === "out_of_alert" ? "out_of_alert" : "normal",
+    status: suspended ? "closed" : day.work === "partial" ? "partial" : day.work === "out_of_alert" ? "out_of_alert" : "normal",
     work: day.work || "normal",
     school: day.school || "normal",
     text: day.text || "",
@@ -477,12 +261,7 @@ function applyRolloverToPayload(payload, now = new Date()) {
   const announced = {};
   for (const it of payload.items) {
     const t = it.tomorrow || {};
-    if (
-      t.work === "suspended" ||
-      t.work === "partial" ||
-      t.school === "suspended" ||
-      t.school === "partial"
-    ) {
+    if (t.work === "suspended" || t.work === "partial" || t.school === "suspended" || t.school === "partial") {
       announced[it.county] = tomorrow;
     }
   }
@@ -497,11 +276,7 @@ function applyRolloverToPayload(payload, now = new Date()) {
     if (!(cur && cur.forDate === tomorrow)) continue;
     if (isSoftStatus(cur)) continue;
     const dgpa = dgpaTomorrow[name];
-    if (
-      dgpa &&
-      isDgpaExplicit({ work: dgpa.work, school: dgpa.school }) &&
-      !isSoftStatus({ work: dgpa.work, school: dgpa.school })
-    ) {
+    if (dgpa && isDgpaExplicit({ work: dgpa.work, school: dgpa.school }) && !isSoftStatus({ work: dgpa.work, school: dgpa.school })) {
       continue;
     }
     if (cur.work === "suspended" || cur.work === "partial" || cur.status === "closed") {
@@ -530,8 +305,7 @@ function applyRolloverToPayload(payload, now = new Date()) {
     writeRolloverState({ lastRolloverFor: state.lastRolloverFor, counties });
   }
 
-  const afterSix =
-    shouldRollover(now, null) || state.lastRolloverFor === tomorrow || rolled;
+  const afterSix = shouldRollover(now, null) || state.lastRolloverFor === tomorrow || rolled;
   const items = payload.items.map((it) => {
     const c = counties[it.county];
     const forDate = (c && c.forDate) || today;
@@ -542,27 +316,9 @@ function applyRolloverToPayload(payload, now = new Date()) {
 
     if (afterSix && c) {
       const fromStore = {
-        work:
-          c.work ||
-          (c.status === "closed"
-            ? "suspended"
-            : c.status === "out_of_alert"
-              ? "out_of_alert"
-              : "normal"),
-        school:
-          c.school ||
-          (c.status === "closed"
-            ? "suspended"
-            : c.status === "out_of_alert"
-              ? "out_of_alert"
-              : "normal"),
-        text:
-          c.text ||
-          (c.status === "closed"
-            ? "停止上班、停止上課"
-            : c.status === "out_of_alert"
-              ? "未納入警戒區"
-              : "照常上班、照常上課"),
+        work: c.work || (c.status === "closed" ? "suspended" : c.status === "out_of_alert" ? "out_of_alert" : "normal"),
+        school: c.school || (c.status === "closed" ? "suspended" : c.status === "out_of_alert" ? "out_of_alert" : "normal"),
+        text: c.text || (c.status === "closed" ? "停止上班、停止上課" : c.status === "out_of_alert" ? "未納入警戒區" : "照常上班、照常上課"),
       };
       if (dgpaToday && isDgpaExplicit(dgpaToday) && !isSoftStatus(dgpaToday)) {
         todayStatus = dgpaToday;
@@ -591,19 +347,15 @@ function applyRolloverToPayload(payload, now = new Date()) {
       today: todayStatus,
       tomorrow: tomorrowStatus,
       forDate,
+      districtsToday: it.districtsToday || {},
+      districtsTomorrow: it.districtsTomorrow || {},
     };
   });
 
   const hasAny = items.some(
     (i) =>
-      (i.today &&
-        i.today.work !== "normal" &&
-        i.today.work !== "out_of_alert" &&
-        i.today.work !== "unknown") ||
-      (i.tomorrow &&
-        i.tomorrow.work !== "normal" &&
-        i.tomorrow.work !== "out_of_alert" &&
-        i.tomorrow.work !== "unknown")
+      (i.today && i.today.work !== "normal" && i.today.work !== "out_of_alert" && i.today.work !== "unknown") ||
+      (i.tomorrow && i.tomorrow.work !== "normal" && i.tomorrow.work !== "out_of_alert" && i.tomorrow.work !== "unknown")
   );
 
   return {
@@ -634,15 +386,7 @@ async function handleSuspensionQuery(query) {
         tomorrow: "?type=suspension&day=tomorrow",
       },
       sourceUrl: SOURCE_URL,
-      note:
-        "臺北 18:00 換日；適用日 00:00 後尚未宣布 → out_of_alert。人事行政總處之後有新公告會覆蓋軟狀態。",
-      statusCodes: {
-        normal: "照常上班上課",
-        suspended: "停止上班上課",
-        partial: "部分時段",
-        unknown: "尚未宣布",
-        out_of_alert: "未納入警戒區（軟，可被 DGPA 覆蓋）",
-      },
+      note: "分區停班=partial+districts（地圖黃）；全縣停=suspended（地圖紅）",
     };
   }
   const raw = await fetchNds();
