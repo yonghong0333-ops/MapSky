@@ -3,6 +3,14 @@
   "cleanUrls": true,
   "rewrites": [
     {
+      "source": "/api/weather/suspension",
+      "destination": "/api/weather/wind?type=suspension"
+    },
+    {
+      "source": "/api/weather/school-closure",
+      "destination": "/api/weather/wind?type=suspension"
+    },
+    {
       "source": "/api/transit/thsr",
       "destination": "/api/weather/wind?transit=thsr"
     },
