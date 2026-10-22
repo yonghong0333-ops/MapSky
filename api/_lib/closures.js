@@ -1,22 +1,11 @@
 /**
- * 停班停課 — App 契約 /api/weather/closures
- * 手動設定（Redis）+ 人事行政總處合併 + 依日期排程
+ * 停班停課 — /api/weather/closures
+ * 手動 + DGPA + 依日期排程
  *
- * GET  /api/weather/closures
- * GET  /api/weather/closures?forDate=2026-10-23
- * GET  /api/weather/closures?admin=1
- * POST /api/weather/closures?admin=1&action=save
- *   body: {
- *     enabled, overrides,
- *     counties: { "高雄市": { status, districts?, forDate?, announceAt? } },
- *     byDate?: { "2026-10-23": { "高雄市": { status, announceAt?, districts? } } }
- *   }
- *
- * 狀態 → 地圖色：
- *   closed  = 紅（全縣停）
- *   normal + districts closed = 黃（部分）
- *   pending = 淺灰（尚未宣布，可填 announceAt「約 HH:mm 發布」）
- *   none    = 深灰（未納入警戒區）
+ * 生命週期（懶執行，每次請求補跑）：
+ *  - 18:00 起：自動寫入 byDate[明天]（DGPA 隔天或尚未宣布）
+ *  - 今日 byDate 保留到 23:59:59
+ *  - 00:00 起：刪除 byDate 中早於今天的日期
  */
 const { getRedisClient } = require("./redis-client");
 const { handleSuspensionQuery } = require("./school-closure");
@@ -34,7 +23,7 @@ const COUNTIES = [
 ];
 
 function emptyManual() {
-  return { enabled: false, counties: {}, overrides: [], byDate: {} };
+  return { enabled: false, counties: {}, overrides: [], byDate: {}, meta: {} };
 }
 
 function normalizeAnnounceAt(v) {
@@ -65,6 +54,7 @@ function normalizeCountyEntry(c) {
     if (at) out.announceAt = at;
   }
   if (c.note && typeof c.note === "string") out.note = c.note.slice(0, 200);
+  if (c.source) out.source = String(c.source).slice(0, 32);
   return out;
 }
 
@@ -80,6 +70,7 @@ async function loadManual() {
       counties: doc.counties && typeof doc.counties === "object" ? doc.counties : {},
       overrides: Array.isArray(doc.overrides) ? doc.overrides : [],
       byDate: doc.byDate && typeof doc.byDate === "object" ? doc.byDate : {},
+      meta: doc.meta && typeof doc.meta === "object" ? doc.meta : {},
       updatedAt: doc.updatedAt || null,
     };
   } catch (e) {
@@ -96,10 +87,108 @@ async function saveManual(doc) {
     counties: doc.counties || {},
     overrides: Array.isArray(doc.overrides) ? doc.overrides : [],
     byDate: doc.byDate && typeof doc.byDate === "object" ? doc.byDate : {},
+    meta: doc.meta && typeof doc.meta === "object" ? doc.meta : {},
     updatedAt,
   };
   await client.set(REDIS_KEY, JSON.stringify(payload));
   return { ok: true, updatedAt };
+}
+
+function taipeiHour(now = new Date()) {
+  const f = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  return Number(Object.fromEntries(f.map((p) => [p.type, p.value])).hour);
+}
+
+/**
+ * 1. 00:00 起：刪 byDate 早於今天（昨天的到 23:59:59 都還在）
+ * 2. 18:00 起：為明天建 byDate（不覆蓋已有手動）
+ */
+function applyScheduleLifecycle(manual, suspension, now = new Date()) {
+  const today = taipeiToday(now);
+  const tomorrow = taipeiTomorrow(now);
+  const hour = taipeiHour(now);
+  const meta = { ...(manual.meta || {}) };
+  let byDate = { ...(manual.byDate || {}) };
+  let counties = { ...(manual.counties || {}) };
+  let dirty = false;
+  const events = [];
+
+  if (meta.lastSchedulePurgeFor !== today) {
+    const removed = [];
+    for (const ymd of Object.keys(byDate)) {
+      if (ymd < today) {
+        delete byDate[ymd];
+        removed.push(ymd);
+      }
+    }
+    for (const [name, c] of Object.entries(counties)) {
+      if (c && c.forDate && c.forDate < today) {
+        delete counties[name];
+        removed.push(`counties:${name}@${c.forDate}`);
+      }
+    }
+    meta.lastSchedulePurgeFor = today;
+    dirty = true;
+    events.push({ type: "purge", removed, for: today });
+  }
+
+  if (hour >= 18 && meta.lastScheduleRolloverFor !== tomorrow) {
+    const seeded = {};
+    const items = (suspension && suspension.items) || [];
+    for (const it of items) {
+      const name = it.county;
+      if (!name) continue;
+      if (byDate[tomorrow] && byDate[tomorrow][name]) continue;
+
+      const day = it.tomorrow || {};
+      const districts = {};
+      const rawDist = it.districtsTomorrow || {};
+      for (const [dn, ds] of Object.entries(rawDist)) {
+        if (ds === "closed" || ds === "suspended" || ds === "partial") districts[dn] = "closed";
+      }
+
+      const w = day.work || "unknown";
+      let status = "pending";
+      if (w === "suspended" || w === "closed") status = "closed";
+      else if (w === "partial") status = "normal";
+      else if (w === "normal") status = "normal";
+      else if (w === "out_of_alert") status = "none";
+      else status = "pending";
+
+      const entry = { status, forDate: tomorrow, source: "auto-18h" };
+      if (Object.keys(districts).length) {
+        entry.districts = districts;
+        if (status === "closed") entry.status = "normal";
+      }
+      if (day.text) entry.note = String(day.text).slice(0, 200);
+      seeded[name] = entry;
+    }
+
+    if (!Object.keys(seeded).length) {
+      for (const name of COUNTIES) {
+        if (byDate[tomorrow] && byDate[tomorrow][name]) continue;
+        seeded[name] = { status: "pending", forDate: tomorrow, source: "auto-18h" };
+      }
+    }
+
+    byDate[tomorrow] = { ...(byDate[tomorrow] || {}), ...seeded };
+    meta.lastScheduleRolloverFor = tomorrow;
+    dirty = true;
+    events.push({ type: "rollover-18h", for: tomorrow, seeded: Object.keys(seeded).length });
+  }
+
+  return {
+    manual: { ...manual, counties, byDate, meta },
+    dirty,
+    events,
+    today,
+    tomorrow,
+    hour,
+  };
 }
 
 function mapDgpaStatus(day) {
@@ -134,17 +223,11 @@ function buildDgpaInfo(suspension) {
       if (ds === "closed" || ds === "suspended" || ds === "partial") districts[dn] = "closed";
       else if (ds === "normal") districts[dn] = "normal";
     }
-    if (Object.values(districts).some((s) => s === "closed") && day.work === "partial") {
-      status = "normal";
-    }
+    if (Object.values(districts).some((s) => s === "closed") && day.work === "partial") status = "normal";
     if (Object.values(districts).some((s) => s === "closed") && status === "closed" && day.work !== "suspended") {
       status = "normal";
     }
-    const entry = {
-      status,
-      note: day.text || null,
-      forDate: it.forDate || null,
-    };
+    const entry = { status, note: day.text || null, forDate: it.forDate || null };
     if (Object.keys(districts).length) entry.districts = districts;
     counties[it.county] = entry;
   }
@@ -173,9 +256,7 @@ function manualForDate(manual, ymd) {
     base[name] = { ...entry, forDate: entry.forDate || ymd };
   }
   for (const [name, entry] of Object.entries(manual.counties || {})) {
-    if (entry && entry.forDate === ymd) {
-      base[name] = { ...entry };
-    }
+    if (entry && entry.forDate === ymd) base[name] = { ...entry };
   }
   return base;
 }
@@ -208,7 +289,7 @@ function mergeClosures(manual, dgpa, viewDate) {
       if (mStatus === "pending") announceAt = normalizeAnnounceAt(m.announceAt);
     } else if (m && mStatus === "pending") {
       status = "pending";
-      source = "manual";
+      source = m.source || "manual";
       announceAt = normalizeAnnounceAt(m.announceAt);
       forDate = m.forDate || forDate;
       note = m.note || note;
@@ -218,7 +299,7 @@ function mergeClosures(manual, dgpa, viewDate) {
       (overrides.has(key) || !gStatus || isSoft(gStatus))
     ) {
       status = mStatus;
-      source = "manual";
+      source = m.source || "manual";
       forDate = m.forDate || forDate;
     } else if (gStatus && !isSoft(gStatus)) {
       status = gStatus;
@@ -235,10 +316,10 @@ function mergeClosures(manual, dgpa, viewDate) {
       source = "dgpa";
     } else if (m && mStatus === "closed") {
       status = "closed";
-      source = "manual";
+      source = m.source || "manual";
     } else if (m && mStatus === "normal") {
       status = "normal";
-      source = "manual";
+      source = m.source || "manual";
     } else {
       status = gStatus || "none";
       source = gStatus ? "dgpa" : "none";
@@ -268,7 +349,6 @@ function validateSaveBody(body) {
   if (!body || typeof body !== "object") return "invalid-body";
   if (typeof body.enabled !== "boolean") return "invalid-body";
   if (!body.counties || typeof body.counties !== "object") return "invalid-body";
-
   for (const [, c] of Object.entries(body.counties)) {
     if (!normalizeCountyEntry(c)) return "invalid-status";
     if (c.announceAt != null && c.announceAt !== "" && !normalizeAnnounceAt(c.announceAt)) {
@@ -278,7 +358,6 @@ function validateSaveBody(body) {
       return "invalid-forDate";
     }
   }
-
   if (body.byDate != null) {
     if (typeof body.byDate !== "object") return "invalid-byDate";
     for (const [ymd, map] of Object.entries(body.byDate)) {
@@ -338,11 +417,13 @@ async function handleClosuresRequest(req, res) {
     const bad = validateSaveBody(body);
     if (bad) return res.status(400).json({ ok: false, reason: bad });
 
+    const existing = await loadManual();
     const result = await saveManual({
       enabled: body.enabled,
       counties: sanitizeCounties(body.counties),
       overrides: body.overrides || [],
       byDate: sanitizeByDate(body.byDate || {}),
+      meta: existing.meta || {},
     });
     if (!result.ok) return res.status(503).json(result);
     return res.status(200).json({
@@ -371,10 +452,24 @@ async function handleClosuresRequest(req, res) {
         ? taipeiTomorrow(new Date())
         : taipeiToday(new Date());
 
-  const [manual, suspension] = await Promise.all([
+  const [manualRaw, suspension] = await Promise.all([
     loadManual(),
     handleSuspensionQuery({ type: "suspension", day: "all" }),
   ]);
+
+  const life = applyScheduleLifecycle(manualRaw, suspension, new Date());
+  let manual = life.manual;
+  if (life.dirty) {
+    await saveManual({
+      enabled: manual.enabled,
+      counties: manual.counties,
+      overrides: manual.overrides || [],
+      byDate: manual.byDate,
+      meta: manual.meta,
+    });
+    manual = { ...manual, updatedAt: new Date().toISOString() };
+  }
+
   const dgpa = buildDgpaInfo(suspension);
   const { counties, conflicts } = mergeClosures(manual, dgpa, viewDate);
 
@@ -387,12 +482,19 @@ async function handleClosuresRequest(req, res) {
     ok: true,
     enabled,
     forDate: viewDate,
-    taipeiToday: taipeiToday(new Date()),
-    taipeiTomorrow: taipeiTomorrow(new Date()),
+    taipeiToday: life.today,
+    taipeiTomorrow: life.tomorrow,
     updatedAt: manual.updatedAt || (dgpa.updatedAt ? new Date().toISOString() : null),
     counties,
     dgpa,
     scheduledDates: Object.keys(manual.byDate || {}).sort(),
+    scheduleLifecycle: {
+      hour: life.hour,
+      events: life.events,
+      lastScheduleRolloverFor: (manual.meta || {}).lastScheduleRolloverFor || null,
+      lastSchedulePurgeFor: (manual.meta || {}).lastSchedulePurgeFor || null,
+      rule: "18:00 自動寫入隔天 byDate；今日保留到 23:59:59；00:00 刪除早於今天的排程",
+    },
   };
 
   if (isAdminQuery) {
@@ -402,6 +504,7 @@ async function handleClosuresRequest(req, res) {
       counties: manual.counties || {},
       overrides: manual.overrides || [],
       byDate: manual.byDate || {},
+      meta: manual.meta || {},
       updatedAt: manual.updatedAt,
     };
     payload.effective = {
@@ -413,23 +516,6 @@ async function handleClosuresRequest(req, res) {
     payload.counties = manual.counties || {};
     payload.byDate = manual.byDate || {};
     payload.conflicts = conflicts;
-    payload.scheduleHelp = {
-      status: {
-        closed: "全縣停止上班上課（紅）",
-        normal: "照常；若 districts 有 closed 則地圖黃（部分）",
-        pending: "尚未宣布（淺灰），可填 announceAt 如 18:30",
-        none: "未納入警戒區（深灰）",
-      },
-      fields: {
-        forDate: "適用日 YYYY-MM-DD",
-        announceAt: "約幾點發布 HH:mm（僅 pending）",
-        districts: { "綠島鄉": "closed" },
-        byDate:
-          '多日排程：{ "2026-10-23": { "高雄市": { "status": "pending", "announceAt": "18:00" } } }',
-      },
-      save: "POST /api/weather/closures?admin=1&action=save",
-      view: "GET /api/weather/closures?forDate=2026-10-23",
-    };
   }
 
   res.setHeader("Cache-Control", "private, max-age=30, s-maxage=30");
@@ -444,4 +530,5 @@ module.exports = {
   loadManual,
   saveManual,
   manualForDate,
+  applyScheduleLifecycle,
 };
