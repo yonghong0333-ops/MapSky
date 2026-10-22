@@ -1,6 +1,6 @@
 /**
  * 停班停課 — /api/weather/closures
- * 後台：manual 原樣存取；lifecycle 自動寫入不在 admin 請求執行，避免蓋掉手動設定
+ * mapPaint：後端直接算好各縣市著色（closed/partial/normal/pending/none）
  */
 const { getRedisClient } = require("./redis-client");
 const { handleSuspensionQuery } = require("./school-closure");
@@ -329,6 +329,28 @@ function mergeClosures(manual, dgpa, viewDate) {
   return { counties: out, conflicts };
 }
 
+function paintTier(entry) {
+  if (!entry || typeof entry !== "object") return "none";
+  const st = entry.status || "none";
+  const districts = entry.districts && typeof entry.districts === "object" ? entry.districts : {};
+  const closedD = Object.values(districts).filter((s) => s === "closed").length;
+  const totalD = Object.keys(districts).length;
+  if (closedD > 0 && st !== "closed") return "partial";
+  if (closedD > 0 && st === "closed" && totalD > 0 && closedD < 8) return "partial";
+  if (st === "closed") return "closed";
+  if (st === "normal") return totalD && closedD ? "partial" : "normal";
+  if (st === "pending") return "pending";
+  return "none";
+}
+
+function buildMapPaint(counties) {
+  const out = {};
+  for (const name of COUNTIES) {
+    out[name] = paintTier(counties[name]);
+  }
+  return out;
+}
+
 function validateSaveBody(body) {
   if (!body || typeof body !== "object") return "invalid-body";
   if (typeof body.enabled !== "boolean") return "invalid-body";
@@ -504,6 +526,21 @@ async function handleClosuresRequest(req, res) {
     };
   }
 
+  for (const [name, g] of Object.entries(dgpa.counties || {})) {
+    if (!counties[name]) continue;
+    if ((!counties[name].districts || !Object.keys(counties[name].districts).length) && g.districts) {
+      counties[name] = { ...counties[name], districts: { ...g.districts } };
+    }
+    const d = counties[name].districts || {};
+    const cd = Object.values(d).filter((s) => s === "closed").length;
+    if (counties[name].status === "closed" && cd > 0 && cd < 8) {
+      counties[name] = { ...counties[name], status: "normal" };
+    }
+  }
+
+  const mapPaint = buildMapPaint(counties);
+  const tomorrowPaint = buildMapPaint(tomorrowBoard);
+
   const payload = {
     ok: true,
     enabled,
@@ -513,7 +550,9 @@ async function handleClosuresRequest(req, res) {
     updatedAt: manual.updatedAt || (dgpa.updatedAt ? new Date().toISOString() : null),
     counties,
     dgpa,
+    mapPaint,
     tomorrowCounties: life.hour >= 18 ? tomorrowBoard : {},
+    tomorrowMapPaint: life.hour >= 18 ? tomorrowPaint : {},
     scheduledDates: Object.keys(manual.byDate || {}).sort(),
     scheduleLifecycle: {
       hour: life.hour,
@@ -522,7 +561,7 @@ async function handleClosuresRequest(req, res) {
       lastSchedulePurgeFor: (manual.meta || {}).lastSchedulePurgeFor || null,
       afterSix: life.hour >= 18,
       readingNextDayApi: dgpaSide === "tomorrow",
-      rule: "今天圖 forDate=今天；明天圖 forDate=明天；admin 不寫 lifecycle",
+      rule: "今天圖 forDate=今天；明天圖 forDate=明天；mapPaint 供前端直接上色",
     },
   };
 
@@ -544,6 +583,7 @@ async function handleClosuresRequest(req, res) {
       enabled,
       forDate: viewDate,
       counties,
+      mapPaint,
       updatedAt: payload.updatedAt,
     };
     payload.conflicts = conflicts;
@@ -564,4 +604,6 @@ module.exports = {
   saveManual,
   manualForDate,
   applyScheduleLifecycle,
+  paintTier,
+  buildMapPaint,
 };
