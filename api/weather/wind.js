@@ -4,6 +4,7 @@ const { handleKrtcQuery } = require("../_lib/krtc");
 const { handleTraQuery } = require("../_lib/tra");
 const { handleThsrQuery } = require("../_lib/thsr");
 const { handleYoubikeQuery } = require("../_lib/youbike");
+const { handleSuspensionQuery } = require("../_lib/school-closure");
 const { requireSession } = require("../_lib/require-session");
 
 module.exports = async function handler(req, res) {
@@ -19,6 +20,19 @@ module.exports = async function handler(req, res) {
       });
       res.setHeader("Cache-Control", "public, max-age=60");
       return res.status(result.ok ? 200 : 502).json(result);
+    }
+
+    if (
+      q.type === "suspension" ||
+      q.type === "school-closure" ||
+      q.type === "closure" ||
+      q.type === "停班停課" ||
+      q.type === "typhoon-dayoff"
+    ) {
+      const result = await handleSuspensionQuery(q);
+      const status = result.ok ? 200 : 502;
+      res.setHeader("Cache-Control", "public, max-age=60, s-maxage=60");
+      return res.status(status).json(result);
     }
 
     if (
