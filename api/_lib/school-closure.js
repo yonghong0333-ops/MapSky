@@ -6,10 +6,19 @@
  *   ?type=suspension
  *   ?type=suspension&county=高雄市
  *   ?day=today|tomorrow|all
+ *
+ * 18:00（臺北）換日：見 ./closureRollover.js
  */
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const {
+  taipeiToday,
+  taipeiTomorrow,
+  shouldRollover,
+  rolloverCounties,
+  stampForDate,
+} = require("./closureRollover");
 
 const SOURCE_URL = "https://www.dgpa.gov.tw/typh/daily/nds.html";
 const CACHE_TTL_MS = 3 * 60 * 1000;
@@ -260,8 +269,7 @@ function parseNdsHtml(html) {
       i.today.work !== "normal" ||
       i.today.school !== "normal" ||
       i.tomorrow.work !== "normal" ||
-      i.tomorrow.school !== "normal" ||
-      (i.notes && i.notes.length)
+      i.tomorrow.school !== "normal"
   );
 
   return {
@@ -271,7 +279,7 @@ function parseNdsHtml(html) {
     sourceUrl: SOURCE_URL,
     sourceName: "行政院人事行政總處",
     hasAnySuspension: hasAny,
-    message: hasAny ? "已有縣市發布停班停課" : "目前各縣市照常上班上課",
+    message: hasAny ? null : "無停班停課訊息。",
     count: items.length,
     items,
   };
@@ -314,12 +322,14 @@ function filterPayload(payload, { county, day } = {}) {
     items = items.map((i) => ({
       county: i.county,
       status: i.today,
+      forDate: i.forDate || null,
       notes: i.notes,
     }));
   } else if (d === "tomorrow" || d === "明日" || d === "明天") {
     items = items.map((i) => ({
       county: i.county,
       status: i.tomorrow,
+      forDate: i.forDate || null,
       notes: i.notes,
     }));
   }
@@ -328,7 +338,160 @@ function filterPayload(payload, { county, day } = {}) {
     count: items.length,
     items,
     county: county ? normalizeCounty(county) : null,
-    day: d === "today" || d === "tomorrow" || d === "明日" || d === "明天" || d === "今日" ? (d === "明日" || d === "明天" ? "tomorrow" : d === "今日" ? "today" : d) : "all",
+    day:
+      d === "today" || d === "tomorrow" || d === "明日" || d === "明天" || d === "今日"
+        ? d === "明日" || d === "明天"
+          ? "tomorrow"
+          : d === "今日"
+            ? "today"
+            : d
+        : "all",
+  };
+}
+
+function statusFromDay(day) {
+  if (!day) return { status: "normal", work: "normal", school: "normal", text: "照常上班、照常上課" };
+  const suspended =
+    (day.work && day.work !== "normal") || (day.school && day.school !== "normal");
+  return {
+    status: suspended ? "closed" : "normal",
+    work: day.work || "normal",
+    school: day.school || "normal",
+    text: day.text || "",
+  };
+}
+
+function readRolloverState() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(tmpPath("rollover-state"), "utf-8"));
+    return {
+      lastRolloverFor: raw.lastRolloverFor || null,
+      counties: raw.counties || {},
+    };
+  } catch {
+    return { lastRolloverFor: null, counties: {} };
+  }
+}
+
+function writeRolloverState(state) {
+  try {
+    fs.writeFileSync(
+      tmpPath("rollover-state"),
+      JSON.stringify({ ...state, savedAt: new Date().toISOString() }),
+      "utf-8"
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+function partsHour(now) {
+  const f = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const o = Object.fromEntries(f.map((p) => [p.type, p.value]));
+  return Number(o.hour);
+}
+
+/**
+ * 依 18:00 換日規則處理 DGPA 結果。
+ * - 標 forDate
+ * - 18:00 後且尚未換過 → 用隔天公告覆蓋（提早公告縣市保留）
+ */
+function applyRolloverToPayload(payload, now = new Date()) {
+  if (!payload || !payload.ok || !Array.isArray(payload.items)) return payload;
+
+  const state = readRolloverState();
+  const tomorrow = taipeiTomorrow(now);
+  const today = taipeiToday(now);
+
+  const dgpaTomorrow = {};
+  for (const it of payload.items) {
+    dgpaTomorrow[it.county] = statusFromDay(it.tomorrow);
+  }
+
+  const announced = {};
+  for (const it of payload.items) {
+    const t = it.tomorrow || {};
+    if ((t.work && t.work !== "normal") || (t.school && t.school !== "normal")) {
+      announced[it.county] = tomorrow;
+    }
+  }
+  const stamped = stampForDate(
+    Object.fromEntries(payload.items.map((it) => [it.county, statusFromDay(it.today)])),
+    announced,
+    now
+  );
+
+  let counties = { ...stamped };
+  for (const [name, cur] of Object.entries(state.counties || {})) {
+    if (cur && cur.forDate === tomorrow) counties[name] = cur;
+  }
+
+  let rolled = false;
+  let rolloverMeta = { attempted: false, changed: [], kept: [], failed: false };
+  if (shouldRollover(now, state.lastRolloverFor)) {
+    rolloverMeta.attempted = true;
+    const res = rolloverCounties(counties, dgpaTomorrow, now);
+    rolloverMeta.changed = res.changed || [];
+    rolloverMeta.kept = res.kept || [];
+    rolloverMeta.failed = Boolean(res.failed);
+    if (!res.failed) {
+      counties = res.counties;
+      writeRolloverState({ lastRolloverFor: tomorrow, counties });
+      rolled = true;
+    }
+  } else {
+    writeRolloverState({ lastRolloverFor: state.lastRolloverFor, counties });
+  }
+
+  const afterSix =
+    shouldRollover(now, null) || state.lastRolloverFor === tomorrow || rolled;
+  const items = payload.items.map((it) => {
+    const c = counties[it.county];
+    const forDate = (c && c.forDate) || today;
+    let todayStatus = it.today;
+    let tomorrowStatus = it.tomorrow;
+    if (afterSix && c) {
+      todayStatus = {
+        work: c.work || (c.status === "closed" ? "suspended" : "normal"),
+        school: c.school || (c.status === "closed" ? "suspended" : "normal"),
+        text:
+          c.text ||
+          (c.status === "closed" ? "停止上班、停止上課" : "照常上班、照常上課"),
+      };
+      if (rolled && !announced[it.county]) {
+        tomorrowStatus = emptyDay();
+      }
+    }
+    return {
+      ...it,
+      today: todayStatus,
+      tomorrow: tomorrowStatus,
+      forDate,
+    };
+  });
+
+  const hasAny = items.some(
+    (i) =>
+      (i.today && (i.today.work !== "normal" || i.today.school !== "normal")) ||
+      (i.tomorrow && (i.tomorrow.work !== "normal" || i.tomorrow.school !== "normal"))
+  );
+
+  return {
+    ...payload,
+    items,
+    hasAnySuspension: hasAny,
+    rollover: {
+      taipeiToday: today,
+      taipeiTomorrow: tomorrow,
+      lastRolloverFor: rolled ? tomorrow : state.lastRolloverFor,
+      afterSix: partsHour(now) >= 18,
+      rolled,
+      ...rolloverMeta,
+    },
   };
 }
 
@@ -345,10 +508,13 @@ async function handleSuspensionQuery(query) {
         tomorrow: "?type=suspension&day=tomorrow",
       },
       sourceUrl: SOURCE_URL,
+      note: "臺北時間 18:00 後會把『今天』換成隔天公告；提早公告的縣市不覆蓋",
     };
   }
   const raw = await fetchNds();
-  return filterPayload(raw, {
+  if (!raw || !raw.ok) return raw;
+  const withRollover = applyRolloverToPayload(raw, new Date());
+  return filterPayload(withRollover, {
     county: q.county || q.city || q.region || null,
     day: q.day || q.date || "all",
   });
@@ -358,6 +524,7 @@ module.exports = {
   handleSuspensionQuery,
   fetchNds,
   parseNdsHtml,
+  applyRolloverToPayload,
   COUNTIES,
   SOURCE_URL,
 };
