@@ -1,6 +1,6 @@
 /**
  * 停班停課 — /api/weather/closures
- * 今天圖 forDate=今天；明天圖 forDate=明天（資料日與標籤一致）
+ * 後台：manual 原樣存取；lifecycle 自動寫入不在 admin 請求執行，避免蓋掉手動設定
  */
 const { getRedisClient } = require("./redis-client");
 const { handleSuspensionQuery } = require("./school-closure");
@@ -213,11 +213,7 @@ function buildDgpaInfo(suspension, side = "today") {
     if (Object.values(districts).some((s) => s === "closed") && status === "closed" && day.work !== "suspended") {
       status = "normal";
     }
-    const entry = {
-      status,
-      note: day.text || null,
-      forDate: null,
-    };
+    const entry = { status, note: day.text || null, forDate: null };
     if (Object.keys(districts).length) entry.districts = districts;
     counties[it.county] = entry;
   }
@@ -268,7 +264,6 @@ function mergeClosures(manual, dgpa, viewDate) {
 
     let status = "none";
     let source = "dgpa";
-    // 輸出 forDate 一律為本次檢視日
     let forDate = today;
     let announceAt = null;
     let note = (g && g.note) || null;
@@ -407,20 +402,39 @@ async function handleClosuresRequest(req, res) {
     if (bad) return res.status(400).json({ ok: false, reason: bad });
 
     const existing = await loadManual();
+    const nextCounties = sanitizeCounties(body.counties);
+    const nextByDate =
+      body.byDate != null && typeof body.byDate === "object"
+        ? sanitizeByDate(body.byDate)
+        : existing.byDate || {};
+    const nextOverrides = Array.isArray(body.overrides)
+      ? body.overrides
+      : existing.overrides || [];
     const result = await saveManual({
       enabled: body.enabled,
-      counties: sanitizeCounties(body.counties),
-      overrides: body.overrides || [],
-      byDate: sanitizeByDate(body.byDate || {}),
+      counties: nextCounties,
+      overrides: nextOverrides,
+      byDate: nextByDate,
       meta: existing.meta || {},
     });
     if (!result.ok) return res.status(503).json(result);
     return res.status(200).json({
       ok: true,
       updatedAt: result.updatedAt,
+      enabled: Boolean(body.enabled),
+      counties: nextCounties,
+      overrides: nextOverrides,
+      byDate: nextByDate,
+      manual: {
+        enabled: Boolean(body.enabled),
+        counties: nextCounties,
+        overrides: nextOverrides,
+        byDate: nextByDate,
+        updatedAt: result.updatedAt,
+      },
       saved: {
-        counties: Object.keys(sanitizeCounties(body.counties)).length,
-        byDateDays: Object.keys(sanitizeByDate(body.byDate || {})).length,
+        counties: Object.keys(nextCounties).length,
+        byDateDays: Object.keys(nextByDate).length,
       },
     });
   }
@@ -448,7 +462,7 @@ async function handleClosuresRequest(req, res) {
 
   const life = applyScheduleLifecycle(manualRaw, suspension, new Date());
   let manual = life.manual;
-  if (life.dirty) {
+  if (life.dirty && !isAdminQuery) {
     await saveManual({
       enabled: manual.enabled,
       counties: manual.counties,
@@ -508,29 +522,33 @@ async function handleClosuresRequest(req, res) {
       lastSchedulePurgeFor: (manual.meta || {}).lastSchedulePurgeFor || null,
       afterSix: life.hour >= 18,
       readingNextDayApi: dgpaSide === "tomorrow",
-      rule: "今天圖 forDate=今天；明天圖 forDate=明天；18:00 建隔天全尚未宣布",
+      rule: "今天圖 forDate=今天；明天圖 forDate=明天；admin 不寫 lifecycle",
     },
   };
 
   if (isAdminQuery) {
-    payload.overrides = manual.overrides || [];
-    payload.manual = {
-      enabled: manual.enabled,
+    const pure = {
+      enabled: Boolean(manual.enabled),
       counties: manual.counties || {},
       overrides: manual.overrides || [],
       byDate: manual.byDate || {},
       meta: manual.meta || {},
-      updatedAt: manual.updatedAt,
+      updatedAt: manual.updatedAt || null,
     };
+    payload.enabled = pure.enabled;
+    payload.counties = pure.counties;
+    payload.overrides = pure.overrides;
+    payload.byDate = pure.byDate;
+    payload.manual = pure;
     payload.effective = {
       enabled,
       forDate: viewDate,
       counties,
       updatedAt: payload.updatedAt,
     };
-    payload.counties = manual.counties || {};
-    payload.byDate = manual.byDate || {};
     payload.conflicts = conflicts;
+    payload.notice =
+      "後台編輯的是 manual；使用者地圖看 effective。設了與人事行政總處不同且要生效請開「以我為準」。";
   }
 
   res.setHeader("Cache-Control", "private, max-age=30, s-maxage=30");
