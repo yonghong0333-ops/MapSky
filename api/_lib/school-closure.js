@@ -1,9 +1,6 @@
 /**
  * 天然災害停班停課 — 行政院人事行政總處 (DGPA)
- * 來源：https://www.dgpa.gov.tw/typh/daily/nds.html
- *
- * 分區/學校停班 → partial + districts（地圖黃）
- * 全縣停班 → suspended（地圖紅）
+ * 今天資料 forDate=今天；明天資料 forDate=明天（不可混淆）
  */
 const fs = require("fs");
 const os = require("os");
@@ -159,29 +156,24 @@ function filterPayload(payload, { county, day } = {}) {
   }
   const d = String(day || "all").toLowerCase();
   const now = new Date();
-  const fallbackYmd = parseDgpaUpdatedToYmd(payload.updatedAt);
   if (d === "today" || d === "今日") {
-    items = items.map((i) => {
-      const forDate = i.forDate || fallbackYmd || null;
-      return {
-        county: i.county,
-        status: expireUndeclaredDay(i.today, forDate, now),
-        forDate,
-        notes: i.notes,
-        districts: i.districtsToday || i.districts || {},
-      };
-    });
+    const ymd = taipeiToday(now);
+    items = items.map((i) => ({
+      county: i.county,
+      status: expireUndeclaredDay(i.today, ymd, now),
+      forDate: ymd,
+      notes: i.notes,
+      districts: i.districtsToday || i.districts || {},
+    }));
   } else if (d === "tomorrow" || d === "明日" || d === "明天") {
-    items = items.map((i) => {
-      const forDate = i.forDate || fallbackYmd || null;
-      return {
-        county: i.county,
-        status: expireUndeclaredDay(i.tomorrow, forDate, now),
-        forDate,
-        notes: i.notes,
-        districts: i.districtsTomorrow || {},
-      };
-    });
+    const ymd = taipeiTomorrow(now);
+    items = items.map((i) => ({
+      county: i.county,
+      status: expireUndeclaredDay(i.tomorrow, ymd, now),
+      forDate: ymd,
+      notes: i.notes,
+      districts: i.districtsTomorrow || {},
+    }));
   }
   return {
     ...payload,
@@ -205,7 +197,13 @@ function statusFromDay(day) {
     (day.work && day.work !== "normal" && day.work !== "unknown" && day.work !== "out_of_alert" && day.work !== "partial") ||
     (day.school && day.school !== "normal" && day.school !== "unknown" && day.school !== "out_of_alert" && day.school !== "partial");
   return {
-    status: suspended ? "closed" : day.work === "partial" ? "partial" : day.work === "out_of_alert" ? "out_of_alert" : "normal",
+    status: suspended
+      ? "closed"
+      : day.work === "partial"
+        ? "partial"
+        : day.work === "out_of_alert"
+          ? "out_of_alert"
+          : "normal",
     work: day.work || "normal",
     school: day.school || "normal",
     text: day.text || "",
@@ -308,7 +306,6 @@ function applyRolloverToPayload(payload, now = new Date()) {
   const afterSix = shouldRollover(now, null) || state.lastRolloverFor === tomorrow || rolled;
   const items = payload.items.map((it) => {
     const c = counties[it.county];
-    const forDate = (c && c.forDate) || today;
     let todayStatus = it.today;
     let tomorrowStatus = it.tomorrow;
     const dgpaToday = it.today;
@@ -320,14 +317,18 @@ function applyRolloverToPayload(payload, now = new Date()) {
         school: c.school || (c.status === "closed" ? "suspended" : c.status === "out_of_alert" ? "out_of_alert" : "normal"),
         text: c.text || (c.status === "closed" ? "停止上班、停止上課" : c.status === "out_of_alert" ? "未納入警戒區" : "照常上班、照常上課"),
       };
-      if (dgpaToday && isDgpaExplicit(dgpaToday) && !isSoftStatus(dgpaToday)) {
+      if (c.forDate === tomorrow) {
+        if (!(dgpaTom && isDgpaExplicit(dgpaTom) && !isSoftStatus(dgpaTom))) {
+          tomorrowStatus = fromStore;
+        }
+      } else if (dgpaToday && isDgpaExplicit(dgpaToday) && !isSoftStatus(dgpaToday)) {
         todayStatus = dgpaToday;
       } else if (isSoftStatus(fromStore) && dgpaToday && !isUndeclared(dgpaToday)) {
         todayStatus = dgpaToday;
       } else {
         todayStatus = fromStore;
       }
-      if (rolled && !announced[it.county]) {
+      if (rolled && !announced[it.county] && !(dgpaTom && isDgpaExplicit(dgpaTom))) {
         tomorrowStatus = emptyDay();
       }
     }
@@ -339,14 +340,15 @@ function applyRolloverToPayload(payload, now = new Date()) {
       tomorrowStatus = dgpaTom;
     }
 
-    todayStatus = expireUndeclaredDay(todayStatus, forDate, now);
+    todayStatus = expireUndeclaredDay(todayStatus, today, now);
     tomorrowStatus = expireUndeclaredDay(tomorrowStatus, tomorrow, now);
 
     return {
       ...it,
       today: todayStatus,
       tomorrow: tomorrowStatus,
-      forDate,
+      forDate: today,
+      forDateTomorrow: tomorrow,
       districtsToday: it.districtsToday || {},
       districtsTomorrow: it.districtsTomorrow || {},
     };
@@ -386,7 +388,7 @@ async function handleSuspensionQuery(query) {
         tomorrow: "?type=suspension&day=tomorrow",
       },
       sourceUrl: SOURCE_URL,
-      note: "分區停班=partial+districts（地圖黃）；全縣停=suspended（地圖紅）",
+      note: "today forDate=今天；tomorrow forDate=明天",
     };
   }
   const raw = await fetchNds();
