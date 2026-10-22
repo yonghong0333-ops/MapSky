@@ -1,5 +1,6 @@
 /**
  * 停班停課 — 00:00 換日 / 18:00 種子明天 / DGPA 尚未宣布可手動
+ * 全縣 closed → 紅；僅「非全停但有行政區停」才黃
  */
 const { getRedisClient } = require("./redis-client");
 const { handleSuspensionQuery } = require("./school-closure");
@@ -193,8 +194,10 @@ function paintTier(entry) {
   if (!entry) return "pending";
   const st = entry.status || "pending";
   const districts = entry.districts || {};
-  if (Object.values(districts).some((s) => s === "closed")) return "partial";
+  // 全縣停班 → 一律紅；不可因還留著行政區資料就變黃
   if (st === "closed") return "closed";
+  // 縣市本身不是全停，但有行政區停 → 黃
+  if (Object.values(districts).some((s) => s === "closed")) return "partial";
   if (st === "normal") return "normal";
   if (st === "pending") return "pending";
   if (st === "none") return "none";
@@ -216,11 +219,14 @@ function buildSide(suspension, side, ymd) {
       if (ds === "closed" || ds === "suspended" || ds === "partial") districts[dn] = "closed";
       else if (ds === "normal") districts[dn] = "normal";
     }
-    if (
+    // 全縣停保持 closed（紅）；只有非全停才用行政區畫黃
+    if (status === "closed") {
+      // keep closed
+    } else if (
       Object.keys(districts).length &&
       Object.values(districts).some((s) => s === "closed")
     ) {
-      if (status === "closed" || status === "pending" || status === "none") status = "normal";
+      if (status === "pending" || status === "none") status = "normal";
     }
     const entry = {
       status,
@@ -362,7 +368,7 @@ async function handleClosuresRequest(req, res) {
       byDate: nextByDate,
       manual: {
         enabled: body.enabled,
-        counties: nextCounties,
+      counties: nextCounties,
         overrides: nextOverrides,
         byDate: nextByDate,
         updatedAt: result.updatedAt,
@@ -430,7 +436,7 @@ async function handleClosuresRequest(req, res) {
       events: life.events,
       lastScheduleRolloverFor: (manual.meta || {}).lastScheduleRolloverFor || null,
       lastMidnightConvertFor: (manual.meta || {}).lastMidnightConvertFor || null,
-      rule: "00:00換日清昨天；auto尚未宣布→未納入；18:00種子明天pending；手動可蓋DGPA未宣布",
+      rule: "全縣closed=紅；分區=黃；00:00換日；手動可蓋DGPA未宣布",
     },
   };
 
@@ -452,7 +458,7 @@ async function handleClosuresRequest(req, res) {
       mapPaint,
       updatedAt,
     };
-    payload.notice = "00:00 已換日。DGPA尚未宣布可用手動；存檔寫 Redis。";
+    payload.notice = "全縣停班為紅；DGPA尚未宣布可用手動。";
   }
 
   res.setHeader("Cache-Control", "private, max-age=15");
