@@ -18,7 +18,7 @@ const { getAllIosTokens, removeIosToken } = require("../_lib/apns-store");
 const { sendApnsPush, isConfigured: isApnsConfigured } = require("../_lib/apns");
 const { getBetaTesters, addBetaTester, removeBetaTester } = require("../_lib/beta-testers");
 const { getAdventureSkipList, addAdventureSkip, removeAdventureSkip } = require("../_lib/adventure-skip");
-const { getClosures, saveClosures } = require("../_lib/closures");
+const { getClosuresView, saveClosures } = require("../_lib/closures");
 
 // 一般登入使用者打這支只會拿到 hasKey（給前端判斷要不要顯示「尚未設定授權碼」提示）。
 // 管理員加上 ?admin=1 才會多回傳後台管理要看的系統狀態，不是隨便誰都看得到。
@@ -47,9 +47,14 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ ok: false, reason: e.reason || "save-failed" });
       }
     }
-    const doc = await getClosures();
+    // 一般使用者拿到「合併後」（手動設定 + 人事行政總處）；管理員加 ?admin=1 拿手動設定原樣＋比對結果
+    const wantAdmin = req.query.admin === "1";
+    if (wantAdmin && !(await isAdminSession(payload))) {
+      return res.status(403).json({ ok: false, reason: "not-admin" });
+    }
+    const view = await getClosuresView({ admin: wantAdmin });
     res.setHeader("Cache-Control", "private, max-age=10");
-    return res.status(200).json({ ok: true, enabled: doc.enabled, updatedAt: doc.updatedAt, counties: doc.counties });
+    return res.status(200).json(view);
   }
 
   // ---- POST：後台操作，用 action 區分要做什麼 ----
