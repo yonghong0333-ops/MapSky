@@ -1,7 +1,6 @@
 /**
  * 停班停課 — /api/weather/closures
- * 18:00：隔天整張「尚未宣布」；開始可讀隔天 API
- * 今日保留到 23:59:59；00:00 刪除過期
+ * 今天圖 forDate=今天；明天圖 forDate=明天（資料日與標籤一致）
  */
 const { getRedisClient } = require("./redis-client");
 const { handleSuspensionQuery } = require("./school-closure");
@@ -217,7 +216,7 @@ function buildDgpaInfo(suspension, side = "today") {
     const entry = {
       status,
       note: day.text || null,
-      forDate: useTomorrow ? null : it.forDate || null,
+      forDate: null,
     };
     if (Object.keys(districts).length) entry.districts = districts;
     counties[it.county] = entry;
@@ -269,7 +268,8 @@ function mergeClosures(manual, dgpa, viewDate) {
 
     let status = "none";
     let source = "dgpa";
-    let forDate = (m && m.forDate) || (g && g.forDate) || today;
+    // 輸出 forDate 一律為本次檢視日
+    let forDate = today;
     let announceAt = null;
     let note = (g && g.note) || null;
     const districts = {};
@@ -277,13 +277,11 @@ function mergeClosures(manual, dgpa, viewDate) {
     if (overrides.has(key) && m && !isSoft(mStatus)) {
       status = mStatus;
       source = "manual";
-      forDate = m.forDate || forDate;
       if (mStatus === "pending") announceAt = normalizeAnnounceAt(m.announceAt);
     } else if (m && mStatus === "pending") {
       status = "pending";
       source = m.source || "manual";
       announceAt = normalizeAnnounceAt(m.announceAt);
-      forDate = m.forDate || forDate;
       note = m.note || note || "尚未宣布";
     } else if (
       m &&
@@ -292,7 +290,6 @@ function mergeClosures(manual, dgpa, viewDate) {
     ) {
       status = mStatus;
       source = m.source || "manual";
-      forDate = m.forDate || forDate;
     } else if (gStatus && !isSoft(gStatus)) {
       status = gStatus;
       source = "dgpa";
@@ -511,7 +508,7 @@ async function handleClosuresRequest(req, res) {
       lastSchedulePurgeFor: (manual.meta || {}).lastSchedulePurgeFor || null,
       afterSix: life.hour >= 18,
       readingNextDayApi: dgpaSide === "tomorrow",
-      rule: "18:00 建立隔天全「尚未宣布」圖；開始可讀 ?day=tomorrow；今日保留到 23:59:59；00:00 刪除過期",
+      rule: "今天圖 forDate=今天；明天圖 forDate=明天；18:00 建隔天全尚未宣布",
     },
   };
 
