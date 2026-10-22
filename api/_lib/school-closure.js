@@ -8,7 +8,8 @@
  *   ?day=today|tomorrow|all
  *
  * 18:00（臺北）換日：見 ./closureRollover.js
- * 適用日 00:00 後仍「尚未宣布」→「未納入警戒區」（已明確宣布不覆蓋）
+ * 適用日 00:00 後仍「尚未宣布」→「未納入警戒區」（軟狀態）
+ * 人事行政總處之後若有新公告 → 一律覆蓋軟狀態
  */
 const fs = require("fs");
 const os = require("os");
@@ -151,9 +152,23 @@ function isUndeclared(day) {
   return w === "unknown" || s === "unknown";
 }
 
+/** 可被人事行政總處新公告覆蓋的軟狀態 */
+function isSoftStatus(day) {
+  if (!day) return true;
+  const soft = (x) => x === "unknown" || x === "out_of_alert" || x == null;
+  return soft(day.work) && soft(day.school);
+}
+
+function isDgpaExplicit(day) {
+  if (!day) return false;
+  const w = day.work;
+  return w === "suspended" || w === "partial" || w === "normal" || w === "out_of_alert";
+}
+
 /**
  * 過了適用日 forDate 的 00:00（臺北）仍「尚未宣布」→ 改成「未納入警戒區」。
- * 已設成停止／照常／部分／未納入警戒的不改動。
+ * 已設成停止／照常／部分的不改動。
+ * out_of_alert 為軟狀態：下一次 DGPA 有明確公告時會被覆蓋。
  */
 function expireUndeclaredDay(day, forDate, now = new Date()) {
   if (!isUndeclared(day)) return day || emptyDay();
@@ -463,8 +478,10 @@ function applyRolloverToPayload(payload, now = new Date()) {
   for (const it of payload.items) {
     const t = it.tomorrow || {};
     if (
-      (t.work && t.work !== "normal" && t.work !== "unknown") ||
-      (t.school && t.school !== "normal" && t.school !== "unknown")
+      t.work === "suspended" ||
+      t.work === "partial" ||
+      t.school === "suspended" ||
+      t.school === "partial"
     ) {
       announced[it.county] = tomorrow;
     }
@@ -477,7 +494,23 @@ function applyRolloverToPayload(payload, now = new Date()) {
 
   let counties = { ...stamped };
   for (const [name, cur] of Object.entries(state.counties || {})) {
-    if (cur && cur.forDate === tomorrow) counties[name] = cur;
+    if (!(cur && cur.forDate === tomorrow)) continue;
+    if (isSoftStatus(cur)) continue;
+    const dgpa = dgpaTomorrow[name];
+    if (
+      dgpa &&
+      isDgpaExplicit({ work: dgpa.work, school: dgpa.school }) &&
+      !isSoftStatus({ work: dgpa.work, school: dgpa.school })
+    ) {
+      continue;
+    }
+    if (cur.work === "suspended" || cur.work === "partial" || cur.status === "closed") {
+      counties[name] = cur;
+    } else if (cur.work === "normal" || cur.status === "normal") {
+      if (!dgpa || isSoftStatus({ work: dgpa.work, school: dgpa.school })) {
+        counties[name] = cur;
+      }
+    }
   }
 
   let rolled = false;
@@ -504,12 +537,25 @@ function applyRolloverToPayload(payload, now = new Date()) {
     const forDate = (c && c.forDate) || today;
     let todayStatus = it.today;
     let tomorrowStatus = it.tomorrow;
+    const dgpaToday = it.today;
+    const dgpaTom = it.tomorrow;
+
     if (afterSix && c) {
-      todayStatus = {
-        work: c.work || (c.status === "closed" ? "suspended" : c.status === "out_of_alert" ? "out_of_alert" : "normal"),
+      const fromStore = {
+        work:
+          c.work ||
+          (c.status === "closed"
+            ? "suspended"
+            : c.status === "out_of_alert"
+              ? "out_of_alert"
+              : "normal"),
         school:
           c.school ||
-          (c.status === "closed" ? "suspended" : c.status === "out_of_alert" ? "out_of_alert" : "normal"),
+          (c.status === "closed"
+            ? "suspended"
+            : c.status === "out_of_alert"
+              ? "out_of_alert"
+              : "normal"),
         text:
           c.text ||
           (c.status === "closed"
@@ -518,9 +564,23 @@ function applyRolloverToPayload(payload, now = new Date()) {
               ? "未納入警戒區"
               : "照常上班、照常上課"),
       };
+      if (dgpaToday && isDgpaExplicit(dgpaToday) && !isSoftStatus(dgpaToday)) {
+        todayStatus = dgpaToday;
+      } else if (isSoftStatus(fromStore) && dgpaToday && !isUndeclared(dgpaToday)) {
+        todayStatus = dgpaToday;
+      } else {
+        todayStatus = fromStore;
+      }
       if (rolled && !announced[it.county]) {
         tomorrowStatus = emptyDay();
       }
+    }
+
+    if (dgpaToday && isDgpaExplicit(dgpaToday) && !isSoftStatus(dgpaToday)) {
+      todayStatus = dgpaToday;
+    }
+    if (dgpaTom && isDgpaExplicit(dgpaTom) && !isSoftStatus(dgpaTom)) {
+      tomorrowStatus = dgpaTom;
     }
 
     todayStatus = expireUndeclaredDay(todayStatus, forDate, now);
@@ -575,13 +635,13 @@ async function handleSuspensionQuery(query) {
       },
       sourceUrl: SOURCE_URL,
       note:
-        "臺北 18:00 換日；適用日 00:00 後仍尚未宣布 → work/school=out_of_alert（未納入警戒區）。已宣布的停止／照常不覆蓋。",
+        "臺北 18:00 換日；適用日 00:00 後尚未宣布 → out_of_alert。人事行政總處之後有新公告會覆蓋軟狀態。",
       statusCodes: {
         normal: "照常上班上課",
         suspended: "停止上班上課",
         partial: "部分時段",
         unknown: "尚未宣布",
-        out_of_alert: "未納入警戒區",
+        out_of_alert: "未納入警戒區（軟，可被 DGPA 覆蓋）",
       },
     };
   }
