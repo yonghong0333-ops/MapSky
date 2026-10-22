@@ -5,6 +5,8 @@
  * GET  /api/weather/closures
  * GET  /api/weather/closures?admin=1
  * POST /api/weather/closures?admin=1&action=save
+ *
+ * 地圖色：closed=紅（全縣停）、normal+districts=黃（部分）、pending=淺灰、none=深灰
  */
 const { getRedisClient } = require("./redis-client");
 const { handleSuspensionQuery } = require("./school-closure");
@@ -61,8 +63,9 @@ async function saveManual(doc) {
 function mapDgpaStatus(day) {
   if (!day) return "none";
   const w = day.work || day.status || "none";
+  // 全縣停止 → closed（紅）；部分 → normal（黃由 districts 決定）
   if (w === "suspended" || w === "closed") return "closed";
-  if (w === "partial") return "closed";
+  if (w === "partial") return "normal";
   if (w === "normal") return "normal";
   if (w === "unknown" || w === "pending") return "pending";
   if (w === "out_of_alert" || w === "none") return "none";
@@ -83,12 +86,26 @@ function buildDgpaInfo(suspension) {
   const counties = {};
   for (const it of suspension.items || []) {
     const day = it.today || it.status || {};
-    const status = mapDgpaStatus(day);
-    counties[it.county] = {
+    let status = mapDgpaStatus(day);
+    const districts = {};
+    const rawDist = it.districtsToday || it.districts || {};
+    for (const [dn, ds] of Object.entries(rawDist)) {
+      if (ds === "closed" || ds === "suspended" || ds === "partial") districts[dn] = "closed";
+      else if (ds === "normal") districts[dn] = "normal";
+    }
+    if (Object.values(districts).some((s) => s === "closed") && day.work === "partial") {
+      status = "normal";
+    }
+    if (Object.values(districts).some((s) => s === "closed") && status === "closed" && day.work !== "suspended") {
+      status = "normal";
+    }
+    const entry = {
       status,
       note: day.text || null,
       forDate: it.forDate || null,
     };
+    if (Object.keys(districts).length) entry.districts = districts;
+    counties[it.county] = entry;
   }
   return {
     ok: true,
@@ -161,10 +178,18 @@ function mergeClosures(manual, dgpa) {
       source = gStatus ? "dgpa" : "none";
     }
 
+    if (g && g.districts && typeof g.districts === "object") {
+      for (const [dn, ds] of Object.entries(g.districts)) {
+        districts[dn] = ds;
+      }
+    }
     if (m && m.districts && typeof m.districts === "object") {
       for (const [dn, ds] of Object.entries(m.districts)) {
         districts[dn] = ds;
       }
+    }
+    if (Object.keys(districts).length && status === "closed" && g && g.status === "normal") {
+      status = "normal";
     }
 
     const entry = { status, source, forDate };
@@ -238,7 +263,6 @@ async function handleClosuresRequest(req, res) {
   const dgpa = buildDgpaInfo(suspension);
   const { counties, conflicts } = mergeClosures(manual, dgpa);
 
-  // Redis 明確關過（有 updatedAt 且 enabled=false）才關閉；否則 DGPA 正常就顯示
   const enabled =
     manual.updatedAt && manual.enabled === false
       ? false
