@@ -8,6 +8,7 @@
  *   ?day=today|tomorrow|all
  *
  * 18:00（臺北）換日：見 ./closureRollover.js
+ * 適用日 00:00 後仍「尚未宣布」→「未納入警戒區」（已明確宣布不覆蓋）
  */
 const fs = require("fs");
 const os = require("os");
@@ -125,7 +126,10 @@ function classifyPhrase(text) {
   if (schoolSuspended) school = partial ? "partial" : "suspended";
   if (/照常上班/.test(t)) work = "normal";
   if (/照常上課/.test(t)) school = "normal";
-  if (/尚未列入警戒區|尚無訊息|無停班停課訊息/.test(t)) {
+  if (/未納入警戒區|不納入警戒/.test(t)) {
+    work = "out_of_alert";
+    school = "out_of_alert";
+  } else if (/尚未宣布|尚未列入警戒區|尚無訊息|無停班停課訊息/.test(t)) {
     work = "unknown";
     school = "unknown";
   }
@@ -134,6 +138,45 @@ function classifyPhrase(text) {
 
 function emptyDay() {
   return { work: "normal", school: "normal", text: "照常上班、照常上課" };
+}
+
+function outOfAlertDay() {
+  return { work: "out_of_alert", school: "out_of_alert", text: "未納入警戒區" };
+}
+
+function isUndeclared(day) {
+  if (!day) return true;
+  const w = day.work || "unknown";
+  const s = day.school || "unknown";
+  return w === "unknown" || s === "unknown";
+}
+
+/**
+ * 過了適用日 forDate 的 00:00（臺北）仍「尚未宣布」→ 改成「未納入警戒區」。
+ * 已設成停止／照常／部分／未納入警戒的不改動。
+ */
+function expireUndeclaredDay(day, forDate, now = new Date()) {
+  if (!isUndeclared(day)) return day || emptyDay();
+  const f = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const o = Object.fromEntries(f.map((p) => [p.type, p.value]));
+  const today = `${o.year}-${o.month}-${o.day}`;
+  const applicable = forDate || today;
+  if (today >= applicable) {
+    return outOfAlertDay();
+  }
+  return day;
+}
+
+function parseDgpaUpdatedToYmd(updatedAt) {
+  if (!updatedAt) return null;
+  const m = String(updatedAt).match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (!m) return null;
+  return `${m[1]}-${String(m[2]).padStart(2, "0")}-${String(m[3]).padStart(2, "0")}`;
 }
 
 function parseCountyBlock(statusHtml) {
@@ -318,20 +361,28 @@ function filterPayload(payload, { county, day } = {}) {
     items = items.filter((i) => i.county === c);
   }
   const d = String(day || "all").toLowerCase();
+  const now = new Date();
+  const fallbackYmd = parseDgpaUpdatedToYmd(payload.updatedAt);
   if (d === "today" || d === "今日") {
-    items = items.map((i) => ({
-      county: i.county,
-      status: i.today,
-      forDate: i.forDate || null,
-      notes: i.notes,
-    }));
+    items = items.map((i) => {
+      const forDate = i.forDate || fallbackYmd || null;
+      return {
+        county: i.county,
+        status: expireUndeclaredDay(i.today, forDate, now),
+        forDate,
+        notes: i.notes,
+      };
+    });
   } else if (d === "tomorrow" || d === "明日" || d === "明天") {
-    items = items.map((i) => ({
-      county: i.county,
-      status: i.tomorrow,
-      forDate: i.forDate || null,
-      notes: i.notes,
-    }));
+    items = items.map((i) => {
+      const forDate = i.forDate || fallbackYmd || null;
+      return {
+        county: i.county,
+        status: expireUndeclaredDay(i.tomorrow, forDate, now),
+        forDate,
+        notes: i.notes,
+      };
+    });
   }
   return {
     ...payload,
@@ -352,9 +403,10 @@ function filterPayload(payload, { county, day } = {}) {
 function statusFromDay(day) {
   if (!day) return { status: "normal", work: "normal", school: "normal", text: "照常上班、照常上課" };
   const suspended =
-    (day.work && day.work !== "normal") || (day.school && day.school !== "normal");
+    (day.work && day.work !== "normal" && day.work !== "unknown" && day.work !== "out_of_alert") ||
+    (day.school && day.school !== "normal" && day.school !== "unknown" && day.school !== "out_of_alert");
   return {
-    status: suspended ? "closed" : "normal",
+    status: suspended ? "closed" : day.work === "out_of_alert" ? "out_of_alert" : "normal",
     work: day.work || "normal",
     school: day.school || "normal",
     text: day.text || "",
@@ -395,11 +447,6 @@ function partsHour(now) {
   return Number(o.hour);
 }
 
-/**
- * 依 18:00 換日規則處理 DGPA 結果。
- * - 標 forDate
- * - 18:00 後且尚未換過 → 用隔天公告覆蓋（提早公告縣市保留）
- */
 function applyRolloverToPayload(payload, now = new Date()) {
   if (!payload || !payload.ok || !Array.isArray(payload.items)) return payload;
 
@@ -415,7 +462,10 @@ function applyRolloverToPayload(payload, now = new Date()) {
   const announced = {};
   for (const it of payload.items) {
     const t = it.tomorrow || {};
-    if ((t.work && t.work !== "normal") || (t.school && t.school !== "normal")) {
+    if (
+      (t.work && t.work !== "normal" && t.work !== "unknown") ||
+      (t.school && t.school !== "normal" && t.school !== "unknown")
+    ) {
       announced[it.county] = tomorrow;
     }
   }
@@ -456,16 +506,26 @@ function applyRolloverToPayload(payload, now = new Date()) {
     let tomorrowStatus = it.tomorrow;
     if (afterSix && c) {
       todayStatus = {
-        work: c.work || (c.status === "closed" ? "suspended" : "normal"),
-        school: c.school || (c.status === "closed" ? "suspended" : "normal"),
+        work: c.work || (c.status === "closed" ? "suspended" : c.status === "out_of_alert" ? "out_of_alert" : "normal"),
+        school:
+          c.school ||
+          (c.status === "closed" ? "suspended" : c.status === "out_of_alert" ? "out_of_alert" : "normal"),
         text:
           c.text ||
-          (c.status === "closed" ? "停止上班、停止上課" : "照常上班、照常上課"),
+          (c.status === "closed"
+            ? "停止上班、停止上課"
+            : c.status === "out_of_alert"
+              ? "未納入警戒區"
+              : "照常上班、照常上課"),
       };
       if (rolled && !announced[it.county]) {
         tomorrowStatus = emptyDay();
       }
     }
+
+    todayStatus = expireUndeclaredDay(todayStatus, forDate, now);
+    tomorrowStatus = expireUndeclaredDay(tomorrowStatus, tomorrow, now);
+
     return {
       ...it,
       today: todayStatus,
@@ -476,8 +536,14 @@ function applyRolloverToPayload(payload, now = new Date()) {
 
   const hasAny = items.some(
     (i) =>
-      (i.today && (i.today.work !== "normal" || i.today.school !== "normal")) ||
-      (i.tomorrow && (i.tomorrow.work !== "normal" || i.tomorrow.school !== "normal"))
+      (i.today &&
+        i.today.work !== "normal" &&
+        i.today.work !== "out_of_alert" &&
+        i.today.work !== "unknown") ||
+      (i.tomorrow &&
+        i.tomorrow.work !== "normal" &&
+        i.tomorrow.work !== "out_of_alert" &&
+        i.tomorrow.work !== "unknown")
   );
 
   return {
@@ -508,7 +574,15 @@ async function handleSuspensionQuery(query) {
         tomorrow: "?type=suspension&day=tomorrow",
       },
       sourceUrl: SOURCE_URL,
-      note: "臺北時間 18:00 後會把『今天』換成隔天公告；提早公告的縣市不覆蓋",
+      note:
+        "臺北 18:00 換日；適用日 00:00 後仍尚未宣布 → work/school=out_of_alert（未納入警戒區）。已宣布的停止／照常不覆蓋。",
+      statusCodes: {
+        normal: "照常上班上課",
+        suspended: "停止上班上課",
+        partial: "部分時段",
+        unknown: "尚未宣布",
+        out_of_alert: "未納入警戒區",
+      },
     };
   }
   const raw = await fetchNds();
@@ -525,6 +599,8 @@ module.exports = {
   fetchNds,
   parseNdsHtml,
   applyRolloverToPayload,
+  expireUndeclaredDay,
+  outOfAlertDay,
   COUNTIES,
   SOURCE_URL,
 };
