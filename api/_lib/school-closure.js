@@ -355,6 +355,7 @@ async function handleSuspensionQuery(query) {
 }
 
 module.exports = {
+  classifyPhrase,
   handleSuspensionQuery,
   fetchNds,
   parseNdsHtml,
