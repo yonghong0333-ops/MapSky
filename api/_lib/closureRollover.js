@@ -1,4 +1,4 @@
-// 停班停課：每天臺北時間 18:00 換成隔天的；已提早公告隔天的縣市不換。
+// 停班停課：每天臺北時間 16:00 換成隔天的；已提早公告隔天的縣市不換。
 // 純函式，不碰 Redis／網路，方便接進 api/_lib/closures.js（mergeClosures 之前）。
 //
 // 資料形狀（人事行政總處那一份，merge 之前）：
@@ -25,12 +25,12 @@ function taipeiTomorrow(now = new Date()) {
 }
 
 /**
- * 現在該不該跑「換成隔天」：臺北時間 18:00 之後，而且今天還沒換過。
+ * 現在該不該跑「換成隔天」：臺北時間 16:00 之後，而且今天還沒換過。
  * lastRolloverFor = 上次換日換到的日期（存在 Redis，例如 settings:closures:rolloverFor）。
  * cron 漏跑時，下一次任何請求／cron 進來也會補上。
  */
 function shouldRollover(now, lastRolloverFor) {
-  return parts(now).hour >= 18 && lastRolloverFor !== taipeiTomorrow(now);
+  return parts(now).hour >= 16 && lastRolloverFor !== taipeiTomorrow(now);
 }
 
 /**
@@ -51,17 +51,16 @@ function rolloverCounties(stored, dgpaTomorrow, now = new Date()) {
   const names = new Set([...Object.keys(stored || {}), ...Object.keys(dgpaTomorrow)]);
   for (const name of names) {
     const cur = stored?.[name];
-    if (cur && cur.forDate === tomorrow) { out[name] = cur; kept.push(name); continue; }   // 提早公告，不刷新
+    if (cur && cur.forDate === tomorrow) { out[name] = cur; kept.push(name); continue; }
     const next = dgpaTomorrow[name];
-    if (next) { out[name] = { ...next, forDate: tomorrow }; changed.push(name); }         // 換成隔天
-    // else：隔天沒公告 → 不寫入 out（被移除）
+    if (next) { out[name] = { ...next, forDate: tomorrow }; changed.push(name); }
   }
   return { counties: out, changed, kept, failed: false };
 }
 
 /**
  * 一般（任何時間）抓到人事行政總處時：如果某縣市公告的是隔天的，就標上 forDate，
- * 這樣 18:00 換日時才知道它「已提早公告」。announced = { 縣市: "yyyy-MM-dd" }（公告的適用日）
+ * 這樣 16:00 換日時才知道它「已提早公告」。announced = { 縣市: "yyyy-MM-dd" }（公告的適用日）
  */
 function stampForDate(counties, announced, now = new Date()) {
   const today = taipeiToday(now);
