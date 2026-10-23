@@ -1,6 +1,7 @@
 /**
  * 停班停課 — 00:00 換日 / 16:00 種子明天 / DGPA 尚未宣布可手動
  * 全縣 closed → 紅；僅「非全停但有行政區停」才黃
+ * DGPA 尚未宣布時：不採用殘留手動停班（除非以我為準／明確 manual）
  */
 const { getRedisClient } = require("./redis-client");
 const { handleSuspensionQuery } = require("./school-closure");
@@ -181,13 +182,14 @@ function applyScheduleLifecycle(manual, now = new Date()) {
 
 function mapDgpaStatus(day) {
   if (!day) return "pending";
-  const w = day.work || day.status || "";
   const text = String(day.text || "");
-  if (/尚未宣布/.test(text) || w === "unknown" || !w) return "pending";
+  // 文案寫尚未宣布／待公布 → 一律 pending（避免 work 欄位抽風變 closed）
+  if (/尚未宣布|尚未公[佈布]|待宣布|未公[佈布]/.test(text)) return "pending";
+  const w = day.work || day.status || "";
+  if (w === "unknown" || w === "pending" || !w) return "pending";
   if (w === "suspended" || w === "closed") return "closed";
   if (w === "partial" || w === "normal") return "normal";
   if (w === "out_of_alert" || w === "none") return "none";
-  if (w === "pending") return "pending";
   return "pending";
 }
 
@@ -263,16 +265,17 @@ function applyManualOnTop(baseCounties, manual, ymd) {
     const force = overrides.has(name);
     const isAutoSeed = man.source === "auto-16h" || man.source === "auto-18h";
     const manIsReal =
-      man.source &&
-      man.source !== "dgpa" &&
-      !isAutoSeed &&
-      man.source !== "auto-midnight";
+      man.source === "manual" ||
+      (man.source &&
+        man.source !== "dgpa" &&
+        !isAutoSeed &&
+        man.source !== "auto-midnight");
     const dgpaHasSuspension =
       e.status === "closed" ||
       Object.values(e.districts || {}).some((s) => s === "closed");
+    const manForThisDay = !man.forDate || man.forDate === ymd;
 
-    // 「尚未宣布」（自動種子或管理員設的）優先於 DGPA 的「照常」；
-    // 只有 DGPA 已明確停班／分區停才讓位。
+    // 「尚未宣布」優先於 DGPA 照常；DGPA 已明確停班才讓位
     if (man.status === "pending" && !force && !dgpaHasSuspension) {
       out[name] = {
         status: "pending",
@@ -288,7 +291,45 @@ function applyManualOnTop(baseCounties, manual, ymd) {
       out[name] = e;
       continue;
     }
-    if (dgpaSoft || force || manIsReal) {
+
+    // DGPA 尚未宣布／未納入：不要用殘留的「停班／照常」自動蓋上去
+    // 只有「以我為準」或明確 source=manual 且 forDate 對應今天，才採用手動停班
+    if (dgpaSoft) {
+      if (
+        force ||
+        (manIsReal &&
+          manForThisDay &&
+          (man.status === "closed" ||
+            man.status === "normal" ||
+            (man.districts && Object.keys(man.districts).length)))
+      ) {
+        e = {
+          status: man.status,
+          source: man.source || "manual",
+          forDate: ymd,
+          note:
+            man.note ||
+            (man.status === "pending"
+              ? "尚未宣布"
+              : man.status === "none"
+                ? "未納入警戒區"
+                : null),
+        };
+        if (man.districts) e.districts = { ...man.districts };
+        if (man.status === "pending" && man.announceAt) e.announceAt = man.announceAt;
+      } else if (man.status === "none" && manForThisDay) {
+        e = {
+          status: "none",
+          source: man.source || "manual",
+          forDate: ymd,
+          note: man.note || "未納入警戒區",
+        };
+      }
+      out[name] = e;
+      continue;
+    }
+
+    if (force || manIsReal) {
       e = {
         status: man.status,
         source: man.source || "manual",
@@ -451,7 +492,7 @@ async function handleClosuresRequest(req, res) {
       events: life.events,
       lastScheduleRolloverFor: (manual.meta || {}).lastScheduleRolloverFor || null,
       lastMidnightConvertFor: (manual.meta || {}).lastMidnightConvertFor || null,
-      rule: "全縣closed=紅；分區=黃；00:00換日；16:00種子明天；手動可蓋DGPA未宣布",
+      rule: "DGPA尚未宣布不套殘留停班；以我為準／明確manual才蓋",
     },
   };
 
@@ -473,7 +514,7 @@ async function handleClosuresRequest(req, res) {
       mapPaint,
       updatedAt,
     };
-    payload.notice = "全縣停班為紅；DGPA尚未宣布可用手動。";
+    payload.notice = "DGPA尚未宣布時不會套用殘留停班；要提早公布請設「以我為準」或存明確手動。";
   }
 
   res.setHeader("Cache-Control", "private, max-age=15");
