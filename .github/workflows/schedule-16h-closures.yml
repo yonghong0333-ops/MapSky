@@ -1,0 +1,122 @@
+name: schedule-16h-closures
+on:
+  push:
+    paths:
+      - .github/workflows/schedule-16h-closures.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch to 16:00
+        run: |
+          set -e
+          python3 << 'END'
+          from pathlib import Path
+
+          p = Path("api/_lib/closures.js")
+          t = p.read_text(encoding="utf-8")
+          t = t.replace(
+            " * 停班停課 — 00:00 換日 / 18:00 種子明天 / DGPA 尚未宣布可手動",
+            " * 停班停課 — 00:00 換日 / 16:00 種子明天 / DGPA 尚未宣布可手動",
+          )
+          t = t.replace(
+            'if (e.status === "pending" && (e.source === "auto-18h" || !e.source)) {',
+            'if (e.status === "pending" && (e.source === "auto-18h" || e.source === "auto-16h" || !e.source)) {',
+          )
+          old = """  if (hour >= 18 && meta.lastScheduleRolloverFor !== tomorrow) {
+    const existing = byDate[tomorrow] || {};
+    const seeded = {};
+    for (const name of COUNTIES) {
+      const prev = existing[name];
+      if (prev && prev.source && prev.source !== "auto-18h" && prev.source !== "dgpa" && prev.source !== "auto-midnight") {
+        seeded[name] = { ...prev, forDate: tomorrow };
+        continue;
+      }
+      if (prev && !prev.source && prev.status && prev.status !== "pending" && prev.status !== "none") {
+        seeded[name] = { ...prev, forDate: tomorrow };
+        continue;
+      }
+      seeded[name] = {
+        status: "pending",
+        forDate: tomorrow,
+        source: "auto-18h",
+        note: "尚未宣布",
+      };
+    }
+    byDate[tomorrow] = seeded;
+    meta.lastScheduleRolloverFor = tomorrow;
+    dirty = true;
+    events.push({ type: "rollover-18h", for: tomorrow });
+  }"""
+          new = """  // 16:00 Taipei: keep backend schedule if present; else default pending
+  if (hour >= 16 && meta.lastScheduleRolloverFor !== tomorrow) {
+    const existing = byDate[tomorrow] || {};
+    const seeded = {};
+    const softSources = new Set(["auto-18h", "auto-16h", "dgpa", "auto-midnight"]);
+    for (const name of COUNTIES) {
+      const prev = existing[name];
+      if (prev && prev.source && !softSources.has(prev.source)) {
+        seeded[name] = { ...prev, forDate: tomorrow };
+        continue;
+      }
+      if (prev && !prev.source && prev.status && prev.status !== "pending" && prev.status !== "none") {
+        seeded[name] = { ...prev, forDate: tomorrow };
+        continue;
+      }
+      seeded[name] = {
+        status: "pending",
+        forDate: tomorrow,
+        source: "auto-16h",
+        note: "尚未宣布",
+      };
+    }
+    byDate[tomorrow] = seeded;
+    meta.lastScheduleRolloverFor = tomorrow;
+    dirty = true;
+    events.push({ type: "rollover-16h", for: tomorrow });
+  }"""
+          if old not in t:
+              raise SystemExit("closures schedule block missing")
+          t = t.replace(old, new, 1)
+          t = t.replace(
+            "life.hour >= 18 ? applyManualOnTop(tomSide, manual, life.tomorrow) : {};",
+            "life.hour >= 16 ? applyManualOnTop(tomSide, manual, life.tomorrow) : {};",
+          )
+          t = t.replace(
+            "life.hour >= 18 ? buildMapPaint(tomorrowCounties) : {};",
+            "life.hour >= 16 ? buildMapPaint(tomorrowCounties) : {};",
+          )
+          t = t.replace(
+            "afterSix: life.hour >= 18,",
+            "afterSix: life.hour >= 16,",
+          )
+          t = t.replace(
+            'man.source !== "auto-18h" &&',
+            'man.source !== "auto-18h" &&\n      man.source !== "auto-16h" &&',
+          )
+          p.write_text(t, encoding="utf-8")
+          print("closures.js patched", p.stat().st_size)
+
+          r = Path("api/_lib/closureRollover.js")
+          rt = r.read_text(encoding="utf-8")
+          rt = rt.replace("18:00", "16:00")
+          rt = rt.replace("hour >= 18", "hour >= 16")
+          r.write_text(rt, encoding="utf-8")
+          print("rollover patched")
+
+          s = Path("api/_lib/school-closure.js")
+          st = s.read_text(encoding="utf-8")
+          st2 = st.replace("partsHour(now) >= 18", "partsHour(now) >= 16")
+          s.write_text(st2, encoding="utf-8")
+          print("school-closure patched")
+          END
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/_lib/closures.js api/_lib/closureRollover.js api/_lib/school-closure.js
+          git commit -m "feat(closures): seed tomorrow map at 16:00 Taipei; keep backend schedule else pending"
+          git push
