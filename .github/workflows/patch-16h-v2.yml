@@ -1,0 +1,39 @@
+name: patch-16h-v2
+on:
+  push:
+    paths:
+      - .github/workflows/patch-16h-v2.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: sed patch
+        run: |
+          set -e
+          f=api/_lib/closures.js
+          # threshold and payload gates
+          sed -i 's/hour >= 18/hour >= 16/g' "$f"
+          sed -i 's/life.hour >= 18/life.hour >= 16/g' "$f"
+          # seed source tag
+          sed -i 's/source: "auto-18h"/source: "auto-16h"/g' "$f"
+          sed -i 's/rollover-18h/rollover-16h/g' "$f"
+          # keep recognizing old auto-18h seeds as soft
+          sed -i 's/(e.source === "auto-18h" || !e.source)/(e.source === "auto-18h" || e.source === "auto-16h" || !e.source)/g' "$f"
+          sed -i 's/man.source !== "auto-18h" &&/man.source !== "auto-18h" \&\& man.source !== "auto-16h" \&\&/g' "$f"
+          sed -i 's/18:00 種子明天/16:00 種子明天/g' "$f"
+          # preserve manual: when checking soft source for keep, include auto-16h
+          sed -i 's/prev.source !== "auto-18h" && prev.source !== "dgpa"/prev.source !== "auto-18h" \&\& prev.source !== "auto-16h" \&\& prev.source !== "dgpa"/g' "$f"
+          grep -n 'hour >= 1[68]\|auto-16h\|rollover-16h' "$f" | head -20
+          test $(grep -c 'hour >= 18' "$f" || true) -eq 0
+
+          s=api/_lib/school-closure.js
+          sed -i 's/partsHour(now) >= 18/partsHour(now) >= 16/g' "$s" || true
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/_lib/closures.js api/_lib/school-closure.js
+          git commit -m "feat(closures): automate tomorrow map at 16:00 Taipei (default 尚未宣布)"
+          git push
