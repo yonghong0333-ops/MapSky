@@ -262,12 +262,29 @@ function applyManualOnTop(baseCounties, manual, ymd) {
     }
     const dgpaSoft = e.status === "pending" || e.status === "none";
     const force = overrides.has(name);
+    const isAutoSeed = man.source === "auto-16h" || man.source === "auto-18h";
     const manIsReal =
       man.source &&
       man.source !== "dgpa" &&
-      man.source !== "auto-18h" &&
-      man.source !== "auto-16h" &&
+      !isAutoSeed &&
       man.source !== "auto-midnight";
+    const dgpaHasSuspension =
+      e.status === "closed" ||
+      Object.values(e.districts || {}).some((s) => s === "closed");
+
+    // 16:00 自動種子「尚未宣布」：後台沒人工排程時以此為準；
+    // 只有 DGPA 已明確停班／分區停才讓位給氣象署。
+    if (isAutoSeed && man.status === "pending" && !force && !dgpaHasSuspension) {
+      out[name] = {
+        status: "pending",
+        source: man.source,
+        forDate: ymd,
+        note: man.note || "尚未宣布",
+        ...(man.announceAt ? { announceAt: man.announceAt } : {}),
+      };
+      continue;
+    }
+
     if (man.status === "none" && man.source === "auto-midnight" && !dgpaSoft) {
       out[name] = e;
       continue;
