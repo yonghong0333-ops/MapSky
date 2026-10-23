@@ -368,7 +368,7 @@ function applyRolloverToPayload(payload, now = new Date()) {
       taipeiToday: today,
       taipeiTomorrow: tomorrow,
       lastRolloverFor: rolled ? tomorrow : state.lastRolloverFor,
-      afterSix: partsHour(now) >= 18,
+      afterSix: partsHour(now) >= 16,
       rolled,
       ...rolloverMeta,
     },
