@@ -1,0 +1,31 @@
+name: restore-closures-16h
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore from prior commit and patch
+        run: |
+          set -e
+          git show 94ed0a10260d8cbaaf3591e0f9abce8c02ef0141:api/_lib/closures.js > api/_lib/closures.js
+          wc -c api/_lib/closures.js
+          sed -i 's/hour >= 18/hour >= 16/g' api/_lib/closures.js
+          sed -i 's/source: "auto-18h"/source: "auto-16h"/g' api/_lib/closures.js
+          sed -i 's/rollover-18h/rollover-16h/g' api/_lib/closures.js
+          sed -i 's/(e.source === "auto-18h" || !e.source)/(e.source === "auto-18h" || e.source === "auto-16h" || !e.source)/g' api/_lib/closures.js
+          sed -i 's/prev.source !== "auto-18h" \&\& prev.source !== "dgpa"/prev.source !== "auto-18h" \&\& prev.source !== "auto-16h" \&\& prev.source !== "dgpa"/g' api/_lib/closures.js
+          sed -i 's/man.source !== "auto-18h" \&\&/man.source !== "auto-18h" \&\& man.source !== "auto-16h" \&\&/g' api/_lib/closures.js
+          sed -i 's/18:00 種子明天/16:00 種子明天/g' api/_lib/closures.js
+          grep -n 'hour >= 1[68]\|auto-16h' api/_lib/closures.js | head -15
+          test $(grep -c 'hour >= 18' api/_lib/closures.js || true) -eq 0
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/_lib/closures.js
+          git commit -m "feat(closures): 16:00 seed tomorrow; keep backend schedule else 尚未宣布"
+          git push
