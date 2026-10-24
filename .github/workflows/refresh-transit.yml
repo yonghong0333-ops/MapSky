@@ -3,9 +3,8 @@ name: refresh-transit
 on:
   workflow_dispatch:
   schedule:
+    # 台北 05:10，一天只打一次 TDX，抓當日時刻表
     - cron: "10 21 * * *"
-    - cron: "10 3 * * *"
-    - cron: "10 9 * * *"
 
 jobs:
   refresh:
@@ -26,7 +25,7 @@ jobs:
         run: |
           git config user.name "mapsky-bot"
           git config user.email "mapsky-bot@users.noreply.github.com"
-          git add api/_data/thsr-timetable.json api/_data/krtc-timetable.json api/_data/tra-timetable.json
+          git add api/_data/thsr-timetable.json api/_data/krtc-timetable.json api/_data/tra-timetable.json api/_data/tra-stations.json
           if git diff --staged --quiet; then
             echo "no changes"
           else
