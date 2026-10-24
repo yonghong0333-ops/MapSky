@@ -1,6 +1,6 @@
 /**
- * 臺灣高鐵（THSR）— TDX v2
- * live 只讀 api/_data/thsr-timetable.json，不打 TDX（避免 429）
+ * 臺灣高鐵（THSR）— 後台只提供班表
+ * live 只讀 api/_data/thsr-timetable.json，不打 TDX（避免 429）；路線與車站由 App 本機繪製
  */
 const fs = require("fs");
 const os = require("os");
@@ -66,21 +66,6 @@ NAME_TO_ID["新左營"] = "1100";
 NAME_TO_ID["臺中"] = "1050";
 NAME_TO_ID["臺南"] = "1090";
 
-const STATION_COORDS = {
-  "0990": { lat: 25.0522, lon: 121.6066 },
-  "1000": { lat: 25.0478, lon: 121.517 },
-  "1010": { lat: 25.0138, lon: 121.4648 },
-  "1020": { lat: 25.013, lon: 121.215 },
-  "1030": { lat: 24.8084, lon: 121.0403 },
-  "1040": { lat: 24.6056, lon: 120.825 },
-  "1050": { lat: 24.112, lon: 120.616 },
-  "1060": { lat: 24.015, lon: 120.541 },
-  "1070": { lat: 23.7363, lon: 120.4165 },
-  "1080": { lat: 23.4595, lon: 120.323 },
-  "1090": { lat: 22.9246, lon: 120.2857 },
-  "1100": { lat: 22.687, lon: 120.3075 },
-};
-
 function tmpPath(name) {
   return path.join(os.tmpdir(), `nexora-thsr-${name}.json`);
 }
@@ -125,33 +110,25 @@ function todayYmd() {
     day: "2-digit",
   }).format(new Date());
 }
-function withCoords(s) {
-  const c = STATION_COORDS[s.stationId] || {};
+/** 路線與車站由 App 本機繪製；舊版 App 若還在問，回空清單（不是錯誤） */
+function localShape() {
   return {
-    ...s,
-    lat: s.lat != null ? s.lat : c.lat != null ? c.lat : null,
-    lon: s.lon != null ? s.lon : c.lon != null ? c.lon : null,
+    ok: true,
+    source: "device",
+    lines: [],
+    stations: [],
+    count: 0,
+    note: "路線與車站由 App 本機繪製，後台只提供時刻表",
   };
 }
 function listStations() {
-  return { ok: true, count: STATIONS.length, stations: STATIONS.map((s) => withCoords(s)) };
+  return localShape();
 }
 async function listStationsLive() {
-  return listStations();
+  return localShape();
 }
 async function listShape() {
-  const ordered = ["0990", "1000", "1010", "1020", "1030", "1040", "1050", "1060", "1070", "1080", "1090", "1100"];
-  const mapPolyline = {
-    stationIds: ordered,
-    orderedStops: ordered.map((id) => withCoords(STATIONS.find((x) => x.stationId === id) || { stationId: id })),
-  };
-  const coords = ordered.map((id) => STATION_COORDS[id]).filter(Boolean).map((c) => `${c.lon} ${c.lat}`);
-  return {
-    ok: true,
-    source: "station-sequence",
-    lines: [{ lineKey: "THSR", nameZh: "臺灣高鐵", geometry: coords.length ? `LINESTRING(${coords.join(", ")})` : null }],
-    mapPolyline,
-  };
+  return localShape();
 }
 
 /** live：只用 GitHub 日快取，不打 TDX */
@@ -268,9 +245,8 @@ async function handleThsrQuery(query) {
     tdxConfigured: cred.configured,
     system: "THSR",
     systemName: "臺灣高鐵",
-    stations: STATIONS.map((s) => withCoords(s)),
+    note: "路線與車站由 App 本機繪製，後台只提供班表",
     usage: {
-      stations: "?type=stations",
       live: "?type=live&stationId=1100",
       timetable: "?type=timetable&stationId=1100",
     },

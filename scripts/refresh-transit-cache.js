@@ -1,6 +1,7 @@
 /**
  * GitHub Actions：高鐵／捷運／台鐵當日時刻表（一天一次）
- * 台鐵先存站點（1 次），再存當日班表。App 只讀這些檔，不再即時打 TDX。
+ * 後台只提供時刻表；路線、車站、座標都由 App 本機內建，不在這裡產生。
+ * 每個車站附上站名（name），讓本機 tools/fetch_rail_shapes.py 能把站名對到官方站碼。
  * env: TDX_CLIENT_ID, TDX_CLIENT_SECRET
  */
 const fs = require("fs");
@@ -71,11 +72,12 @@ function writeJson(rel, obj) {
   console.log("wrote", rel, "bytes", fs.statSync(outPath).size);
 }
 
-function pushTrain(stations, sid, train) {
+function pushTrain(stations, sid, train, name) {
   sid = sid == null ? "" : String(sid).trim();
   if (!train.departureTime && train.arrivalTime) train.departureTime = train.arrivalTime;
   if (!sid || !train.departureTime) return;
-  if (!stations[sid]) stations[sid] = { count: 0, trains: [] };
+  if (!stations[sid]) stations[sid] = { name: name || null, count: 0, trains: [] };
+  else if (name && !stations[sid].name) stations[sid].name = name;
   stations[sid].trains.push(train);
 }
 
@@ -126,7 +128,7 @@ function ingestRows(stations, rows) {
         ...meta,
         departureTime: st.DepartureTime || st.ArrivalTime || null,
         arrivalTime: st.ArrivalTime || null,
-      });
+      }, zhName(st.StationName));
     }
 
     if (Array.isArray(stops) && stops.length) {
@@ -136,7 +138,7 @@ function ingestRows(stations, rows) {
           ...meta,
           departureTime: stop.DepartureTime || stop.ArrivalTime || null,
           arrivalTime: stop.ArrivalTime || null,
-        });
+        }, zhName(stop.StationName));
       }
       continue;
     }
@@ -195,8 +197,11 @@ async function refreshThsr(token, date) {
     console.warn("THSR TrainDate", e.message);
   }
 
+  const thsrNames = { "0990": "南港", "1000": "台北", "1010": "板橋", "1020": "桃園", "1030": "新竹", "1040": "苗栗",
+    "1050": "台中", "1060": "彰化", "1070": "雲林", "1080": "嘉義", "1090": "台南", "1100": "左營" };
   for (const sid of must) {
-    if (!stations[sid]) stations[sid] = { count: 0, trains: [] };
+    if (!stations[sid]) stations[sid] = { name: thsrNames[sid], count: 0, trains: [] };
+    else if (!stations[sid].name) stations[sid].name = thsrNames[sid];
   }
   finalize(stations);
   const good = must.filter((s) => stations[s] && stations[s].count > 0).length;
@@ -279,39 +284,8 @@ async function refreshKrtc(token) {
   });
 }
 
-async function refreshTraStations(token, date) {
-  const base = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA";
-  const data = await tdxGet(token, base, "/Station?$top=500");
-  const list = Array.isArray(data) ? data : [];
-  const stations = list.map((s) => ({
-    stationId: s.StationID,
-    nameZh: zhName(s.StationName),
-    nameEn: (s.StationName && s.StationName.En) || null,
-    lat: s.StationPosition && (s.StationPosition.PositionLat || s.StationPosition.lat),
-    lon: s.StationPosition && (s.StationPosition.PositionLon || s.StationPosition.lon),
-  })).filter((s) => s.stationId && s.lat && s.lon);
-  console.log("TRA stations", stations.length);
-  if (stations.length < 50) {
-    console.warn("TRA stations skip write: too few");
-    return;
-  }
-  writeJson("api/_data/tra-stations.json", {
-    updatedAt: new Date().toISOString(),
-    date,
-    source: "github-actions",
-    count: stations.length,
-    stations,
-  });
-}
-
 async function refreshTra(token, date) {
   const base = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA";
-  try {
-    await refreshTraStations(token, date);
-  } catch (e) {
-    console.warn("TRA stations", e.message);
-  }
-
   const stations = {};
   const pageSize = 500;
   let skip = 0;
@@ -353,7 +327,7 @@ async function refreshTra(token, date) {
           departureTime: stop.DepartureTime || stop.ArrivalTime || null,
           destinationName: zhName(info.EndingStationName) || zhName(row.EndingStationName),
           startingStationName: zhName(info.StartingStationName),
-        });
+        }, zhName(stop.StationName));
       }
     }
     console.log("TRA page", page, "rows", rows.length, "stations so far", Object.keys(stations).length);

@@ -1,5 +1,6 @@
 /**
- * 臺鐵（TRA）— 站點與當日班表都讀 GitHub 每日快取，不再即時打 TDX。
+ * 臺鐵（TRA）— 後台只提供當日班表（讀 GitHub 每日快取，不即時打 TDX）。
+ * 路線、車站、座標全部由 App 本機內建並繪製，這裡不再回傳。
  */
 const fs = require("fs");
 const path = require("path");
@@ -18,15 +19,16 @@ function loadBundledTraCache() {
   }
 }
 
-function loadBundledTraStations() {
-  try {
-    const p = path.join(__dirname, "..", "_data", "tra-stations.json");
-    const raw = JSON.parse(fs.readFileSync(p, "utf-8"));
-    if (!raw || !Array.isArray(raw.stations)) return null;
-    return raw;
-  } catch {
-    return null;
-  }
+/** 路線與車站由 App 本機繪製；舊版 App 若還在問，回空清單（不是錯誤） */
+function localShape() {
+  return {
+    ok: true,
+    source: "device",
+    lines: [],
+    stations: [],
+    count: 0,
+    note: "路線與車站由 App 本機繪製，後台只提供時刻表",
+  };
 }
 
 function toHhMm(val) {
@@ -114,31 +116,12 @@ function getCredentials() {
   return tdxShared.getCredentials();
 }
 
-async function listStations({ q } = {}) {
-  const bundle = loadBundledTraStations();
-  let stations = bundle ? bundle.stations.slice() : [];
-  if (q) {
-    const k = String(q).toLowerCase();
-    stations = stations.filter(
-      (s) =>
-        (s.nameZh && s.nameZh.includes(q)) ||
-        (s.nameEn && String(s.nameEn).toLowerCase().includes(k)) ||
-        String(s.stationId).includes(q)
-    );
-  }
-  return {
-    ok: true,
-    cached: true,
-    source: "github-cache",
-    count: stations.length,
-    stations,
-    updatedAt: bundle && bundle.updatedAt,
-    note: bundle ? "站點來自 GitHub 每日快取" : "站點快取尚未就緒，等下一次每日更新",
-  };
+async function listStations() {
+  return localShape();
 }
 
 async function listLines() {
-  return { ok: true, cached: true, source: "github-cache", lines: [] };
+  return localShape();
 }
 
 async function stationLiveBoard({ stationId } = {}) {
@@ -189,7 +172,6 @@ async function handleTraQuery(query) {
     systemName: "臺灣鐵路",
     source: "github-cache",
     usage: {
-      stations: "?type=stations",
       timetable: "?type=timetable&stationId=3340",
     },
   };
