@@ -10,7 +10,7 @@ const tdxShared = require("./tdx-shared");
 const API_BASE = "https://tdx.transportdata.tw/api/basic/v2/Rail/THSR";
 const CACHE_TTL_STATIC_MS = 12 * 60 * 60 * 1000;
 const CACHE_TTL_LIVE_MS = 5 * 60 * 1000;
-const CACHE_TTL_STATION_MS = 45 * 60 * 1000; // 當日站表變少，拉長快取減 TDX 429
+const CACHE_TTL_STATION_MS = 45 * 60 * 1000;
 
 const STATIONS = [
   { stationId: "0990", nameZh: "南港", nameEn: "Nangang" },
@@ -224,9 +224,18 @@ async function stationTimetable({ stationId, date } = {}) {
   const cached = readCache(cacheKey, CACHE_TTL_STATION_MS);
   if (cached && cached.trains && cached.trains.length) return { ok: true, cached: true, ...cached };
   try {
-    const shared = tdxShared.readCache("thsr", cacheKey, 0, { allowStaleMs: 12 * 60 * 60 * 1000 });
+    const shared = await tdxShared.readCacheAsync("thsr", cacheKey, CACHE_TTL_STATION_MS, {
+      allowStaleMs: 12 * 60 * 60 * 1000,
+    });
     if (shared && shared.data && shared.data.trains && shared.data.trains.length) {
-      return { ok: true, cached: true, stale: true, ...shared.data, note: "使用快取班表" };
+      writeCache(cacheKey, shared.data);
+      return {
+        ok: true,
+        cached: true,
+        stale: !!shared.stale,
+        ...shared.data,
+        note: shared.stale ? "使用快取班表" : undefined,
+      };
     }
   } catch (_) {}
 
@@ -243,30 +252,24 @@ async function stationTimetable({ stationId, date } = {}) {
   }
 
   if (!list.length && res && res.reason === "tdx-rate-limit") {
-    const stale = tdxShared.readCache("thsr", cacheKey, 0, { allowStaleMs: 6 * 60 * 60 * 1000 });
-    if (stale && stale.data && stale.data.trains && stale.data.trains.length) {
-      return { ok: true, cached: true, stale: true, ...stale.data, note: "TDX 限流中，顯示稍早班表" };
-    }
-    return res;
-  }
-
-  if (!list.length && (!res || res.ok)) {
-    source = "train-date-filter";
-    res = await tdxGet(`/DailyTimetable/TrainDate/${encodeURIComponent(trainDate)}`, "$format=JSON&$top=300");
-    if (res.reason === "tdx-rate-limit") {
-      const stale = tdxShared.readCache("thsr", cacheKey, 0, { allowStaleMs: 6 * 60 * 60 * 1000 });
+    try {
+      const stale = await tdxShared.readCacheAsync("thsr", cacheKey, 0, { allowStaleMs: 12 * 60 * 60 * 1000 });
       if (stale && stale.data && stale.data.trains && stale.data.trains.length) {
         return { ok: true, cached: true, stale: true, ...stale.data, note: "TDX 限流中，顯示稍早班表" };
       }
+    } catch (_) {}
+    return res;
+  }
+
+  // 限流時不要連打第二、第三支 API
+  if (!list.length && res && res.ok) {
+    source = "train-date-filter";
+    res = await tdxGet(`/DailyTimetable/TrainDate/${encodeURIComponent(trainDate)}`, "$format=JSON&$top=300");
+    if (res.reason === "tdx-rate-limit") {
       return res;
     }
     let rows = res.ok && Array.isArray(res.data) ? res.data : [];
     if (!rows.length && res.ok && res.data) rows = res.data.TrainTimetables || [];
-    if (!rows.length) {
-      source = "today-filter";
-      res = await tdxGet(`/DailyTimetable/Today`, "$format=JSON&$top=300");
-      if (res.ok && Array.isArray(res.data)) rows = res.data;
-    }
     for (const row of rows) {
       const stops = row.StopTimes || [];
       const stop = stops.find((x) => String(x.StationID || x.StationId || "") === sid);
@@ -312,6 +315,7 @@ async function stationTimetable({ stationId, date } = {}) {
     writeCache(cacheKey, payload);
     try {
       tdxShared.writeCache("thsr", cacheKey, payload);
+      await tdxShared.writeCacheAsync("thsr", cacheKey, payload, 8 * 3600);
     } catch (_) {}
   }
   return { ok: true, cached: false, ...payload };
@@ -350,11 +354,7 @@ async function upcomingFromStation({ stationId, date, limit } = {}) {
   const enriched = items.map((t) => {
     const em = t.estimateMinutes;
     const label = em == null ? null : em <= 0 ? "即將發車" : `${em} 分鐘`;
-    return {
-      ...t,
-      statusLabel: label,
-      waitText: label,
-    };
+    return { ...t, statusLabel: label, waitText: label };
   });
   return {
     ok: true,
