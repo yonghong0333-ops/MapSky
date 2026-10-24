@@ -1,7 +1,6 @@
 /**
  * 臺鐵（TRA）— 與高鐵相同策略
- * 優先 api/_data/tra-timetable.json（GitHub 當日快取），再 TDX LiveBoard
- * 已過發車時刻不回傳
+ * 優先 api/_data/tra-timetable.json；LiveBoard 補齊時刻欄位給前端顯示
  */
 const fs = require("fs");
 const os = require("os");
@@ -10,7 +9,7 @@ const tdxShared = require("./tdx-shared");
 
 const API_BASE = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA";
 const CACHE_TTL_STATIC_MS = 6 * 60 * 60 * 1000;
-const CACHE_TTL_LIVE_MS = 60 * 1000;
+const CACHE_TTL_LIVE_MS = 45 * 1000;
 
 function loadBundledTraCache() {
   try {
@@ -21,6 +20,28 @@ function loadBundledTraCache() {
   } catch {
     return null;
   }
+}
+
+function toHhMm(val) {
+  if (val == null || val === "") return null;
+  const s = String(val).trim();
+  const m = s.match(/(\d{1,2}):(\d{2})/);
+  if (m) return `${m[1].padStart(2, "0")}:${m[2]}`;
+  if (s.includes("T") || /^\d{4}-/.test(s)) {
+    try {
+      const d = new Date(s);
+      if (!Number.isNaN(d.getTime())) {
+        const fmt = new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Asia/Taipei",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
+        return fmt.format(d);
+      }
+    } catch (_) {}
+  }
+  return null;
 }
 
 function upcomingFromBundle(stationId, limit) {
@@ -41,14 +62,17 @@ function upcomingFromBundle(stationId, limit) {
   const nowMin = nm ? Number(nm[1]) * 60 + Number(nm[2]) : 0;
   const items = block.trains
     .map((t) => {
-      const m = t.departureTime && String(t.departureTime).match(/^(\d{1,2}):(\d{2})/);
+      const dep = toHhMm(t.departureTime);
+      const m = dep && dep.match(/^(\d{1,2}):(\d{2})/);
       const mins = m ? Number(m[1]) * 60 + Number(m[2]) : null;
       const estimateMinutes = mins != null ? mins - nowMin : null;
       return {
         trainNo: t.trainNo,
         trainType: t.trainType,
         direction: t.direction,
-        departureTime: t.departureTime,
+        departureTime: dep,
+        scheduledTime: dep,
+        time: dep,
         destinationName: t.destinationName,
         endingStationName: t.destinationName,
         startingStationName: t.startingStationName,
@@ -79,6 +103,29 @@ function upcomingFromBundle(stationId, limit) {
   };
 }
 
+function enrichItemsWithBundleTimes(stationId, items) {
+  const bundle = loadBundledTraCache();
+  if (!bundle) return items;
+  const block = bundle.stations[String(stationId)];
+  if (!block || !Array.isArray(block.trains)) return items;
+  const byNo = new Map();
+  for (const t of block.trains) {
+    const dep = toHhMm(t.departureTime);
+    if (t.trainNo && dep) byNo.set(String(t.trainNo), dep);
+  }
+  return (items || []).map((it) => {
+    let dep = toHhMm(it.departureTime) || toHhMm(it.scheduledTime);
+    if (!dep) dep = byNo.get(String(it.trainNo || "")) || null;
+    if (!dep) return it;
+    return {
+      ...it,
+      departureTime: dep,
+      scheduledTime: it.scheduledTime || dep,
+      time: dep,
+    };
+  });
+}
+
 function tmpPath(name) {
   return path.join(os.tmpdir(), `nexora-tra-${name}.json`);
 }
@@ -105,7 +152,27 @@ function zhName(obj) {
   if (typeof obj === "string") return obj;
   return obj.Zh_tw || obj.Zh || obj.En || null;
 }
+
 function mapLiveBoard(row) {
+  const scheduled = toHhMm(
+    row.ScheduleTime ||
+      row.ScheduledDepartureTime ||
+      row.ScheduledArrivalTime ||
+      row.TrainScheduleTime ||
+      row.OriginTime
+  );
+  const estDep = toHhMm(
+    row.EstimatedDepartureTime ||
+      row.EstimateDepartureTime ||
+      row.DepartureTime ||
+      row.EstimatedTime
+  );
+  const estArr = toHhMm(row.EstimatedArrivalTime || row.EstimateArrivalTime || row.ArrivalTime);
+  const departureTime = estDep || scheduled || null;
+  const delay = row.DelayTime != null ? Number(row.DelayTime) : 0;
+  let statusLabel = null;
+  if (delay > 0) statusLabel = `誤點 ${delay} 分`;
+  else if (delay === 0) statusLabel = "準點";
   return {
     trainNo: row.TrainNo || null,
     trainType: zhName(row.TrainTypeName) || row.TrainType || null,
@@ -113,13 +180,17 @@ function mapLiveBoard(row) {
     stationName: zhName(row.StationName),
     direction: row.Direction != null ? Number(row.Direction) : null,
     endingStationName: zhName(row.EndingStationName),
-    scheduledTime: row.ScheduleTime || row.ScheduledDepartureTime || null,
-    arrivalTime: row.EstimatedArrivalTime || row.ArrivalTime || null,
-    departureTime: row.EstimatedDepartureTime || row.DepartureTime || row.ScheduleTime || null,
-    delayMinutes: row.DelayTime != null ? Number(row.DelayTime) : 0,
+    destinationName: zhName(row.EndingStationName),
+    scheduledTime: scheduled,
+    arrivalTime: estArr,
+    departureTime,
+    time: departureTime,
+    delayMinutes: delay,
+    statusLabel,
     platform: row.Platform || row.PlatformID || null,
   };
 }
+
 async function listStations({ q, city } = {}) {
   const cacheKey = "stations";
   const cached = readCache(cacheKey, CACHE_TTL_STATIC_MS);
@@ -169,14 +240,10 @@ async function stationLiveBoard({ stationId } = {}) {
   }
   const sid = String(stationId).trim();
   const cacheKey = `live-${sid}`;
-  const cached = readCache(cacheKey, CACHE_TTL_LIVE_MS);
-  if (cached && cached.items && cached.items.length) {
-    return { ok: true, cached: true, stationId: sid, ...cached };
-  }
-  const bundledFirst = upcomingFromBundle(sid, 20);
-  if (bundledFirst && bundledFirst.count) return bundledFirst;
 
-  const stale = tdxShared.readCache("tra", cacheKey, 0, { allowStaleMs: 10 * 60 * 1000 });
+  // 有日快取時刻時：以日快取為主顯示時間，並盡量合併即時誤點
+  const bundledFirst = upcomingFromBundle(sid, 30);
+
   let res = await tdxGet(`/StationLiveBoard/Station/${encodeURIComponent(sid)}`, "$format=JSON&$top=50");
   if (!res.ok && res.reason !== "tdx-rate-limit") {
     res = await tdxGet(
@@ -184,40 +251,64 @@ async function stationLiveBoard({ stationId } = {}) {
       `$format=JSON&$top=300&$filter=StationID eq '${sid.replace(/'/g, "")}'`
     );
   }
-  if (!res.ok) {
-    if (stale && stale.data) {
+
+  if (res.ok) {
+    const raw = res.data;
+    const list = Array.isArray(raw)
+      ? raw
+      : raw.StationLiveBoards || raw.StationLiveBoard || raw.TrainLiveBoards || [];
+    let items = enrichItemsWithBundleTimes(sid, list.map(mapLiveBoard));
+    // 若即時列沒時刻但有日快取，改回傳日快取（帶時間）並附上誤點對照
+    const hasTime = items.some((x) => x.departureTime);
+    if (!hasTime && bundledFirst && bundledFirst.count) {
+      const delayByNo = new Map(items.map((x) => [String(x.trainNo), x.delayMinutes]));
+      const merged = bundledFirst.items.map((it) => {
+        const d = delayByNo.get(String(it.trainNo));
+        if (d == null) return it;
+        return {
+          ...it,
+          delayMinutes: d,
+          statusLabel: d > 0 ? `誤點 ${d} 分` : it.statusLabel || "準點",
+        };
+      });
       return {
         ok: true,
         cached: true,
-        stale: true,
+        source: "github-cache+live-delay",
         stationId: sid,
-        ...stale.data,
-        note: res.reason === "tdx-rate-limit" ? "TDX 限流中，顯示稍早資料" : "上游失敗，顯示稍早資料",
-        upstreamReason: res.reason,
+        count: merged.length,
+        items: merged,
+        trains: merged,
+        updatedAt: new Date().toISOString(),
+        note: "時刻來自當日班表，誤點狀態來自即時看板",
       };
     }
-    return res;
+    items.sort((a, b) => {
+      const ta = a.departureTime || a.arrivalTime || a.scheduledTime || "";
+      const tb = b.departureTime || b.arrivalTime || b.scheduledTime || "";
+      return String(ta).localeCompare(String(tb));
+    });
+    if (items.length) {
+      const payload = { count: items.length, items, updatedAt: new Date().toISOString() };
+      writeCache(cacheKey, payload);
+      try {
+        tdxShared.writeCache("tra", cacheKey, payload);
+      } catch (_) {}
+      return { ok: true, cached: false, stationId: sid, ...payload };
+    }
   }
-  const raw = res.data;
-  const list = Array.isArray(raw)
-    ? raw
-    : raw.StationLiveBoards || raw.StationLiveBoard || raw.TrainLiveBoards || [];
-  const items = list.map(mapLiveBoard);
-  items.sort((a, b) => {
-    const ta = a.departureTime || a.arrivalTime || a.scheduledTime || "";
-    const tb = b.departureTime || b.arrivalTime || b.scheduledTime || "";
-    return String(ta).localeCompare(String(tb));
-  });
-  if (!items.length) {
-    const bundled = upcomingFromBundle(sid, 20);
-    if (bundled && bundled.count) return bundled;
-  }
-  const payload = { count: items.length, items, updatedAt: new Date().toISOString() };
-  writeCache(cacheKey, payload);
-  try {
-    tdxShared.writeCache("tra", cacheKey, payload);
-  } catch (_) {}
-  return { ok: true, cached: false, stationId: sid, ...payload };
+
+  if (bundledFirst && bundledFirst.count) return bundledFirst;
+
+  if (!res.ok) return res;
+  return {
+    ok: true,
+    stationId: sid,
+    count: 0,
+    items: [],
+    updatedAt: new Date().toISOString(),
+    note: "目前沒有接下來的班次",
+  };
 }
 async function trainLiveBoard({ trainNo } = {}) {
   const cacheKey = `train-${trainNo || "all"}`;
@@ -249,12 +340,7 @@ async function handleTraQuery(query) {
   }
   if (type === "lines") return listLines();
   if (["timetable", "station-timetable", "upcoming", "next", "departures", "live", "liveboard", "board"].includes(type)) {
-    const sid = q.stationId || q.station || null;
-    if (["timetable", "station-timetable", "upcoming", "next", "departures"].includes(type)) {
-      const bundled = sid ? upcomingFromBundle(sid, q.limit) : null;
-      if (bundled && bundled.count) return bundled;
-    }
-    return stationLiveBoard({ stationId: sid });
+    return stationLiveBoard({ stationId: q.stationId || q.station || null });
   }
   if (type === "train" || type === "train-live") {
     return trainLiveBoard({ trainNo: q.trainNo || q.train || null });
