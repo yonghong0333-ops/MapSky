@@ -1,6 +1,6 @@
 /**
- * GitHub Actions：高鐵／捷運／台鐵當日時刻表
- * 高鐵 OD 最先（避免台鐵报光後 429）
+ * GitHub Actions：高鐵／捷運／台鐵當日時刻表（一天一次）
+ * 台鐵先存站點（1 次），再存當日班表。App 只讀這些檔，不再即時打 TDX。
  * env: TDX_CLIENT_ID, TDX_CLIENT_SECRET
  */
 const fs = require("fs");
@@ -157,7 +157,6 @@ async function refreshThsr(token, date) {
   const must = ["0990","1000","1010","1020","1030","1040","1050","1060","1070","1080","1090","1100"];
   const stations = {};
 
-  // 1) OD 最先：左營／台南／嘉義靠這段
   const odPairs = [
     ["1000", "1100"],
     ["1100", "1000"],
@@ -171,30 +170,23 @@ async function refreshThsr(token, date) {
     ["1080", "1000"],
   ];
   for (const [o, d] of odPairs) {
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        await sleep(1200 + attempt * 2000);
+        await sleep(800 + attempt * 1500);
         const data = await tdxGet(token, base, `/DailyTimetable/OD/${o}/to/${d}/${date}?$top=500`);
         const rows = extractRows(data);
-        console.log("THSR OD", o, "->", d, "rows", rows.length, "attempt", attempt + 1);
-        if (rows[0]) {
-          console.log("THSR OD sample keys", Object.keys(rows[0]).join(","));
-          const ost = rows[0].OriginStopTime || rows[0].DestinationStopTime;
-          if (ost) console.log("THSR OD stop sample", JSON.stringify(ost).slice(0, 200));
-          if (rows[0].StopTimes) console.log("THSR OD stops", rows[0].StopTimes.map((s) => s.StationID).join(","));
-        }
+        console.log("THSR OD", o, "->", d, "rows", rows.length);
         ingestRows(stations, rows);
         if (rows.length) break;
       } catch (e) {
         console.warn("THSR OD", o, d, e.message);
-        if (e.status === 429) await sleep(15000 * (attempt + 1));
+        if (e.status === 429) break;
       }
     }
   }
 
-  // 2) TrainDate 補北中段
   try {
-    await sleep(1500);
+    await sleep(800);
     const data = await tdxGet(token, base, `/DailyTimetable/TrainDate/${date}?$top=3000`);
     const rows = extractRows(data);
     console.log("THSR TrainDate rows", rows.length);
@@ -207,7 +199,6 @@ async function refreshThsr(token, date) {
     if (!stations[sid]) stations[sid] = { count: 0, trains: [] };
   }
   finalize(stations);
-  for (const sid of must) console.log("THSR", sid, stations[sid].count);
   const good = must.filter((s) => stations[s] && stations[s].count > 0).length;
   console.log("THSR stations with data", good);
   if (good < 3) {
@@ -222,7 +213,7 @@ async function refreshThsr(token, date) {
   });
 }
 
-async function refreshKrtc(token, date) {
+async function refreshKrtc(token) {
   const base = "https://tdx.transportdata.tw/api/basic/v2/Rail/Metro";
   const stations = {};
   for (const sys of ["KRTC", "KLRT"]) {
@@ -282,23 +273,55 @@ async function refreshKrtc(token, date) {
   }
   writeJson("api/_data/krtc-timetable.json", {
     updatedAt: new Date().toISOString(),
+    date: todayYmd(),
+    source: "github-actions",
+    stations,
+  });
+}
+
+async function refreshTraStations(token, date) {
+  const base = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA";
+  const data = await tdxGet(token, base, "/Station?$top=500");
+  const list = Array.isArray(data) ? data : [];
+  const stations = list.map((s) => ({
+    stationId: s.StationID,
+    nameZh: zhName(s.StationName),
+    nameEn: (s.StationName && s.StationName.En) || null,
+    lat: s.StationPosition && (s.StationPosition.PositionLat || s.StationPosition.lat),
+    lon: s.StationPosition && (s.StationPosition.PositionLon || s.StationPosition.lon),
+  })).filter((s) => s.stationId && s.lat && s.lon);
+  console.log("TRA stations", stations.length);
+  if (stations.length < 50) {
+    console.warn("TRA stations skip write: too few");
+    return;
+  }
+  writeJson("api/_data/tra-stations.json", {
+    updatedAt: new Date().toISOString(),
     date,
     source: "github-actions",
+    count: stations.length,
     stations,
   });
 }
 
 async function refreshTra(token, date) {
   const base = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA";
+  try {
+    await refreshTraStations(token, date);
+  } catch (e) {
+    console.warn("TRA stations", e.message);
+  }
+
   const stations = {};
   const pageSize = 500;
   let skip = 0;
   let totalRows = 0;
   let firstNo = null;
 
-  for (let page = 0; page < 30; page++) {
+  for (let page = 0; page < 20; page++) {
     let rows = [];
     try {
+      await sleep(250);
       const data = await tdxGet(
         token,
         base,
@@ -307,7 +330,6 @@ async function refreshTra(token, date) {
       rows = extractRows(data);
     } catch (e) {
       console.warn("TRA Today page", page, e.message);
-      if (e.status === 429) await sleep(8000);
       break;
     }
     if (!rows.length) break;
@@ -337,7 +359,6 @@ async function refreshTra(token, date) {
     console.log("TRA page", page, "rows", rows.length, "stations so far", Object.keys(stations).length);
     if (rows.length < pageSize) break;
     skip += rows.length;
-    await sleep(300);
   }
 
   finalize(stations);
@@ -359,13 +380,12 @@ async function refreshTra(token, date) {
 async function main() {
   const date = todayYmd();
   const token = await getToken();
-  console.log("refresh date (Taipei today only)", date);
-  // 高鐵 OD 最先，再台鐵／捷運
+  console.log("refresh date (Taipei today only, once a day)", date);
   await refreshThsr(token, date);
-  await sleep(5000);
+  await sleep(2000);
   await refreshTra(token, date);
-  await sleep(3000);
-  await refreshKrtc(token, date);
+  await sleep(1500);
+  await refreshKrtc(token);
   console.log("done");
 }
 
