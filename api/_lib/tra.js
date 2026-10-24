@@ -1,6 +1,6 @@
 /**
- * 臺鐵（TRA）— TDX v3
- * 優先使用 api/_data/tra-timetable.json（GitHub Actions 每日刷新）
+ * 臺鐵（TRA）— 與高鐵相同策略
+ * 優先 api/_data/tra-timetable.json（GitHub 當日快取），再 TDX LiveBoard
  * 已過發車時刻不回傳
  */
 const fs = require("fs");
@@ -45,7 +45,13 @@ function upcomingFromBundle(stationId, limit) {
       const mins = m ? Number(m[1]) * 60 + Number(m[2]) : null;
       const estimateMinutes = mins != null ? mins - nowMin : null;
       return {
-        ...t,
+        trainNo: t.trainNo,
+        trainType: t.trainType,
+        direction: t.direction,
+        departureTime: t.departureTime,
+        destinationName: t.destinationName,
+        endingStationName: t.destinationName,
+        startingStationName: t.startingStationName,
         estimateMinutes,
         headsign: t.destinationName ? "往" + t.destinationName : null,
         statusLabel:
@@ -54,6 +60,7 @@ function upcomingFromBundle(stationId, limit) {
             : estimateMinutes <= 0
               ? "即將發車"
               : `${estimateMinutes} 分鐘`,
+        delayMinutes: 0,
       };
     })
     .filter((t) => t.estimateMinutes == null || t.estimateMinutes >= 0)
@@ -163,7 +170,12 @@ async function stationLiveBoard({ stationId } = {}) {
   const sid = String(stationId).trim();
   const cacheKey = `live-${sid}`;
   const cached = readCache(cacheKey, CACHE_TTL_LIVE_MS);
-  if (cached) return { ok: true, cached: true, stationId: sid, ...cached };
+  if (cached && cached.items && cached.items.length) {
+    return { ok: true, cached: true, stationId: sid, ...cached };
+  }
+  const bundledFirst = upcomingFromBundle(sid, 20);
+  if (bundledFirst && bundledFirst.count) return bundledFirst;
+
   const stale = tdxShared.readCache("tra", cacheKey, 0, { allowStaleMs: 10 * 60 * 1000 });
   let res = await tdxGet(`/StationLiveBoard/Station/${encodeURIComponent(sid)}`, "$format=JSON&$top=50");
   if (!res.ok && res.reason !== "tdx-rate-limit") {
@@ -184,8 +196,6 @@ async function stationLiveBoard({ stationId } = {}) {
         upstreamReason: res.reason,
       };
     }
-    const bundled = upcomingFromBundle(sid, 20);
-    if (bundled && bundled.count) return bundled;
     return res;
   }
   const raw = res.data;
@@ -238,14 +248,13 @@ async function handleTraQuery(query) {
     return listStations({ q: q.q || q.keyword || q.name, city: q.city });
   }
   if (type === "lines") return listLines();
-  if (["timetable", "station-timetable", "upcoming", "next", "departures"].includes(type)) {
+  if (["timetable", "station-timetable", "upcoming", "next", "departures", "live", "liveboard", "board"].includes(type)) {
     const sid = q.stationId || q.station || null;
-    const bundled = sid ? upcomingFromBundle(sid, q.limit) : null;
-    if (bundled && bundled.count) return bundled;
+    if (["timetable", "station-timetable", "upcoming", "next", "departures"].includes(type)) {
+      const bundled = sid ? upcomingFromBundle(sid, q.limit) : null;
+      if (bundled && bundled.count) return bundled;
+    }
     return stationLiveBoard({ stationId: sid });
-  }
-  if (type === "live" || type === "liveboard" || type === "board") {
-    return stationLiveBoard({ stationId: q.stationId || q.station || null });
   }
   if (type === "train" || type === "train-live") {
     return trainLiveBoard({ trainNo: q.trainNo || q.train || null });
@@ -259,8 +268,8 @@ async function handleTraQuery(query) {
     systemName: "臺灣鐵路",
     usage: {
       stations: "?type=stations&q=新左營",
-      live: "?type=live&stationId=4340",
-      timetable: "?type=timetable&stationId=4340",
+      live: "?type=live&stationId=3340",
+      timetable: "?type=timetable&stationId=3340",
       lines: "?type=lines",
       alerts: "?type=alerts",
     },
