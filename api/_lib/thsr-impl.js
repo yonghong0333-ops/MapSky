@@ -1,11 +1,36 @@
 /**
  * 臺灣高鐵（THSR）— TDX v2
- * type= stations | lines | live | upcoming | timetable | station-timetable | seats | fare
+ * 優先讀 api/_data/thsr-timetable.json（GitHub Actions 統一刷新）
  */
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const tdxShared = require("./tdx-shared");
+
+function loadBundledThsrCache() {
+  try {
+    const p = path.join(__dirname, "..", "_data", "thsr-timetable.json");
+    const raw = JSON.parse(fs.readFileSync(p, "utf-8"));
+    if (!raw || !raw.stations) return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+
+function trainsFromBundle(sid, date) {
+  const bundle = loadBundledThsrCache();
+  if (!bundle) return null;
+  const block = bundle.stations && bundle.stations[String(sid)];
+  if (!block || !Array.isArray(block.trains) || !block.trains.length) return null;
+  return {
+    trains: block.trains,
+    date: bundle.date || date,
+    updatedAt: bundle.updatedAt,
+    source: "github-cache",
+    stale: !!(bundle.date && date && bundle.date !== date),
+  };
+}
 
 const API_BASE = "https://tdx.transportdata.tw/api/basic/v2/Rail/THSR";
 const CACHE_TTL_STATIC_MS = 12 * 60 * 60 * 1000;
@@ -63,19 +88,14 @@ function readCache(name, ttlMs) {
   try {
     const raw = JSON.parse(fs.readFileSync(tmpPath(name), "utf-8"));
     if (raw && raw.fetchedAt && Date.now() - raw.fetchedAt < ttlMs) return raw.data;
-  } catch {
-    /* */
-  }
+  } catch {}
   return null;
 }
 function writeCache(name, data) {
   try {
     fs.writeFileSync(tmpPath(name), JSON.stringify({ data, fetchedAt: Date.now() }), "utf-8");
-  } catch {
-    /* */
-  }
+  } catch {}
 }
-
 function getCredentials() {
   return tdxShared.getCredentials();
 }
@@ -113,11 +133,9 @@ function withCoords(s) {
     lon: s.lon != null ? s.lon : c.lon != null ? c.lon : null,
   };
 }
-
 function listStations() {
   return { ok: true, count: STATIONS.length, stations: STATIONS.map((s) => withCoords(s)) };
 }
-
 async function listStationsLive() {
   const cacheKey = "stations-live";
   const cached = readCache(cacheKey, CACHE_TTL_STATIC_MS);
@@ -142,7 +160,6 @@ async function listStationsLive() {
   writeCache(cacheKey, payload);
   return { ok: true, cached: false, ...payload };
 }
-
 async function listShape() {
   const ordered = ["0990", "1000", "1010", "1020", "1030", "1040", "1050", "1060", "1070", "1080", "1090", "1100"];
   const mapPolyline = {
@@ -169,13 +186,10 @@ async function listShape() {
     updatedAt: new Date().toISOString(),
   };
 }
-
 async function odTimetable({ origin, destination, date } = {}) {
   const originId = resolveStationId(origin);
   const destId = resolveStationId(destination);
-  if (!originId || !destId) {
-    return { ok: false, reason: "missing-stations", hint: "請帶 origin 與 destination" };
-  }
+  if (!originId || !destId) return { ok: false, reason: "missing-stations", hint: "請帶 origin 與 destination" };
   const trainDate = date || todayYmd();
   const cacheKey = `tt-${originId}-${destId}-${trainDate}`;
   const cached = readCache(cacheKey, CACHE_TTL_LIVE_MS);
@@ -215,7 +229,6 @@ async function odTimetable({ origin, destination, date } = {}) {
   if (trains.length) writeCache(cacheKey, payload);
   return { ok: true, cached: false, ...payload };
 }
-
 async function stationTimetable({ stationId, date } = {}) {
   const sid = resolveStationId(stationId);
   if (!sid) return { ok: false, reason: "missing-stationId", hint: "請帶 stationId（如 1100 左營）" };
@@ -223,19 +236,31 @@ async function stationTimetable({ stationId, date } = {}) {
   const cacheKey = `stt-${sid}-${trainDate}`;
   const cached = readCache(cacheKey, CACHE_TTL_STATION_MS);
   if (cached && cached.trains && cached.trains.length) return { ok: true, cached: true, ...cached };
+
+  const bundled = trainsFromBundle(sid, trainDate);
+  if (bundled && bundled.trains.length) {
+    const payload = {
+      stationId: sid,
+      stationName: (STATIONS.find((x) => x.stationId === sid) || {}).nameZh,
+      date: bundled.date || trainDate,
+      count: bundled.trains.length,
+      trains: bundled.trains,
+      source: bundled.source,
+      updatedAt: bundled.updatedAt || new Date().toISOString(),
+      stale: !!bundled.stale,
+      note: bundled.stale ? "使用 GitHub 快取班表（日期可能非今日）" : "使用 GitHub 快取班表",
+    };
+    writeCache(cacheKey, payload);
+    return { ok: true, cached: true, ...payload };
+  }
+
   try {
     const shared = await tdxShared.readCacheAsync("thsr", cacheKey, CACHE_TTL_STATION_MS, {
       allowStaleMs: 12 * 60 * 60 * 1000,
     });
     if (shared && shared.data && shared.data.trains && shared.data.trains.length) {
       writeCache(cacheKey, shared.data);
-      return {
-        ok: true,
-        cached: true,
-        stale: !!shared.stale,
-        ...shared.data,
-        note: shared.stale ? "使用快取班表" : undefined,
-      };
+      return { ok: true, cached: true, stale: !!shared.stale, ...shared.data, note: shared.stale ? "使用快取班表" : undefined };
     }
   } catch (_) {}
 
@@ -254,39 +279,30 @@ async function stationTimetable({ stationId, date } = {}) {
       startingStationName: zhName(row.StartingStationName) || zhName(info.StartingStationName),
     });
   }
-
   function extractList(res) {
     if (!res || !res.ok) return [];
     const d = res.data;
     if (Array.isArray(d)) return d;
     if (d && Array.isArray(d.TrainTimetables)) return d.TrainTimetables;
     if (d && Array.isArray(d.StationTimetables)) return d.StationTimetables;
-    if (d && Array.isArray(d.TrainDateTimetables)) return d.TrainDateTimetables;
     return [];
   }
 
   let list = [];
   let source = "station";
-  let lastRes = null;
-
-  lastRes = await tdxGet(
+  let lastRes = await tdxGet(
     `/DailyTimetable/Station/${encodeURIComponent(sid)}/${encodeURIComponent(trainDate)}`,
     "$format=JSON&$top=500"
   );
   list = extractList(lastRes);
-
   if (!list.length && lastRes && lastRes.reason === "tdx-rate-limit") {
     return { ...lastRes, stationId: sid, date: trainDate };
   }
-
   if (!list.length) {
     source = "today";
     lastRes = await tdxGet(`/DailyTimetable/Today`, "$format=JSON&$top=500");
-    if (lastRes && lastRes.reason === "tdx-rate-limit") {
-      return { ...lastRes, stationId: sid, date: trainDate };
-    }
-    const rows = extractList(lastRes);
-    for (const row of rows) {
+    if (lastRes && lastRes.reason === "tdx-rate-limit") return { ...lastRes, stationId: sid, date: trainDate };
+    for (const row of extractList(lastRes)) {
       const stops = row.StopTimes || [];
       const stop = stops.find((x) => String(x.StationID || x.StationId || "") === String(sid));
       if (!stop) continue;
@@ -302,7 +318,6 @@ async function stationTimetable({ stationId, date } = {}) {
       });
     }
   }
-
   if (!list.length) {
     source = "od-north";
     for (const dest of ["1000", "0990", "1050"]) {
@@ -312,8 +327,7 @@ async function stationTimetable({ stationId, date } = {}) {
         "$format=JSON&$top=300"
       );
       if (lastRes && lastRes.reason === "tdx-rate-limit") break;
-      const rows = extractList(lastRes);
-      for (const row of rows) {
+      for (const row of extractList(lastRes)) {
         const info = row.DailyTrainInfo || {};
         const stops = row.StopTimes || [];
         const originStop = stops.find((x) => String(x.StationID) === String(sid)) || stops[0];
@@ -330,16 +344,9 @@ async function stationTimetable({ stationId, date } = {}) {
       if (list.length) break;
     }
   }
-
   if (!list.length && lastRes && !lastRes.ok) {
-    return {
-      ...lastRes,
-      stationId: sid,
-      stationName: (STATIONS.find((x) => x.stationId === sid) || {}).nameZh,
-      date: trainDate,
-    };
+    return { ...lastRes, stationId: sid, stationName: (STATIONS.find((x) => x.stationId === sid) || {}).nameZh, date: trainDate };
   }
-
   const trains = [];
   for (const row of list) pushFromStationRow(row, trains);
   const seen = new Set();
@@ -350,7 +357,6 @@ async function stationTimetable({ stationId, date } = {}) {
     return Boolean(t.departureTime || t.arrivalTime);
   });
   unique.sort((a, b) => String(a.departureTime || "").localeCompare(String(b.departureTime || "")));
-
   const payload = {
     stationId: sid,
     stationName: (STATIONS.find((x) => x.stationId === sid) || {}).nameZh,
@@ -369,16 +375,10 @@ async function stationTimetable({ stationId, date } = {}) {
   }
   return { ok: true, cached: false, ...payload };
 }
-
 async function upcomingFromStation({ stationId, date, limit } = {}) {
   const st = await stationTimetable({ stationId, date });
   if (!st.ok) return st;
-  const fmt = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Taipei",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  const fmt = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Taipei", hour: "2-digit", minute: "2-digit", hour12: false });
   const parts = Object.fromEntries(fmt.formatToParts(new Date()).map((p) => [p.type, p.value]));
   const now = `${parts.hour}:${parts.minute}`;
   const nm = String(now).match(/^(\d{1,2}):(\d{2})/);
@@ -420,7 +420,6 @@ async function upcomingFromStation({ stationId, date, limit } = {}) {
     note: st.note || (enriched.length ? null : "目前沒有接下來的班次（可能已收班或資料暫缺）"),
   };
 }
-
 async function availableSeats({ origin, destination, date } = {}) {
   const originId = resolveStationId(origin);
   const destId = resolveStationId(destination);
@@ -438,59 +437,30 @@ async function availableSeats({ origin, destination, date } = {}) {
   }
   if (!res.ok) return res;
   const list = Array.isArray(res.data) ? res.data : (res.data && res.data.AvailableSeats) || [];
-  return {
-    ok: true,
-    originStationId: originId,
-    destinationStationId: destId,
-    date: trainDate,
-    count: list.length,
-    trains: list,
-  };
+  return { ok: true, originStationId: originId, destinationStationId: destId, date: trainDate, count: list.length, trains: list };
 }
-
 async function odFare({ origin, destination } = {}) {
   const originId = resolveStationId(origin);
   const destId = resolveStationId(destination);
   if (!originId || !destId) return { ok: false, reason: "missing-stations" };
   const res = await tdxGet(`/ODFare/${encodeURIComponent(originId)}/to/${encodeURIComponent(destId)}`, "$format=JSON");
   if (!res.ok) return res;
-  const list = Array.isArray(res.data) ? res.data : [];
-  return { ok: true, originStationId: originId, destinationStationId: destId, fares: list };
+  return { ok: true, originStationId: originId, destinationStationId: destId, fares: Array.isArray(res.data) ? res.data : [] };
 }
-
 async function handleThsrQuery(query) {
   const q = query || {};
   const type = String(q.type || q.action || "summary").toLowerCase();
   if (type === "stations" || type === "list") return listStationsLive();
   if (type === "lines" || type === "shape" || type === "sequence") return listShape();
-
-  if (
-    type === "live" ||
-    type === "liveboard" ||
-    type === "board" ||
-    type === "upcoming" ||
-    type === "next" ||
-    type === "departures"
-  ) {
-    return upcomingFromStation({
-      stationId: q.stationId || q.station || q.origin,
-      date: q.date || q.trainDate,
-      limit: q.limit,
-    });
+  if (["live", "liveboard", "board", "upcoming", "next", "departures"].includes(type)) {
+    return upcomingFromStation({ stationId: q.stationId || q.station || q.origin, date: q.date || q.trainDate, limit: q.limit });
   }
-
   if (type === "timetable" || type === "od" || type === "schedule") {
     const origin = q.origin || q.from || q.originStationId;
     const destination = q.destination || q.to || q.destinationStationId;
     const sid = q.stationId || q.station;
-    if ((!origin || !destination) && sid) {
-      return stationTimetable({ stationId: sid, date: q.date || q.trainDate });
-    }
-    return odTimetable({
-      origin,
-      destination,
-      date: q.date || q.trainDate,
-    });
+    if ((!origin || !destination) && sid) return stationTimetable({ stationId: sid, date: q.date || q.trainDate });
+    return odTimetable({ origin, destination, date: q.date || q.trainDate });
   }
   if (type === "station-timetable" || type === "station") {
     return stationTimetable({ stationId: q.stationId || q.station, date: q.date || q.trainDate });
@@ -510,15 +480,11 @@ async function handleThsrQuery(query) {
     stations: STATIONS.map((s) => withCoords(s)),
     usage: {
       stations: "?type=stations",
-      lines: "?type=lines",
       live: "?type=live&stationId=1100",
-      upcoming: "?type=upcoming&stationId=1100",
-      stationTimetable: "?type=timetable&stationId=1100",
-      timetable: "?type=timetable&origin=1000&destination=1100",
+      timetable: "?type=timetable&stationId=1100",
     },
   };
 }
-
 module.exports = {
   handleThsrQuery,
   listStations,
