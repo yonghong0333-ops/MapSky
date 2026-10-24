@@ -239,40 +239,56 @@ async function stationTimetable({ stationId, date } = {}) {
     }
   } catch (_) {}
 
+  function pushFromStationRow(row, into) {
+    const info = row.DailyTrainInfo || {};
+    const dep = row.DepartureTime || row.departureTime || null;
+    const arr = row.ArrivalTime || row.arrivalTime || null;
+    const trainNo = row.TrainNo || info.TrainNo || row.trainNo || null;
+    if (!trainNo && !dep) return;
+    into.push({
+      trainNo,
+      direction: row.Direction != null ? Number(row.Direction) : info.Direction != null ? Number(info.Direction) : null,
+      departureTime: dep,
+      arrivalTime: arr,
+      endingStationName: zhName(row.EndingStationName) || zhName(info.EndingStationName),
+      startingStationName: zhName(row.StartingStationName) || zhName(info.StartingStationName),
+    });
+  }
+
+  function extractList(res) {
+    if (!res || !res.ok) return [];
+    const d = res.data;
+    if (Array.isArray(d)) return d;
+    if (d && Array.isArray(d.TrainTimetables)) return d.TrainTimetables;
+    if (d && Array.isArray(d.StationTimetables)) return d.StationTimetables;
+    if (d && Array.isArray(d.TrainDateTimetables)) return d.TrainDateTimetables;
+    return [];
+  }
+
   let list = [];
   let source = "station";
-  let res = await tdxGet(
+  let lastRes = null;
+
+  lastRes = await tdxGet(
     `/DailyTimetable/Station/${encodeURIComponent(sid)}/${encodeURIComponent(trainDate)}`,
     "$format=JSON&$top=500"
   );
-  if (res.ok && Array.isArray(res.data) && res.data.length) list = res.data;
-  else if (res.ok && res.data && !Array.isArray(res.data)) {
-    const arr = res.data.TrainTimetables || res.data.StationTimetables || [];
-    if (Array.isArray(arr)) list = arr;
+  list = extractList(lastRes);
+
+  if (!list.length && lastRes && lastRes.reason === "tdx-rate-limit") {
+    return { ...lastRes, stationId: sid, date: trainDate };
   }
 
-  if (!list.length && res && res.reason === "tdx-rate-limit") {
-    try {
-      const stale = await tdxShared.readCacheAsync("thsr", cacheKey, 0, { allowStaleMs: 12 * 60 * 60 * 1000 });
-      if (stale && stale.data && stale.data.trains && stale.data.trains.length) {
-        return { ok: true, cached: true, stale: true, ...stale.data, note: "TDX 限流中，顯示稍早班表" };
-      }
-    } catch (_) {}
-    return res;
-  }
-
-  // 限流時不要連打第二、第三支 API
-  if (!list.length && res && res.ok) {
-    source = "train-date-filter";
-    res = await tdxGet(`/DailyTimetable/TrainDate/${encodeURIComponent(trainDate)}`, "$format=JSON&$top=300");
-    if (res.reason === "tdx-rate-limit") {
-      return res;
+  if (!list.length) {
+    source = "today";
+    lastRes = await tdxGet(`/DailyTimetable/Today`, "$format=JSON&$top=500");
+    if (lastRes && lastRes.reason === "tdx-rate-limit") {
+      return { ...lastRes, stationId: sid, date: trainDate };
     }
-    let rows = res.ok && Array.isArray(res.data) ? res.data : [];
-    if (!rows.length && res.ok && res.data) rows = res.data.TrainTimetables || [];
+    const rows = extractList(lastRes);
     for (const row of rows) {
       const stops = row.StopTimes || [];
-      const stop = stops.find((x) => String(x.StationID || x.StationId || "") === sid);
+      const stop = stops.find((x) => String(x.StationID || x.StationId || "") === String(sid));
       if (!stop) continue;
       const info = row.DailyTrainInfo || {};
       list.push({
@@ -282,36 +298,69 @@ async function stationTimetable({ stationId, date } = {}) {
         ArrivalTime: stop.ArrivalTime || null,
         EndingStationName: info.EndingStationName,
         StartingStationName: info.StartingStationName,
+        DailyTrainInfo: info,
       });
     }
   }
 
-  if (!list.length && res && !res.ok) return res;
+  if (!list.length) {
+    source = "od-north";
+    for (const dest of ["1000", "0990", "1050"]) {
+      if (dest === sid) continue;
+      lastRes = await tdxGet(
+        `/DailyTimetable/OD/${encodeURIComponent(sid)}/to/${encodeURIComponent(dest)}/${encodeURIComponent(trainDate)}`,
+        "$format=JSON&$top=300"
+      );
+      if (lastRes && lastRes.reason === "tdx-rate-limit") break;
+      const rows = extractList(lastRes);
+      for (const row of rows) {
+        const info = row.DailyTrainInfo || {};
+        const stops = row.StopTimes || [];
+        const originStop = stops.find((x) => String(x.StationID) === String(sid)) || stops[0];
+        list.push({
+          TrainNo: info.TrainNo || row.TrainNo,
+          Direction: info.Direction != null ? info.Direction : 1,
+          DepartureTime: originStop && (originStop.DepartureTime || originStop.ArrivalTime),
+          ArrivalTime: originStop && originStop.ArrivalTime,
+          EndingStationName: info.EndingStationName,
+          StartingStationName: info.StartingStationName,
+          DailyTrainInfo: info,
+        });
+      }
+      if (list.length) break;
+    }
+  }
 
-  const trains = list
-    .map((row) => {
-      const info = row.DailyTrainInfo || {};
-      return {
-        trainNo: row.TrainNo || info.TrainNo || null,
-        direction: row.Direction != null ? Number(row.Direction) : null,
-        departureTime: row.DepartureTime || row.ArrivalTime || null,
-        arrivalTime: row.ArrivalTime || null,
-        endingStationName: zhName(row.EndingStationName) || zhName(info.EndingStationName),
-        startingStationName: zhName(row.StartingStationName) || zhName(info.StartingStationName),
-      };
-    })
-    .filter((t) => t.departureTime || t.arrivalTime);
-  trains.sort((a, b) => String(a.departureTime || "").localeCompare(String(b.departureTime || "")));
+  if (!list.length && lastRes && !lastRes.ok) {
+    return {
+      ...lastRes,
+      stationId: sid,
+      stationName: (STATIONS.find((x) => x.stationId === sid) || {}).nameZh,
+      date: trainDate,
+    };
+  }
+
+  const trains = [];
+  for (const row of list) pushFromStationRow(row, trains);
+  const seen = new Set();
+  const unique = trains.filter((t) => {
+    const k = `${t.trainNo}|${t.departureTime}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return Boolean(t.departureTime || t.arrivalTime);
+  });
+  unique.sort((a, b) => String(a.departureTime || "").localeCompare(String(b.departureTime || "")));
+
   const payload = {
     stationId: sid,
-    stationName: (STATIONS.find((s) => s.stationId === sid) || {}).nameZh,
+    stationName: (STATIONS.find((x) => x.stationId === sid) || {}).nameZh,
     date: trainDate,
-    count: trains.length,
-    trains,
+    count: unique.length,
+    trains: unique,
     source,
     updatedAt: new Date().toISOString(),
   };
-  if (trains.length) {
+  if (unique.length) {
     writeCache(cacheKey, payload);
     try {
       tdxShared.writeCache("thsr", cacheKey, payload);
