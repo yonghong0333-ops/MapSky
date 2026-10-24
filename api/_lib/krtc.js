@@ -3,7 +3,7 @@
  * - lines：TDX Shape 真實軌道 WKT（geometry）
  * - sequence：地圖只回一條 mapPolyline（順逆行同軌，勿雙向重畫）
  * - timetable：優先 StationTimeTable
- * - live：分鐘／進站中
+ * - live：分鐘／進站中（TDX LiveBoard）
  */
 const https = require("https");
 
@@ -93,20 +93,11 @@ function hhmmAdd(hhmm, addMins) {
   const m = String(hhmm).match(/^(\d{1,2}):(\d{2})/);
   if (!m) return null;
   let total = Number(m[1]) * 60 + Number(m[2]) + Number(addMins || 0);
-  total = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
+  while (total < 0) total += 24 * 60;
+  total = total % (24 * 60);
   const h = Math.floor(total / 60);
   const mi = total % 60;
   return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
-}
-
-function normalizeClock(hhmm) {
-  if (!hhmm) return null;
-  const m = String(hhmm).match(/^(\d{1,2}):(\d{2})/);
-  if (!m) return String(hhmm).slice(0, 5);
-  let h = Number(m[1]);
-  const mi = m[2];
-  if (h >= 24) return `${String(h - 24).padStart(2, "0")}:${mi}`;
-  return `${String(h).padStart(2, "0")}:${mi}`;
 }
 
 function normalizeEstimateMinutes(it) {
@@ -145,7 +136,6 @@ function enrichLiveItems(items) {
 
 /**
  * 地圖用站序：每個 line 只給一條 polyline
- * 順行／逆行走同一條實體軌道，畫兩次會變雙線／三線
  */
 function simplifySequenceForMap(seq) {
   if (!seq || !seq.ok) return seq;
@@ -201,299 +191,41 @@ function simplifySequenceForMap(seq) {
   };
 }
 
-function weekdayServiceOk(serviceDay) {
-  if (!serviceDay || typeof serviceDay !== "object") return true;
-  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const tw = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
-  const name = days[tw.getDay()];
-  if (serviceDay[name] === false || serviceDay[name] === 0) return false;
-  return true;
-}
-
-function itemsFromStationTimetable(st, stationId, nowHHMM, limitPerDest) {
-  if (!st || !st.ok || !Array.isArray(st.items) || !st.items.length) return null;
-  const nowMin = minutesOf(nowHHMM);
-  const byDest = new Map();
-
-  for (const row of st.items) {
-    if (!weekdayServiceOk(row.serviceDay)) continue;
-    const t = normalizeClock(row.departureTime || row.arrivalTime);
-    if (!t) continue;
-    const tm = minutesOf(t);
-    if (tm == null || nowMin == null) continue;
-    if (tm < nowMin - 1) continue;
-    if (tm > nowMin + 180) continue;
-
-    let name = (row.destinationName || "").trim();
-    if (!name) {
-      const lk = lineKeyOfStation(stationId);
-      if (lk && LINE_TERMINALS[lk]) {
-        const idx = row.direction != null ? Number(row.direction) % 2 : 0;
-        name = LINE_TERMINALS[lk][idx] || LINE_TERMINALS[lk][0];
-      } else name = "—";
-    }
-    if (!byDest.has(name)) byDest.set(name, []);
-    byDest.get(name).push({
-      departureTime: t,
-      destinationName: name,
-      direction: row.direction != null ? Number(row.direction) : null,
-      estimateMinutes: Math.max(0, tm - nowMin),
-      source: "timetable",
-      stationId: stationId || null,
-      headsign: "往" + name,
-      statusLabel: statusLabel(Math.max(0, tm - nowMin)),
-      waitText: statusLabel(Math.max(0, tm - nowMin)),
-    });
-  }
-
-  if (!byDest.size) return null;
-
-  const out = [];
-  for (const [, list] of byDest.entries()) {
-    list.sort((a, b) => minutesOf(a.departureTime) - minutesOf(b.departureTime));
-    const seen = new Set();
-    let n = 0;
-    for (const it of list) {
-      if (seen.has(it.departureTime)) continue;
-      seen.add(it.departureTime);
-      out.push(it);
-      n++;
-      if (n >= (limitPerDest || 4)) break;
-    }
-  }
-  out.sort((a, b) => {
-    const dn = String(a.destinationName).localeCompare(String(b.destinationName), "zh-Hant");
-    if (dn !== 0) return dn;
-    return minutesOf(a.departureTime) - minutesOf(b.departureTime);
-  });
-  return out;
-}
-
-function pickHeadway(result, lk) {
-  const freqs = result.frequency || [];
-  for (const f of freqs) {
-    const off = f.offPeakHeadwayMins || f.OffPeakHeadway;
-    const peak = f.peakHeadwayMins || f.PeakHeadway;
-    if (off || peak) return Number(off || peak);
-  }
-  return DEFAULT_HEADWAY[lk] || 8;
-}
-
-function collectDestinations(result) {
-  const set = new Map();
-  const add = (name, direction) => {
-    const n = (name || "").trim();
-    if (!n || n === "一" || n === "-") return;
-    const key = n + "|" + (direction == null ? "" : String(direction));
-    if (!set.has(key)) set.set(key, { destinationName: n, direction: direction == null ? null : Number(direction) });
-  };
-  for (const it of result.items || []) add(it.destinationName || it.tripHeadSign, it.direction);
-  for (const it of result.firstLast || []) add(it.destinationName, it.direction);
-  return [...set.values()];
-}
-
-function enrichUpcomingFallback(result, stationId) {
-  if (!result || !result.ok) return result;
-  const rawItems = Array.isArray(result.items) ? result.items : [];
-  const lk = lineKeyOfStation(stationId) || (result.line && result.line.lineKey) || null;
-  let dests = collectDestinations(result);
-  if (!dests.length && lk && LINE_TERMINALS[lk]) {
-    dests = LINE_TERMINALS[lk].map((name, i) => ({ destinationName: name, direction: i }));
-  }
-
-  const fixed = rawItems.map((it, idx) => {
-    let name = (it.destinationName || it.tripHeadSign || "").trim();
-    if (!name || name === "一" || name === "-") {
-      if (dests.length === 1) name = dests[0].destinationName;
-      else if (dests.length > 1) {
-        const byDir = dests.find((d) => d.direction != null && d.direction === it.direction);
-        name = (byDir || dests[idx % dests.length]).destinationName;
-      } else name = null;
-    }
-    const estimateMinutes = normalizeEstimateMinutes(it);
-    return {
-      ...it,
-      destinationName: name,
-      headsign: name ? "往" + name : null,
-      estimateMinutes,
-      statusLabel: statusLabel(estimateMinutes),
-      waitText: statusLabel(estimateMinutes),
-    };
-  });
-
-  const headway = pickHeadway(result, lk);
-  const now = result.now || taiwanNowHHMM();
-  const slotsPerDest = 4;
-  const byDest = new Map();
-  for (const it of fixed) {
-    if (!it.destinationName) continue;
-    if (!byDest.has(it.destinationName)) byDest.set(it.destinationName, []);
-    byDest.get(it.destinationName).push(it);
-  }
-  if (byDest.size === 0 && dests.length) {
-    for (const d of dests) byDest.set(d.destinationName, []);
-  }
-
-  const expanded = [];
-  for (const [name, list] of byDest.entries()) {
-    list.sort((a, b) => (minutesOf(a.departureTime) ?? 1e9) - (minutesOf(b.departureTime) ?? 1e9));
-    const base = list[0] && list[0].departureTime ? list[0].departureTime : now;
-    const dir =
-      list[0] && list[0].direction != null
-        ? list[0].direction
-        : (dests.find((d) => d.destinationName === name) || {}).direction;
-    const times = new Set();
-    if (list[0] && list[0].departureTime) times.add(list[0].departureTime);
-    const baseMin = minutesOf(base);
-    const nowMin = minutesOf(now);
-    let startOffset = 0;
-    if (baseMin != null && nowMin != null && Math.abs(baseMin - nowMin) <= 1) startOffset = headway;
-    for (let i = 0; i < slotsPerDest + 2; i++) {
-      const add = startOffset + headway * i;
-      if (add === 0 && times.size) continue;
-      const next = hhmmAdd(base, add === 0 ? headway : add);
-      if (next) times.add(next);
-      if (times.size >= slotsPerDest) break;
-    }
-    for (const it of list) if (it.departureTime) times.add(it.departureTime);
-    const sorted = [...times].sort((a, b) => (minutesOf(a) ?? 0) - (minutesOf(b) ?? 0));
-    const upcoming = sorted
-      .filter((t) => {
-        const m = minutesOf(t);
-        if (m == null || nowMin == null) return true;
-        return m >= nowMin - 1 || m < 5;
-      })
-      .slice(0, slotsPerDest);
-    for (const t of upcoming) {
-      const est = minutesOf(t) != null && nowMin != null ? Math.max(0, minutesOf(t) - nowMin) : null;
-      expanded.push({
-        departureTime: t,
-        destinationName: name,
-        direction: dir != null ? dir : null,
-        estimateMinutes: est,
-        statusLabel: statusLabel(est),
-        waitText: statusLabel(est),
-        source: list[0] && list[0].source === "live" && t === list[0].departureTime ? "live" : "frequency-estimate",
-        stationId: stationId || null,
-        lineKey: lk,
-        headsign: "往" + name,
-      });
-    }
-  }
-
-  expanded.sort((a, b) => {
-    const dn = String(a.destinationName || "").localeCompare(String(b.destinationName || ""), "zh-Hant");
-    if (dn !== 0) return dn;
-    return (minutesOf(a.departureTime) ?? 0) - (minutesOf(b.departureTime) ?? 0);
-  });
-
-  return {
-    ...result,
-    now,
-    headwayMinutes: headway,
-    items: expanded,
-    count: expanded.length,
-    scheduleSource: "frequency-estimate",
-  };
-}
-
 async function buildUpcoming(mod, query) {
-  const stationId = query.stationId || query.station || null;
-  const line = query.line || null;
-  const now = taiwanNowHHMM();
-
-  let st = null;
-  try {
-    if (stationId && typeof mod.stationTimetable === "function") {
-      st = await mod.stationTimetable({ line, stationId });
-    }
-  } catch (_) {
-    st = null;
+  const q = query || {};
+  const line = q.line || q.lineId || null;
+  const stationId = q.stationId || q.station || null;
+  if (typeof mod.upcomingDepartures === "function") {
+    const up = await mod.upcomingDepartures({ line, stationId });
+    if (up && up.ok) return up;
   }
-  const fromTable = itemsFromStationTimetable(st, stationId, now, 4);
-  if (fromTable && fromTable.length) {
-    return {
-      ok: true,
-      stationId,
-      line: (st && st.line) || null,
-      now,
-      count: fromTable.length,
-      items: fromTable,
-      scheduleSource: "station-timetable",
-      note: "依 TDX 站別時刻表",
-    };
+  if (typeof mod.timetableSummary === "function") {
+    return mod.timetableSummary({ line, stationId });
   }
-
-  let base = null;
-  try {
-    if (typeof mod.upcomingDepartures === "function") {
-      base = await mod.upcomingDepartures({ line, stationId });
-    } else if (typeof mod.timetableSummary === "function") {
-      base = await mod.timetableSummary({ line, stationId });
-    }
-  } catch (_) {
-    base = { ok: true, items: [] };
-  }
-  const enriched = enrichUpcomingFallback(base || { ok: true, items: [] }, stationId);
-  return {
-    ...enriched,
-    note: (st && st.note) || "TDX 站別時刻表無資料，改以即時／班距推估",
-  };
+  return { ok: false, reason: "timetable-unavailable" };
 }
 
-// ── TDX Shape：真實軌道線形（WKT）────────────────────────────────
 const METRO_API_BASE = "https://tdx.transportdata.tw/api/basic/v2/Rail/Metro";
 const TOKEN_URL =
   "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token";
-const CACHE_TTL_STATIC_MS = 6 * 60 * 60 * 1000;
-const TOKEN_SKEW_MS = 60 * 1000;
 
-let memoryToken = null;
 const shapeMem = {};
 
-function shapeTmp(name) {
-  const path = require("path");
-  const os = require("os");
-  return path.join(os.tmpdir(), `nexora-krtc-${name}.json`);
-}
-
-function readShapeCache(name, ttlMs) {
+function getShapeCache(name, ttlMs) {
   if (shapeMem[name] && Date.now() - shapeMem[name].fetchedAt < ttlMs) {
     return shapeMem[name].data;
-  }
-  try {
-    const fs = require("fs");
-    const raw = JSON.parse(fs.readFileSync(shapeTmp(name), "utf-8"));
-    if (raw && raw.fetchedAt && Date.now() - raw.fetchedAt < ttlMs) {
-      shapeMem[name] = raw;
-      return raw.data;
-    }
-  } catch {
-    /* no cache */
   }
   return null;
 }
 
-function writeShapeCache(name, data) {
-  const payload = { data, fetchedAt: Date.now() };
-  shapeMem[name] = payload;
-  try {
-    const fs = require("fs");
-    fs.writeFileSync(shapeTmp(name), JSON.stringify(payload), "utf-8");
-  } catch {
-    /* ignore */
-  }
+function setShapeCache(name, data) {
+  shapeMem[name] = { data, fetchedAt: Date.now() };
 }
 
-async function getMetroAccessToken() {
+async function fetchTdxToken() {
   const clientId = process.env.TDX_CLIENT_ID || "";
   const clientSecret = process.env.TDX_CLIENT_SECRET || "";
-  if (!clientId || !clientSecret) {
-    return { ok: false, reason: "tdx-not-configured" };
-  }
-  if (memoryToken && memoryToken.expiresAt > Date.now() + TOKEN_SKEW_MS) {
-    return { ok: true, token: memoryToken.access_token };
-  }
+  if (!clientId || !clientSecret) return null;
   const body = new URLSearchParams({
     grant_type: "client_credentials",
     client_id: clientId,
@@ -502,90 +234,47 @@ async function getMetroAccessToken() {
   const resp = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
+    body,
   });
-  if (!resp.ok) {
-    const t = await resp.text().catch(() => "");
-    return { ok: false, reason: "tdx-token-failed", detail: String(t).slice(0, 200) };
-  }
-  const json = await resp.json();
-  const expiresIn = Number(json.expires_in) || 3600;
-  memoryToken = {
-    access_token: json.access_token,
-    expiresAt: Date.now() + expiresIn * 1000,
-  };
-  return { ok: true, token: memoryToken.access_token };
+  if (!resp.ok) return null;
+  const j = await resp.json();
+  return j.access_token || null;
 }
 
-async function tdxMetroGet(apiPath, query) {
-  const tok = await getMetroAccessToken();
-  if (!tok.ok) return tok;
-  const q = query ? (apiPath.includes("?") ? "&" : "?") + query : "";
-  const url = `${METRO_API_BASE}${apiPath}${q}`;
+async function tdxGet(path, { query = "" } = {}) {
+  const token = await fetchTdxToken();
+  if (!token) return { ok: false, reason: "tdx-not-configured" };
+  const url = `${METRO_API_BASE}${path}${query ? (path.includes("?") ? "&" : "?") + query.replace(/^\?/, "") : ""}`;
   const resp = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${tok.token}`,
-      Accept: "application/json",
-    },
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
-  if (!resp.ok) {
-    const t = await resp.text().catch(() => "");
-    return { ok: false, reason: "tdx-http", status: resp.status, detail: String(t).slice(0, 300) };
-  }
-  return { ok: true, data: await resp.json() };
+  if (resp.status === 429) return { ok: false, reason: "tdx-rate-limit" };
+  if (!resp.ok) return { ok: false, reason: "tdx-error", status: resp.status };
+  const data = await resp.json();
+  return { ok: true, data };
 }
 
-/** TDX Rail/Metro/Shape — Geometry 為 WKT（經度在前） */
 async function fetchShape(system) {
   const cacheKey = `shape-${system}`;
-  const cached = readShapeCache(cacheKey, CACHE_TTL_STATIC_MS * 4);
-  if (cached) return { ok: true, data: cached, cached: true };
-  const res = await tdxMetroGet(`/Shape/${system}`, "$format=JSON");
+  const hit = getShapeCache(cacheKey, 24 * 3600 * 1000);
+  if (hit) return { ok: true, data: hit, cached: true };
+  const res = await tdxGet(`/Shape/${system}`, { query: "$format=JSON&$top=50" });
   if (!res.ok) return res;
   const list = Array.isArray(res.data) ? res.data : [];
-  writeShapeCache(cacheKey, list);
+  setShapeCache(cacheKey, list);
   return { ok: true, data: list, cached: false };
 }
 
-function normalizeLineKeyLocal(raw) {
-  if (raw == null || raw === "") return null;
-  const s = String(raw).trim().toUpperCase();
-  if (s === "R" || s === "RED" || s.includes("紅")) return "R";
-  if (s === "O" || s === "ORANGE" || s.includes("橘") || s.includes("橙")) return "O";
-  if (s === "G" || s === "GREEN" || s === "C" || s === "LRT" || s.includes("綠") || s.includes("輕軌") || s.includes("環狀"))
-    return "C";
-  if (s.startsWith("R")) return "R";
-  if (s.startsWith("O")) return "O";
-  if (s.startsWith("C")) return "C";
-  return s;
-}
-
-/**
- * listLines + 每條線 geometry（WKT；多段用 ; 串）
- * 抓不到線形時 geometry=null，App 退回站序連線
- */
 async function listLinesWithShape(mod) {
-  const base = typeof mod.listLines === "function" ? await mod.listLines() : mod.listLines();
-  if (!base || !base.ok) return base;
-  const geoms = { R: [], O: [], C: [] };
-  for (const sys of ["KRTC", "KLRT"]) {
-    const res = await fetchShape(sys);
-    if (!res.ok) continue;
-    for (const row of res.data || []) {
-      const name =
-        row.LineName && (row.LineName.Zh_tw || row.LineName.Zh || row.LineName);
-      const key = normalizeLineKeyLocal(row.LineID || row.LineNo || name);
-      if (key && geoms[key] && row.Geometry) geoms[key].push(String(row.Geometry));
-    }
+  const base = typeof mod.listLines === "function" ? await mod.listLines() : { ok: true, lines: [] };
+  const systems = ["KRTC", "KLRT"];
+  for (const sys of systems) {
+    try {
+      await fetchShape(sys);
+    } catch (_) {}
   }
-  const lines = (base.lines || []).map((l) => ({
-    ...l,
-    geometry: geoms[l.lineKey] && geoms[l.lineKey].length ? geoms[l.lineKey].join(";") : null,
-  }));
   return {
     ...base,
-    lines,
-    shapeSource: "tdx-metro-shape",
     note: "geometry 為 TDX Shape WKT（經度在前）。無 geometry 時請用 mapPolyline 站序連線。",
   };
 }
@@ -617,12 +306,27 @@ async function handleKrtcQuery(query) {
     return simplifySequenceForMap(seq);
   }
 
-  const result = await mod.handleKrtcQuery(query);
-
-  if ((type === "live" || type === "liveboard" || type === "board") && result && result.ok && Array.isArray(result.items)) {
-    result.items = enrichLiveItems(result.items);
+  // 即時到站（TDX LiveBoard）
+  if (type === "live" || type === "liveboard" || type === "board") {
+    const r = await mod.liveBoard({
+      line: q.line || q.lineId || null,
+      stationId: q.stationId || q.station || null,
+    });
+    if (r && r.ok && Array.isArray(r.items)) {
+      r.items = enrichLiveItems(r.items);
+    }
+    if (r && r.ok) {
+      r.type = "live";
+      r.usage = {
+        all: "?type=live",
+        byLine: "?type=live&line=R",
+        byStation: "?type=live&stationId=R7",
+      };
+    }
+    return r;
   }
 
+  const result = await mod.handleKrtcQuery(query);
   return result;
 }
 
@@ -658,11 +362,7 @@ module.exports = {
     const s = String(raw).trim().toUpperCase();
     if (s === "R" || s === "RED" || s.includes("紅")) return "R";
     if (s === "O" || s === "ORANGE" || s.includes("橘") || s.includes("橙")) return "O";
-    if (s === "G" || s === "GREEN" || s === "C" || s === "LRT" || s.includes("綠") || s.includes("輕軌") || s.includes("環狀"))
-      return "C";
-    if (s.startsWith("R")) return "R";
-    if (s.startsWith("O")) return "O";
-    if (s.startsWith("C")) return "C";
-    return s;
+    if (s === "C" || s === "CIRCLE" || s.includes("環") || s.includes("輕軌")) return "C";
+    return s.length === 1 ? s : null;
   },
 };
