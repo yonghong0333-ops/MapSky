@@ -1,5 +1,6 @@
 /**
  * GitHub Actions：高鐵／捷運／台鐵當日時刻表
+ * 台鐵不再限白名單，當日班表停靠站全部入快取
  * env: TDX_CLIENT_ID, TDX_CLIENT_SECRET
  */
 const fs = require("fs");
@@ -63,28 +64,57 @@ async function tdxGet(token, base, apiPath) {
 function writeJson(rel, obj) {
   const outPath = path.join(__dirname, "..", rel);
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  fs.writeFileSync(outPath, JSON.stringify(obj, null, 2), "utf-8");
+  fs.writeFileSync(outPath, JSON.stringify(obj), "utf-8");
   console.log("wrote", rel, "bytes", fs.statSync(outPath).size);
+}
+
+function pushTrain(stations, sid, train) {
+  if (!sid || !train.departureTime) return;
+  if (!stations[sid]) stations[sid] = { count: 0, trains: [] };
+  stations[sid].trains.push(train);
+}
+
+function finalize(stations) {
+  for (const sid of Object.keys(stations)) {
+    const seen = new Set();
+    stations[sid].trains = stations[sid].trains
+      .filter((t) => {
+        const k = `${t.trainNo}|${t.departureTime}`;
+        if (!t.departureTime || seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .sort((a, b) => String(a.departureTime).localeCompare(String(b.departureTime)));
+    stations[sid].count = stations[sid].trains.length;
+  }
+}
+
+function extractRows(data) {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== "object") return [];
+  for (const k of ["TrainTimetables", "DailyTrainTimetables", "StationTimetables", "Timetables"]) {
+    if (Array.isArray(data[k])) return data[k];
+  }
+  return [];
 }
 
 async function refreshThsr(token, date) {
   const base = "https://tdx.transportdata.tw/api/basic/v2/Rail/THSR";
-  const ids = ["0990","1000","1010","1020","1030","1040","1050","1060","1070","1080","1090","1100"];
   const stations = {};
   let todayRows = [];
   try {
-    const data = await tdxGet(token, base, "/DailyTimetable/Today?$top=500");
-    todayRows = Array.isArray(data) ? data : data.TrainTimetables || [];
+    const data = await tdxGet(token, base, "/DailyTimetable/Today?$top=2000");
+    todayRows = extractRows(data);
+    console.log("THSR Today rows", todayRows.length);
   } catch (e) {
     console.warn("THSR Today", e.message);
   }
-  for (const sid of ids) {
-    const trains = [];
-    for (const row of todayRows) {
-      const info = row.DailyTrainInfo || {};
-      const stop = (row.StopTimes || []).find((x) => String(x.StationID) === sid);
-      if (!stop) continue;
-      trains.push({
+  for (const row of todayRows) {
+    const info = row.DailyTrainInfo || {};
+    const stops = row.StopTimes || [];
+    for (const stop of stops) {
+      const sid = String(stop.StationID || "");
+      pushTrain(stations, sid, {
         trainNo: info.TrainNo || row.TrainNo || null,
         direction: info.Direction != null ? Number(info.Direction) : null,
         departureTime: stop.DepartureTime || stop.ArrivalTime || null,
@@ -93,17 +123,11 @@ async function refreshThsr(token, date) {
         startingStationName: zhName(info.StartingStationName),
       });
     }
-    const seen = new Set();
-    const uniq = trains.filter((t) => {
-      const k = `${t.trainNo}|${t.departureTime}`;
-      if (!t.departureTime || seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-    uniq.sort((a, b) => String(a.departureTime).localeCompare(String(b.departureTime)));
-    stations[sid] = { count: uniq.length, trains: uniq };
-    console.log("THSR", sid, uniq.length);
   }
+  finalize(stations);
+  const ids = Object.keys(stations).sort();
+  console.log("THSR stations", ids.length, ids.join(","));
+  for (const sid of ids) console.log("THSR", sid, stations[sid].count);
   writeJson("api/_data/thsr-timetable.json", {
     updatedAt: new Date().toISOString(),
     date,
@@ -118,7 +142,7 @@ async function refreshKrtc(token, date) {
   for (const sys of ["KRTC", "KLRT"]) {
     try {
       await sleep(400);
-      const data = await tdxGet(token, base, `/StationTimeTable/${sys}?$top=3000`);
+      const data = await tdxGet(token, base, `/StationTimeTable/${sys}?$top=5000`);
       const list = Array.isArray(data) ? data : [];
       for (const row of list) {
         const sid = String(row.StationID || "").toUpperCase();
@@ -175,146 +199,59 @@ async function refreshKrtc(token, date) {
 }
 
 async function refreshTra(token, date) {
-  const slashDate = String(date).replace(/-/g, "/");
   const base = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA";
-  const ids = ["1000","1080","1100","3300","3340","3360","4220","4270","4272","4340","4400","4110","4080"];
-  const idSet = new Set(ids);
   const stations = {};
-  for (const sid of ids) stations[sid] = { count: 0, trains: [] };
+  const pageSize = 500;
+  let skip = 0;
+  let totalRows = 0;
+  let firstNo = null;
 
-  let todayRows = [];
-  try {
-    const data = await tdxGet(token, base, "/DailyTrainTimetable/Today?$top=3000");
-    if (Array.isArray(data)) todayRows = data;
-    else if (data && Array.isArray(data.TrainTimetables)) todayRows = data.TrainTimetables;
-    else if (data && Array.isArray(data.StationTimetables)) todayRows = data.StationTimetables;
-    else if (data && Array.isArray(data.DailyTrainTimetables)) todayRows = data.DailyTrainTimetables;
-    console.log("TRA Today rows", todayRows.length, todayRows[0] ? Object.keys(todayRows[0]).slice(0, 8) : "");
-  } catch (e) {
-    console.warn("TRA Today", e.message);
-  }
-
-  for (const row of todayRows) {
-    const info = row.DailyTrainInfo || row.TrainInfo || {};
-    const stops = row.StopTimes || row.StopTime || [];
-    if (!Array.isArray(stops) || !stops.length) continue;
-    for (const stop of stops) {
-      const sid = String(stop.StationID || stop.StationId || "");
-      if (!idSet.has(sid)) continue;
-      const dep = stop.DepartureTime || stop.ArrivalTime || null;
-      if (!dep) continue;
-      stations[sid].trains.push({
-        trainNo: info.TrainNo || row.TrainNo || null,
-        trainType: zhName(info.TrainTypeName) || info.TrainType || null,
-        direction: info.Direction != null ? Number(info.Direction) : null,
-        departureTime: dep,
-        destinationName: zhName(info.EndingStationName) || zhName(row.EndingStationName),
-        startingStationName: zhName(info.StartingStationName),
-      });
-    }
-  }
-
-  for (const sid of ids) {
-    if (stations[sid].trains.length) continue;
+  for (let page = 0; page < 30; page++) {
+    let rows = [];
     try {
-      await sleep(400);
-      const data = await tdxGet(token, base, `/GeneralStationTimetable/Station/${sid}?$top=500`);
-      console.log(
-        "TRA GeneralStation keys",
-        sid,
-        data && !Array.isArray(data) ? Object.keys(data).slice(0, 12) : "array"
-      );
-      let list = [];
-      if (Array.isArray(data)) list = data;
-      else if (data && Array.isArray(data.StationTimetables)) list = data.StationTimetables;
-      else if (data && Array.isArray(data.GeneralStationTimetables)) list = data.GeneralStationTimetables;
-      else if (data && (data.Timetables || data.Timetable)) list = [data];
-      else if (data && Array.isArray(data.TrainTimetables)) list = data.TrainTimetables;
-      for (const row of list) {
-        const tables = row.Timetables || row.Timetable || row.StationTimetables || null;
-        if (Array.isArray(tables)) {
-          for (const t of tables) {
-            stations[sid].trains.push({
-              trainNo: t.TrainNo || row.TrainNo || null,
-              trainType: zhName(t.TrainTypeName) || t.TrainType || null,
-              direction: t.Direction != null ? Number(t.Direction) : null,
-              departureTime: t.DepartureTime || t.ArrivalTime || null,
-              destinationName: zhName(t.DestinationStationName) || zhName(t.EndingStationName),
-              startingStationName: null,
-            });
-          }
-        } else {
-          stations[sid].trains.push({
-            trainNo: row.TrainNo || null,
-            trainType: zhName(row.TrainTypeName) || row.TrainType || null,
-            direction: row.Direction != null ? Number(row.Direction) : null,
-            departureTime: row.DepartureTime || row.ArrivalTime || null,
-            destinationName: zhName(row.DestinationStationName) || zhName(row.EndingStationName),
-            startingStationName: null,
-          });
-        }
-      }
-      console.log("TRA GeneralStation", sid, stations[sid].trains.length);
-    } catch (e) {
-      console.warn("TRA General", sid, e.message);
-    }
-  }
-
-  const odPairs = [
-    ["3340", "3300"],
-    ["3340", "3360"],
-    ["3300", "3340"],
-    ["4340", "4400"],
-    ["4400", "4340"],
-    ["4340", "4220"],
-    ["1000", "1080"],
-    ["4220", "4400"],
-  ];
-  for (const [origin, dest] of odPairs) {
-    if (!idSet.has(origin)) continue;
-    if (stations[origin].trains.length > 5) continue;
-    try {
-      await sleep(400);
       const data = await tdxGet(
         token,
         base,
-        `/DailyTrainTimetable/OD/${origin}/to/${dest}/${slashDate}?$top=300`
+        `/DailyTrainTimetable/Today?$top=${pageSize}&$skip=${skip}`
       );
-      const list = Array.isArray(data) ? data : data.TrainTimetables || [];
-      for (const row of list) {
-        const info = row.DailyTrainInfo || {};
-        const stops = row.StopTimes || [];
-        const originStop = stops.find((x) => String(x.StationID) === origin) || stops[0];
-        const dep = originStop && (originStop.DepartureTime || originStop.ArrivalTime);
-        if (!dep) continue;
-        stations[origin].trains.push({
+      rows = extractRows(data);
+    } catch (e) {
+      console.warn("TRA Today page", page, e.message);
+      break;
+    }
+    if (!rows.length) break;
+    const head = (rows[0].DailyTrainInfo && rows[0].DailyTrainInfo.TrainNo) || rows[0].TrainNo || "";
+    if (page === 0) firstNo = head;
+    else if (head && head === firstNo) {
+      console.warn("TRA pagination ignored, stop");
+      break;
+    }
+    totalRows += rows.length;
+    for (const row of rows) {
+      const info = row.DailyTrainInfo || row.TrainInfo || {};
+      const stops = row.StopTimes || row.StopTime || [];
+      if (!Array.isArray(stops)) continue;
+      for (const stop of stops) {
+        const sid = String(stop.StationID || stop.StationId || "");
+        pushTrain(stations, sid, {
           trainNo: info.TrainNo || row.TrainNo || null,
-          trainType: zhName(info.TrainTypeName) || null,
+          trainType: zhName(info.TrainTypeName) || info.TrainType || null,
           direction: info.Direction != null ? Number(info.Direction) : null,
-          departureTime: dep,
-          destinationName: zhName(info.EndingStationName),
+          departureTime: stop.DepartureTime || stop.ArrivalTime || null,
+          destinationName: zhName(info.EndingStationName) || zhName(row.EndingStationName),
           startingStationName: zhName(info.StartingStationName),
         });
       }
-      console.log("TRA OD", origin, "->", dest, stations[origin].trains.length);
-    } catch (e) {
-      console.warn("TRA OD", origin, dest, e.message);
     }
+    console.log("TRA page", page, "rows", rows.length, "stations so far", Object.keys(stations).length);
+    if (rows.length < pageSize) break;
+    skip += rows.length;
+    await sleep(250);
   }
 
-  for (const sid of ids) {
-    const seen = new Set();
-    stations[sid].trains = stations[sid].trains
-      .filter((t) => {
-        const k = `${t.trainNo}|${t.departureTime}`;
-        if (!t.departureTime || seen.has(k)) return false;
-        seen.add(k);
-        return true;
-      })
-      .sort((a, b) => String(a.departureTime).localeCompare(String(b.departureTime)));
-    stations[sid].count = stations[sid].trains.length;
-    console.log("TRA", sid, stations[sid].count);
-  }
+  finalize(stations);
+  const nonempty = Object.values(stations).filter((s) => s.count > 0).length;
+  console.log("TRA trains", totalRows, "stations", Object.keys(stations).length, "with trains", nonempty);
 
   writeJson("api/_data/tra-timetable.json", {
     updatedAt: new Date().toISOString(),
