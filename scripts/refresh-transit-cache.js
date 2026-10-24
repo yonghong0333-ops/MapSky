@@ -1,6 +1,6 @@
 /**
  * GitHub Actions：高鐵／捷運／台鐵當日時刻表
- * 高鐵優先 DailyTimetable/TrainDate（全班次完整 StopTimes）
+ * 台鐵優先；空結果不覆蓋旧快取
  * env: TDX_CLIENT_ID, TDX_CLIENT_SECRET
  */
 const fs = require("fs");
@@ -190,8 +190,11 @@ async function refreshThsr(token, date) {
   }
   finalize(stations);
   for (const sid of must) console.log("THSR", sid, stations[sid].count);
-  const missing = must.filter((s) => !stations[s] || stations[s].count === 0);
-  if (missing.length) console.warn("THSR still empty:", missing.join(","));
+  const good = must.filter((s) => stations[s] && stations[s].count > 0).length;
+  if (good < 3) {
+    console.warn("THSR skip write: too few stations with data", good);
+    return;
+  }
   writeJson("api/_data/thsr-timetable.json", {
     updatedAt: new Date().toISOString(),
     date,
@@ -254,6 +257,10 @@ async function refreshKrtc(token, date) {
       .sort((a, b) => String(a.departureTime).localeCompare(String(b.departureTime)));
     stations[sid].count = stations[sid].items.length;
   }
+  if (Object.keys(stations).length < 5) {
+    console.warn("KRTC skip write: empty");
+    return;
+  }
   writeJson("api/_data/krtc-timetable.json", {
     updatedAt: new Date().toISOString(),
     date,
@@ -281,6 +288,7 @@ async function refreshTra(token, date) {
       rows = extractRows(data);
     } catch (e) {
       console.warn("TRA Today page", page, e.message);
+      if (e.status === 429) await sleep(8000);
       break;
     }
     if (!rows.length) break;
@@ -310,13 +318,17 @@ async function refreshTra(token, date) {
     console.log("TRA page", page, "rows", rows.length, "stations so far", Object.keys(stations).length);
     if (rows.length < pageSize) break;
     skip += rows.length;
-    await sleep(250);
+    await sleep(300);
   }
 
   finalize(stations);
   const nonempty = Object.values(stations).filter((s) => s.count > 0).length;
   console.log("TRA trains", totalRows, "stations", Object.keys(stations).length, "with trains", nonempty);
 
+  if (nonempty < 50) {
+    console.warn("TRA skip write: too few stations", nonempty);
+    return;
+  }
   writeJson("api/_data/tra-timetable.json", {
     updatedAt: new Date().toISOString(),
     date,
@@ -329,10 +341,12 @@ async function main() {
   const date = todayYmd();
   const token = await getToken();
   console.log("refresh date (Taipei today only)", date);
+  // 台鐵先（最大量），再高鐵、捷運，避免額度被报光
+  await refreshTra(token, date);
+  await sleep(4000);
   await refreshThsr(token, date);
   await sleep(3000);
   await refreshKrtc(token, date);
-  await refreshTra(token, date);
   console.log("done");
 }
 
