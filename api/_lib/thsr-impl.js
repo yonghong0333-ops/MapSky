@@ -1,7 +1,7 @@
 /**
  * 臺灣高鐵（THSR）— TDX v2
  * 優先讀 api/_data/thsr-timetable.json（GitHub Actions 統一刷新）
- * 已過發車時刻的班次不會回傳
+ * 一次回傳當日剩餘班次（最多 80）
  */
 const fs = require("fs");
 const os = require("os");
@@ -319,35 +319,6 @@ async function stationTimetable({ stationId, date } = {}) {
       });
     }
   }
-  if (!list.length) {
-    source = "od-north";
-    for (const dest of ["1000", "0990", "1050"]) {
-      if (dest === sid) continue;
-      lastRes = await tdxGet(
-        `/DailyTimetable/OD/${encodeURIComponent(sid)}/to/${encodeURIComponent(dest)}/${encodeURIComponent(trainDate)}`,
-        "$format=JSON&$top=300"
-      );
-      if (lastRes && lastRes.reason === "tdx-rate-limit") break;
-      for (const row of extractList(lastRes)) {
-        const info = row.DailyTrainInfo || {};
-        const stops = row.StopTimes || [];
-        const originStop = stops.find((x) => String(x.StationID) === String(sid)) || stops[0];
-        list.push({
-          TrainNo: info.TrainNo || row.TrainNo,
-          Direction: info.Direction != null ? info.Direction : 1,
-          DepartureTime: originStop && (originStop.DepartureTime || originStop.ArrivalTime),
-          ArrivalTime: originStop && originStop.ArrivalTime,
-          EndingStationName: info.EndingStationName,
-          StartingStationName: info.StartingStationName,
-          DailyTrainInfo: info,
-        });
-      }
-      if (list.length) break;
-    }
-  }
-  if (!list.length && lastRes && !lastRes.ok) {
-    return { ...lastRes, stationId: sid, stationName: (STATIONS.find((x) => x.stationId === sid) || {}).nameZh, date: trainDate };
-  }
   const trains = [];
   for (const row of list) pushFromStationRow(row, trains);
   const seen = new Set();
@@ -404,7 +375,7 @@ async function upcomingFromStation({ stationId, date, limit } = {}) {
       return { ...rest, estimateMinutes: _delta != null ? _delta : null };
     })
     .sort((a, b) => String(a.departureTime || "").localeCompare(String(b.departureTime || "")))
-    .slice(0, Math.min(40, Number(limit) || 12));
+    .slice(0, Math.min(80, Number(limit) || 80));
   const enriched = items.map((t) => {
     const em = t.estimateMinutes;
     const label = em == null ? null : em <= 0 ? "即將發車" : `${em} 分鐘`;
