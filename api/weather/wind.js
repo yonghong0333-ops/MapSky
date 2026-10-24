@@ -8,23 +8,30 @@ const { handleSuspensionQuery } = require("../_lib/school-closure");
 const { handleClosuresRequest } = require("../_lib/closures");
 const { requireSession } = require("../_lib/require-session");
 
+function isPublicType(q) {
+  const t = String(q.type || "").toLowerCase();
+  return (
+    t === "closures" ||
+    t === "closure-settings" ||
+    t === "suspension" ||
+    t === "school-closure" ||
+    t === "closure" ||
+    t === "停班停課" ||
+    t === "typhoon-dayoff" ||
+    t === "cloud" ||
+    t === "cloud-cover"
+  );
+}
+
 module.exports = async function handler(req, res) {
-  if (!requireSession(req, res)) return;
   try {
     const q = req.query || {};
     const transit = String(q.transit || "").toLowerCase();
 
+    // 停班停課／雲量：公開可讀；admin 存檔由 handleClosuresRequest 內部驗權
+    // （不要在這層 requireSession，否則地圖沒登入就 401 整片空白／怪顏色）
     if (q.type === "closures" || q.type === "closure-settings") {
       return await handleClosuresRequest(req, res);
-    }
-
-    if (q.type === "cloud" || q.type === "cloud-cover") {
-      const result = await getCloudObservation({
-        forceRefresh: q.refresh === "1",
-        county: q.county || q.label || null,
-      });
-      res.setHeader("Cache-Control", "public, max-age=60");
-      return res.status(result.ok ? 200 : 502).json(result);
     }
 
     if (
@@ -39,6 +46,18 @@ module.exports = async function handler(req, res) {
       res.setHeader("Cache-Control", "public, max-age=60, s-maxage=60");
       return res.status(status).json(result);
     }
+
+    if (q.type === "cloud" || q.type === "cloud-cover") {
+      const result = await getCloudObservation({
+        forceRefresh: q.refresh === "1",
+        county: q.county || q.label || null,
+      });
+      res.setHeader("Cache-Control", "public, max-age=60");
+      return res.status(result.ok ? 200 : 502).json(result);
+    }
+
+    // 其餘（風、捷運、台鐵…）維持要登入
+    if (!requireSession(req, res)) return;
 
     if (
       transit === "krtc" ||
