@@ -124,6 +124,30 @@ async function refreshThsr(token, date) {
       });
     }
   }
+  // Today 的 StopTimes 常常在雲林以南被截掉，南站改打各站當日班表補齊
+  const must = ["0990","1000","1010","1020","1030","1040","1050","1060","1070","1080","1090","1100"];
+  for (const sid of must) {
+    if (stations[sid] && stations[sid].trains.length > 20) continue;
+    try {
+      await sleep(300);
+      const data = await tdxGet(token, base, `/DailyTimetable/Station/${sid}/${date}?$top=500`);
+      const rows = extractRows(data);
+      for (const row of rows) {
+        const info = row.DailyTrainInfo || {};
+        pushTrain(stations, sid, {
+          trainNo: row.TrainNo || info.TrainNo || null,
+          direction: row.Direction != null ? Number(row.Direction) : info.Direction != null ? Number(info.Direction) : null,
+          departureTime: row.DepartureTime || row.ArrivalTime || null,
+          arrivalTime: row.ArrivalTime || null,
+          endingStationName: zhName(row.EndingStationName) || zhName(info.EndingStationName),
+          startingStationName: zhName(row.StartingStationName) || zhName(info.StartingStationName),
+        });
+      }
+      console.log("THSR station backfill", sid, rows.length);
+    } catch (e) {
+      console.warn("THSR station", sid, e.message);
+    }
+  }
   finalize(stations);
   const ids = Object.keys(stations).sort();
   console.log("THSR stations", ids.length, ids.join(","));
