@@ -1,7 +1,7 @@
 /**
  * 臺灣高鐵（THSR）— TDX v2
  * 優先讀 api/_data/thsr-timetable.json（GitHub Actions 統一刷新）
- * 一次回傳當日剩餘班次（最多 80）
+ * 一次回傳該站當日剩餘全部班次（全線車站）
  */
 const fs = require("fs");
 const os = require("os");
@@ -375,7 +375,7 @@ async function upcomingFromStation({ stationId, date, limit } = {}) {
       return { ...rest, estimateMinutes: _delta != null ? _delta : null };
     })
     .sort((a, b) => String(a.departureTime || "").localeCompare(String(b.departureTime || "")))
-    .slice(0, Math.min(80, Number(limit) || 80));
+    .slice(0, Number(limit) > 0 ? Number(limit) : 400);
   const enriched = items.map((t) => {
     const em = t.estimateMinutes;
     const label = em == null ? null : em <= 0 ? "即將發車" : `${em} 分鐘`;
