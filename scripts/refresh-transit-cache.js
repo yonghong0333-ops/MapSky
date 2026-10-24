@@ -1,5 +1,6 @@
 /**
- * GitHub Actions：一次刷新高鐵／捷運／台鐵「當日時刻表」快取
+ * GitHub Actions：一次刷新高鐵／捷運／台鐵「當日」時刻表快取
+ * 只抓台北時區今天的日期；隔天再跑會換成新日期。
  * env: TDX_CLIENT_ID, TDX_CLIENT_SECRET
  */
 const fs = require("fs");
@@ -195,7 +196,8 @@ async function refreshKrtc(token, date) {
 
 async function refreshTra(token, date) {
   const base = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA";
-  const ids = ["4340", "4400", "4220", "4272", "4210", "1000", "3300", "1080", "1100"];
+  // 當日站表重點站（含新烏日 3340）
+  const ids = ["1000","1080","1100","3300","3340","3360","4220","4270","4272","4340","4400","4110","4080"];
   const stations = {};
   for (const sid of ids) {
     let trains = [];
@@ -254,7 +256,7 @@ async function refreshTra(token, date) {
 async function main() {
   const date = todayYmd();
   const token = await getToken();
-  console.log("refresh date", date);
+  console.log("refresh date (Taipei today only)", date);
   await refreshThsr(token, date);
   await refreshKrtc(token, date);
   await refreshTra(token, date);
