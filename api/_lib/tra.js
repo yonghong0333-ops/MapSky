@@ -1,8 +1,7 @@
 /**
  * 臺鐵（TRA）— TDX v3
- * 環境變數同捷運：TDX_CLIENT_ID、TDX_CLIENT_SECRET
- *
- * 常用站碼（v3）：1000 臺北、1080 桃園、1100 新竹、3300 臺中、4400 高雄、4340 新左營、4220 臺南
+ * 優先使用 api/_data/tra-timetable.json（GitHub Actions 每日刷新）
+ * 常用站碼：1000 臺北、3300 臺中、4220 臺南、4340 新左營、4400 高雄
  */
 const fs = require("fs");
 const os = require("os");
@@ -11,12 +10,66 @@ const path = require("path");
 const TOKEN_URL =
   "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token";
 const API_BASE = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA";
+const tdxShared = require("./tdx-shared");
+
+function loadBundledTraCache() {
+  try {
+    const p = path.join(__dirname, "..", "_data", "tra-timetable.json");
+    const raw = JSON.parse(fs.readFileSync(p, "utf-8"));
+    if (!raw || !raw.stations) return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+
+function upcomingFromBundle(stationId, limit) {
+  const bundle = loadBundledTraCache();
+  if (!bundle) return null;
+  const sid = String(stationId).trim();
+  const block = bundle.stations[sid];
+  if (!block || !Array.isArray(block.trains) || !block.trains.length) return null;
+  const fmt = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Taipei",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(new Date()).map((p) => [p.type, p.value]));
+  const now = `${parts.hour}:${parts.minute}`;
+  const nm = now.match(/^(\d{1,2}):(\d{2})/);
+  const nowMin = nm ? Number(nm[1]) * 60 + Number(nm[2]) : 0;
+  const items = block.trains
+    .map((t) => {
+      const m = t.departureTime && String(t.departureTime).match(/^(\d{1,2}):(\d{2})/);
+      const mins = m ? Number(m[1]) * 60 + Number(m[2]) : null;
+      const estimateMinutes = mins != null ? Math.max(0, mins - nowMin) : null;
+      return {
+        ...t,
+        estimateMinutes,
+        headsign: t.destinationName ? "往" + t.destinationName : null,
+        statusLabel:
+          estimateMinutes == null ? null : estimateMinutes <= 0 ? "即將發車" : `${estimateMinutes} 分鐘`,
+      };
+    })
+    .filter((t) => t.estimateMinutes == null || t.estimateMinutes >= 0)
+    .slice(0, Math.min(40, Number(limit) || 20));
+  return {
+    ok: true,
+    cached: true,
+    source: "github-cache",
+    stationId: sid,
+    date: bundle.date,
+    count: items.length,
+    items,
+    trains: items,
+    updatedAt: bundle.updatedAt,
+    note: "使用 GitHub 當日時刻表快取",
+  };
+}
 
 const CACHE_TTL_STATIC_MS = 6 * 60 * 60 * 1000;
 const CACHE_TTL_LIVE_MS = 60 * 1000;
-const TOKEN_SKEW_MS = 60 * 1000;
-
-let memoryToken = null;
 
 function tmpPath(name) {
   return path.join(os.tmpdir(), `nexora-tra-${name}.json`);
@@ -25,104 +78,69 @@ function readCache(name, ttlMs) {
   try {
     const raw = JSON.parse(fs.readFileSync(tmpPath(name), "utf-8"));
     if (raw && raw.fetchedAt && Date.now() - raw.fetchedAt < ttlMs) return raw.data;
-  } catch {
-    /* no cache */
-  }
+  } catch {}
   return null;
 }
 function writeCache(name, data) {
   try {
     fs.writeFileSync(tmpPath(name), JSON.stringify({ data, fetchedAt: Date.now() }), "utf-8");
-  } catch {
-    /* ignore */
-  }
+  } catch {}
 }
-
-const tdxShared = require("./tdx-shared");
-
 function getCredentials() {
   return tdxShared.getCredentials();
 }
-
-async function getAccessToken() {
-  return tdxShared.getAccessToken();
-}
-
 async function tdxGet(apiPath, query) {
   return tdxShared.tdxGet(API_BASE, apiPath, query);
 }
-
 function zhName(obj) {
   if (!obj) return null;
   if (typeof obj === "string") return obj;
   return obj.Zh_tw || obj.Zh || obj.En || null;
 }
 
-function mapStation(s) {
-  const id = s.StationID || s.StationId;
-  return {
-    stationId: id,
-    stationCode: s.StationCode || null,
-    nameZh: zhName(s.StationName) || id,
-    nameEn: (s.StationName && s.StationName.En) || null,
-    lat: s.StationPosition && (s.StationPosition.PositionLat || s.StationPosition.lat),
-    lon: s.StationPosition && (s.StationPosition.PositionLon || s.StationPosition.lon),
-    address: s.StationAddress || null,
-    stationClass: s.StationClass != null ? String(s.StationClass) : null,
-  };
-}
-
 function mapLiveBoard(row) {
-  const delay = row.DelayTime != null ? Number(row.DelayTime) : null;
   return {
-    stationId: row.StationID,
-    stationName: zhName(row.StationName),
     trainNo: row.TrainNo || null,
-    trainTypeCode: row.TrainTypeCode || null,
-    trainTypeName: zhName(row.TrainTypeName) || row.TrainTypeCode || null,
+    trainType: zhName(row.TrainTypeName) || row.TrainType || null,
+    stationId: row.StationID || null,
+    stationName: zhName(row.StationName),
     direction: row.Direction != null ? Number(row.Direction) : null,
-    endingStationId: row.EndingStationID || null,
     endingStationName: zhName(row.EndingStationName),
-    tripLine: row.TripLine != null ? Number(row.TripLine) : null,
-    scheduledTime: row.ScheduleArrivalTime || row.ScheduleDepartureTime || null,
-    arrivalTime: row.ArrivalTime || null,
-    departureTime: row.DepartureTime || null,
-    delayMinutes: delay,
-    status: delay == null ? null : delay <= 0 ? "準點" : delay < 5 ? "小誤點" : "誤點",
-    platform: row.PlatformID || row.PlatformNo || null,
-    srcUpdateTime: row.UpdateTime || row.SrcUpdateTime || null,
+    scheduledTime: row.ScheduleTime || row.ScheduledDepartureTime || null,
+    arrivalTime: row.EstimatedArrivalTime || row.ArrivalTime || null,
+    departureTime: row.EstimatedDepartureTime || row.DepartureTime || row.ScheduleTime || null,
+    delayMinutes: row.DelayTime != null ? Number(row.DelayTime) : 0,
+    platform: row.Platform || row.PlatformID || null,
   };
 }
 
-async function listStations({ q = null, city = null } = {}) {
+async function listStations({ q, city } = {}) {
   const cacheKey = "stations";
-  let list = readCache(cacheKey, CACHE_TTL_STATIC_MS);
-  let cached = Boolean(list);
+  const cached = readCache(cacheKey, CACHE_TTL_STATIC_MS);
+  let list = cached;
   if (!list) {
     const res = await tdxGet("/Station", "$format=JSON&$top=500");
     if (!res.ok) return res;
-    const raw = res.data;
-    list = Array.isArray(raw) ? raw : raw.Stations || raw.Station || [];
+    list = Array.isArray(res.data) ? res.data : [];
     writeCache(cacheKey, list);
-    cached = false;
   }
-  let stations = list.map(mapStation);
+  let stations = list.map((s) => ({
+    stationId: s.StationID,
+    nameZh: zhName(s.StationName),
+    nameEn: (s.StationName && s.StationName.En) || null,
+    lat: s.StationPosition && (s.StationPosition.PositionLat || s.StationPosition.lat),
+    lon: s.StationPosition && (s.StationPosition.PositionLon || s.StationPosition.lon),
+  }));
   if (q) {
-    const needle = String(q).trim().toLowerCase();
+    const k = String(q).toLowerCase();
     stations = stations.filter(
       (s) =>
-        String(s.nameZh || "").toLowerCase().includes(needle) ||
-        String(s.nameEn || "").toLowerCase().includes(needle) ||
-        String(s.stationId || "") === needle ||
-        String(s.stationCode || "").toLowerCase() === needle
+        (s.nameZh && s.nameZh.includes(q)) ||
+        (s.nameEn && s.nameEn.toLowerCase().includes(k)) ||
+        String(s.stationId).includes(q)
     );
   }
-  if (city) {
-    const c = String(city).replace(/台/g, "臺");
-    stations = stations.filter((s) => String(s.address || "").includes(c) || String(s.nameZh || "").includes(c));
-  }
-  stations.sort((a, b) => String(a.stationId).localeCompare(String(b.stationId)));
-  return { ok: true, cached, count: stations.length, stations };
+  return { ok: true, count: stations.length, stations };
 }
 
 async function listLines() {
@@ -131,13 +149,10 @@ async function listLines() {
   if (cached) return { ok: true, cached: true, lines: cached };
   const res = await tdxGet("/Line", "$format=JSON&$top=100");
   if (!res.ok) return res;
-  const raw = res.data;
-  const list = Array.isArray(raw) ? raw : raw.Lines || raw.Line || [];
+  const list = Array.isArray(res.data) ? res.data : [];
   const lines = list.map((L) => ({
-    lineId: L.LineID || L.LineId,
-    nameZh: zhName(L.LineName) || L.LineID,
-    nameEn: (L.LineName && L.LineName.En) || null,
-    lineSectionName: zhName(L.LineSectionName),
+    lineId: L.LineID,
+    nameZh: zhName(L.LineName),
     isBranch: Boolean(L.IsBranch),
   }));
   writeCache(cacheKey, lines);
@@ -174,6 +189,8 @@ async function stationLiveBoard({ stationId } = {}) {
         upstreamReason: res.reason,
       };
     }
+    const bundled = upcomingFromBundle(sid, 20);
+    if (bundled && bundled.count) return bundled;
     return res;
   }
 
@@ -187,6 +204,10 @@ async function stationLiveBoard({ stationId } = {}) {
     const tb = b.departureTime || b.arrivalTime || b.scheduledTime || "";
     return String(ta).localeCompare(String(tb));
   });
+  if (!items.length) {
+    const bundled = upcomingFromBundle(sid, 20);
+    if (bundled && bundled.count) return bundled;
+  }
   const payload = {
     count: items.length,
     items,
@@ -205,9 +226,7 @@ async function trainLiveBoard({ trainNo } = {}) {
   if (cached) return { ok: true, cached: true, ...cached };
   let pathApi = "/TrainLiveBoard";
   let query = "$format=JSON&$top=100";
-  if (trainNo) {
-    pathApi = `/TrainLiveBoard/TrainNo/${encodeURIComponent(String(trainNo).trim())}`;
-  }
+  if (trainNo) pathApi = `/TrainLiveBoard/TrainNo/${encodeURIComponent(String(trainNo).trim())}`;
   const res = await tdxGet(pathApi, query);
   if (!res.ok) return res;
   const raw = res.data;
@@ -232,6 +251,18 @@ async function handleTraQuery(query) {
     return listStations({ q: q.q || q.keyword || q.name, city: q.city });
   }
   if (type === "lines") return listLines();
+  if (
+    type === "timetable" ||
+    type === "station-timetable" ||
+    type === "upcoming" ||
+    type === "next" ||
+    type === "departures"
+  ) {
+    const sid = q.stationId || q.station || null;
+    const bundled = sid ? upcomingFromBundle(sid, q.limit) : null;
+    if (bundled && bundled.count) return bundled;
+    return stationLiveBoard({ stationId: sid });
+  }
   if (type === "live" || type === "liveboard" || type === "board") {
     return stationLiveBoard({ stationId: q.stationId || q.station || null });
   }
@@ -248,6 +279,7 @@ async function handleTraQuery(query) {
     usage: {
       stations: "?type=stations&q=新左營",
       live: "?type=live&stationId=4340",
+      timetable: "?type=timetable&stationId=4340",
       lines: "?type=lines",
       alerts: "?type=alerts",
     },
