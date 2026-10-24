@@ -1,16 +1,16 @@
 /**
  * 臺鐵（TRA）— TDX v3
  * 優先使用 api/_data/tra-timetable.json（GitHub Actions 每日刷新）
- * 常用站碼：1000 臺北、3300 臺中、4220 臺南、4340 新左營、4400 高雄
+ * 已過發車時刻不回傳
  */
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-
-const TOKEN_URL =
-  "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token";
-const API_BASE = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA";
 const tdxShared = require("./tdx-shared");
+
+const API_BASE = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA";
+const CACHE_TTL_STATIC_MS = 6 * 60 * 60 * 1000;
+const CACHE_TTL_LIVE_MS = 60 * 1000;
 
 function loadBundledTraCache() {
   try {
@@ -43,13 +43,17 @@ function upcomingFromBundle(stationId, limit) {
     .map((t) => {
       const m = t.departureTime && String(t.departureTime).match(/^(\d{1,2}):(\d{2})/);
       const mins = m ? Number(m[1]) * 60 + Number(m[2]) : null;
-      const estimateMinutes = mins != null ? Math.max(0, mins - nowMin) : null;
+      const estimateMinutes = mins != null ? mins - nowMin : null;
       return {
         ...t,
         estimateMinutes,
         headsign: t.destinationName ? "往" + t.destinationName : null,
         statusLabel:
-          estimateMinutes == null ? null : estimateMinutes <= 0 ? "即將發車" : `${estimateMinutes} 分鐘`,
+          estimateMinutes == null
+            ? null
+            : estimateMinutes <= 0
+              ? "即將發車"
+              : `${estimateMinutes} 分鐘`,
       };
     })
     .filter((t) => t.estimateMinutes == null || t.estimateMinutes >= 0)
@@ -67,9 +71,6 @@ function upcomingFromBundle(stationId, limit) {
     note: "使用 GitHub 當日時刻表快取",
   };
 }
-
-const CACHE_TTL_STATIC_MS = 6 * 60 * 60 * 1000;
-const CACHE_TTL_LIVE_MS = 60 * 1000;
 
 function tmpPath(name) {
   return path.join(os.tmpdir(), `nexora-tra-${name}.json`);
@@ -97,7 +98,6 @@ function zhName(obj) {
   if (typeof obj === "string") return obj;
   return obj.Zh_tw || obj.Zh || obj.En || null;
 }
-
 function mapLiveBoard(row) {
   return {
     trainNo: row.TrainNo || null,
@@ -113,7 +113,6 @@ function mapLiveBoard(row) {
     platform: row.Platform || row.PlatformID || null,
   };
 }
-
 async function listStations({ q, city } = {}) {
   const cacheKey = "stations";
   const cached = readCache(cacheKey, CACHE_TTL_STATIC_MS);
@@ -142,7 +141,6 @@ async function listStations({ q, city } = {}) {
   }
   return { ok: true, count: stations.length, stations };
 }
-
 async function listLines() {
   const cacheKey = "lines";
   const cached = readCache(cacheKey, CACHE_TTL_STATIC_MS);
@@ -158,7 +156,6 @@ async function listLines() {
   writeCache(cacheKey, lines);
   return { ok: true, cached: false, lines };
 }
-
 async function stationLiveBoard({ stationId } = {}) {
   if (!stationId) {
     return { ok: false, reason: "missing-stationId", hint: "請帶 stationId，例如 4400（高雄）" };
@@ -167,9 +164,7 @@ async function stationLiveBoard({ stationId } = {}) {
   const cacheKey = `live-${sid}`;
   const cached = readCache(cacheKey, CACHE_TTL_LIVE_MS);
   if (cached) return { ok: true, cached: true, stationId: sid, ...cached };
-
   const stale = tdxShared.readCache("tra", cacheKey, 0, { allowStaleMs: 10 * 60 * 1000 });
-
   let res = await tdxGet(`/StationLiveBoard/Station/${encodeURIComponent(sid)}`, "$format=JSON&$top=50");
   if (!res.ok && res.reason !== "tdx-rate-limit") {
     res = await tdxGet(
@@ -193,7 +188,6 @@ async function stationLiveBoard({ stationId } = {}) {
     if (bundled && bundled.count) return bundled;
     return res;
   }
-
   const raw = res.data;
   const list = Array.isArray(raw)
     ? raw
@@ -208,18 +202,13 @@ async function stationLiveBoard({ stationId } = {}) {
     const bundled = upcomingFromBundle(sid, 20);
     if (bundled && bundled.count) return bundled;
   }
-  const payload = {
-    count: items.length,
-    items,
-    updatedAt: new Date().toISOString(),
-  };
+  const payload = { count: items.length, items, updatedAt: new Date().toISOString() };
   writeCache(cacheKey, payload);
   try {
     tdxShared.writeCache("tra", cacheKey, payload);
   } catch (_) {}
   return { ok: true, cached: false, stationId: sid, ...payload };
 }
-
 async function trainLiveBoard({ trainNo } = {}) {
   const cacheKey = `train-${trainNo || "all"}`;
   const cached = readCache(cacheKey, CACHE_TTL_LIVE_MS);
@@ -235,7 +224,6 @@ async function trainLiveBoard({ trainNo } = {}) {
   writeCache(cacheKey, payload);
   return { ok: true, cached: false, ...payload };
 }
-
 async function alerts() {
   const res = await tdxGet("/Alert", "$format=JSON&$top=50");
   if (!res.ok) return res;
@@ -243,7 +231,6 @@ async function alerts() {
   const list = Array.isArray(raw) ? raw : raw.Alerts || [];
   return { ok: true, count: list.length, alerts: list };
 }
-
 async function handleTraQuery(query) {
   const q = query || {};
   const type = String(q.type || q.action || "summary").toLowerCase();
@@ -251,13 +238,7 @@ async function handleTraQuery(query) {
     return listStations({ q: q.q || q.keyword || q.name, city: q.city });
   }
   if (type === "lines") return listLines();
-  if (
-    type === "timetable" ||
-    type === "station-timetable" ||
-    type === "upcoming" ||
-    type === "next" ||
-    type === "departures"
-  ) {
+  if (["timetable", "station-timetable", "upcoming", "next", "departures"].includes(type)) {
     const sid = q.stationId || q.station || null;
     const bundled = sid ? upcomingFromBundle(sid, q.limit) : null;
     if (bundled && bundled.count) return bundled;
@@ -285,7 +266,6 @@ async function handleTraQuery(query) {
     },
   };
 }
-
 module.exports = {
   handleTraQuery,
   listStations,
