@@ -1,6 +1,6 @@
 /**
- * 臺鐵（TRA）— 與高鐵相同策略
- * 優先 api/_data/tra-timetable.json；LiveBoard 補齊時刻欄位給前端顯示
+ * 臺鐵（TRA）— 與高鐵相同：一次回傳當日剩餘完整班表
+ * 日快取為主；LiveBoard 只補誤點狀態
  */
 const fs = require("fs");
 const os = require("os");
@@ -10,6 +10,7 @@ const tdxShared = require("./tdx-shared");
 const API_BASE = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA";
 const CACHE_TTL_STATIC_MS = 6 * 60 * 60 * 1000;
 const CACHE_TTL_LIVE_MS = 45 * 1000;
+const FULL_LIMIT = 80;
 
 function loadBundledTraCache() {
   try {
@@ -88,7 +89,7 @@ function upcomingFromBundle(stationId, limit) {
       };
     })
     .filter((t) => t.estimateMinutes == null || t.estimateMinutes >= 0)
-    .slice(0, Math.min(40, Number(limit) || 20));
+    .slice(0, Math.min(FULL_LIMIT, Number(limit) || FULL_LIMIT));
   return {
     ok: true,
     cached: true,
@@ -99,31 +100,8 @@ function upcomingFromBundle(stationId, limit) {
     items,
     trains: items,
     updatedAt: bundle.updatedAt,
-    note: "使用 GitHub 當日時刻表快取",
+    note: "當日剩餘班表（GitHub 快取）",
   };
-}
-
-function enrichItemsWithBundleTimes(stationId, items) {
-  const bundle = loadBundledTraCache();
-  if (!bundle) return items;
-  const block = bundle.stations[String(stationId)];
-  if (!block || !Array.isArray(block.trains)) return items;
-  const byNo = new Map();
-  for (const t of block.trains) {
-    const dep = toHhMm(t.departureTime);
-    if (t.trainNo && dep) byNo.set(String(t.trainNo), dep);
-  }
-  return (items || []).map((it) => {
-    let dep = toHhMm(it.departureTime) || toHhMm(it.scheduledTime);
-    if (!dep) dep = byNo.get(String(it.trainNo || "")) || null;
-    if (!dep) return it;
-    return {
-      ...it,
-      departureTime: dep,
-      scheduledTime: it.scheduledTime || dep,
-      time: dep,
-    };
-  });
 }
 
 function tmpPath(name) {
@@ -234,16 +212,62 @@ async function listLines() {
   writeCache(cacheKey, lines);
   return { ok: true, cached: false, lines };
 }
+
+/** 以完整日班表為主，即時看板只補誤點 */
 async function stationLiveBoard({ stationId } = {}) {
   if (!stationId) {
     return { ok: false, reason: "missing-stationId", hint: "請帶 stationId，例如 4400（高雄）" };
   }
   const sid = String(stationId).trim();
-  const cacheKey = `live-${sid}`;
 
-  // 有日快取時刻時：以日快取為主顯示時間，並盡量合併即時誤點
-  const bundledFirst = upcomingFromBundle(sid, 30);
+  const full = upcomingFromBundle(sid, FULL_LIMIT);
 
+  // 非阻塞：抓即時誤點對照表
+  let delayByNo = new Map();
+  try {
+    let res = await tdxGet(`/StationLiveBoard/Station/${encodeURIComponent(sid)}`, "$format=JSON&$top=50");
+    if (!res.ok && res.reason !== "tdx-rate-limit") {
+      res = await tdxGet(
+        "/StationLiveBoard",
+        `$format=JSON&$top=300&$filter=StationID eq '${sid.replace(/'/g, "")}'`
+      );
+    }
+    if (res.ok) {
+      const raw = res.data;
+      const list = Array.isArray(raw)
+        ? raw
+        : raw.StationLiveBoards || raw.StationLiveBoard || raw.TrainLiveBoards || [];
+      for (const row of list.map(mapLiveBoard)) {
+        if (row.trainNo != null) delayByNo.set(String(row.trainNo), row.delayMinutes || 0);
+      }
+    }
+  } catch (_) {}
+
+  if (full && full.count) {
+    const items = full.items.map((it) => {
+      const d = delayByNo.get(String(it.trainNo));
+      if (d == null) return it;
+      return {
+        ...it,
+        delayMinutes: d,
+        statusLabel: d > 0 ? `誤點 ${d} 分` : "準點",
+      };
+    });
+    return {
+      ok: true,
+      cached: true,
+      source: delayByNo.size ? "github-cache+live-delay" : "github-cache",
+      stationId: sid,
+      date: full.date,
+      count: items.length,
+      items,
+      trains: items,
+      updatedAt: new Date().toISOString(),
+      note: "當日剩餘班表一次回傳；誤點來自即時看板",
+    };
+  }
+
+  // 無日快取時退回即時看板（可能只有少數班）
   let res = await tdxGet(`/StationLiveBoard/Station/${encodeURIComponent(sid)}`, "$format=JSON&$top=50");
   if (!res.ok && res.reason !== "tdx-rate-limit") {
     res = await tdxGet(
@@ -251,65 +275,28 @@ async function stationLiveBoard({ stationId } = {}) {
       `$format=JSON&$top=300&$filter=StationID eq '${sid.replace(/'/g, "")}'`
     );
   }
-
-  if (res.ok) {
-    const raw = res.data;
-    const list = Array.isArray(raw)
-      ? raw
-      : raw.StationLiveBoards || raw.StationLiveBoard || raw.TrainLiveBoards || [];
-    let items = enrichItemsWithBundleTimes(sid, list.map(mapLiveBoard));
-    // 若即時列沒時刻但有日快取，改回傳日快取（帶時間）並附上誤點對照
-    const hasTime = items.some((x) => x.departureTime);
-    if (!hasTime && bundledFirst && bundledFirst.count) {
-      const delayByNo = new Map(items.map((x) => [String(x.trainNo), x.delayMinutes]));
-      const merged = bundledFirst.items.map((it) => {
-        const d = delayByNo.get(String(it.trainNo));
-        if (d == null) return it;
-        return {
-          ...it,
-          delayMinutes: d,
-          statusLabel: d > 0 ? `誤點 ${d} 分` : it.statusLabel || "準點",
-        };
-      });
-      return {
-        ok: true,
-        cached: true,
-        source: "github-cache+live-delay",
-        stationId: sid,
-        count: merged.length,
-        items: merged,
-        trains: merged,
-        updatedAt: new Date().toISOString(),
-        note: "時刻來自當日班表，誤點狀態來自即時看板",
-      };
-    }
-    items.sort((a, b) => {
-      const ta = a.departureTime || a.arrivalTime || a.scheduledTime || "";
-      const tb = b.departureTime || b.arrivalTime || b.scheduledTime || "";
-      return String(ta).localeCompare(String(tb));
-    });
-    if (items.length) {
-      const payload = { count: items.length, items, updatedAt: new Date().toISOString() };
-      writeCache(cacheKey, payload);
-      try {
-        tdxShared.writeCache("tra", cacheKey, payload);
-      } catch (_) {}
-      return { ok: true, cached: false, stationId: sid, ...payload };
-    }
-  }
-
-  if (bundledFirst && bundledFirst.count) return bundledFirst;
-
   if (!res.ok) return res;
+  const raw = res.data;
+  const list = Array.isArray(raw)
+    ? raw
+    : raw.StationLiveBoards || raw.StationLiveBoard || raw.TrainLiveBoards || [];
+  const items = list.map(mapLiveBoard).sort((a, b) => {
+    const ta = a.departureTime || "";
+    const tb = b.departureTime || "";
+    return String(ta).localeCompare(String(tb));
+  });
   return {
     ok: true,
+    cached: false,
     stationId: sid,
-    count: 0,
-    items: [],
+    count: items.length,
+    items,
+    trains: items,
     updatedAt: new Date().toISOString(),
-    note: "目前沒有接下來的班次",
+    note: items.length ? "僅即時看板（日快取未含此站）" : "目前沒有接下來的班次",
   };
 }
+
 async function trainLiveBoard({ trainNo } = {}) {
   const cacheKey = `train-${trainNo || "all"}`;
   const cached = readCache(cacheKey, CACHE_TTL_LIVE_MS);
