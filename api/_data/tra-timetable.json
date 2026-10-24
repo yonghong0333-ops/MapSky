@@ -1,6 +1,59 @@
 {
-  "updatedAt": null,
-  "date": null,
-  "source": "empty-seed",
-  "stations": {}
+  "updatedAt": "2026-10-24T08:46:17.694Z",
+  "date": "2026-10-24",
+  "source": "github-actions",
+  "stations": {
+    "1000": {
+      "count": 0,
+      "trains": []
+    },
+    "1080": {
+      "count": 0,
+      "trains": []
+    },
+    "1100": {
+      "count": 0,
+      "trains": []
+    },
+    "3300": {
+      "count": 0,
+      "trains": []
+    },
+    "3340": {
+      "count": 0,
+      "trains": []
+    },
+    "3360": {
+      "count": 0,
+      "trains": []
+    },
+    "4080": {
+      "count": 0,
+      "trains": []
+    },
+    "4110": {
+      "count": 0,
+      "trains": []
+    },
+    "4220": {
+      "count": 0,
+      "trains": []
+    },
+    "4270": {
+      "count": 0,
+      "trains": []
+    },
+    "4272": {
+      "count": 0,
+      "trains": []
+    },
+    "4340": {
+      "count": 0,
+      "trains": []
+    },
+    "4400": {
+      "count": 0,
+      "trains": []
+    }
+  }
 }
