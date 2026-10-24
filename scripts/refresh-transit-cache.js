@@ -1,6 +1,6 @@
 /**
- * GitHub Actions：一次刷新高鐵／捷運／台鐵「當日」時刻表快取
- * 只抓台北時區今天的日期；隔天再跑會換成新日期。
+ * GitHub Actions：高鐵／捷運／台鐵當日時刻表
+ * 台鐵改為 DailyTrainTimetable/Today 再依站篩選（與高鐵相同）
  * env: TDX_CLIENT_ID, TDX_CLIENT_SECRET
  */
 const fs = require("fs");
@@ -196,45 +196,121 @@ async function refreshKrtc(token, date) {
 
 async function refreshTra(token, date) {
   const base = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA";
-  // 當日站表重點站（含新烏日 3340）
   const ids = ["1000","1080","1100","3300","3340","3360","4220","4270","4272","4340","4400","4110","4080"];
+  const idSet = new Set(ids);
   const stations = {};
+  for (const sid of ids) stations[sid] = { count: 0, trains: [] };
+
+  let todayRows = [];
+  try {
+    const data = await tdxGet(token, base, "/DailyTrainTimetable/Today?$top=3000");
+    if (Array.isArray(data)) todayRows = data;
+    else if (data && Array.isArray(data.TrainTimetables)) todayRows = data.TrainTimetables;
+    else if (data && Array.isArray(data.StationTimetables)) todayRows = data.StationTimetables;
+    else if (data && Array.isArray(data.DailyTrainTimetables)) todayRows = data.DailyTrainTimetables;
+    console.log("TRA Today rows", todayRows.length);
+  } catch (e) {
+    console.warn("TRA Today", e.message);
+  }
+
+  for (const row of todayRows) {
+    const info = row.DailyTrainInfo || row.TrainInfo || {};
+    const stops = row.StopTimes || row.StopTime || [];
+    if (!Array.isArray(stops) || !stops.length) continue;
+    for (const stop of stops) {
+      const sid = String(stop.StationID || stop.StationId || "");
+      if (!idSet.has(sid)) continue;
+      const dep = stop.DepartureTime || stop.ArrivalTime || null;
+      if (!dep) continue;
+      stations[sid].trains.push({
+        trainNo: info.TrainNo || row.TrainNo || null,
+        trainType: zhName(info.TrainTypeName) || info.TrainType || null,
+        direction: info.Direction != null ? Number(info.Direction) : null,
+        departureTime: dep,
+        destinationName: zhName(info.EndingStationName) || zhName(row.EndingStationName),
+        startingStationName: zhName(info.StartingStationName),
+      });
+    }
+  }
+
   for (const sid of ids) {
-    let trains = [];
+    if (stations[sid].trains.length) continue;
     try {
-      await sleep(350);
-      let data;
-      try {
-        data = await tdxGet(token, base, `/DailyTrainTimetable/Station/${sid}/${date}?$top=500`);
-      } catch (_) {
-        data = await tdxGet(token, base, `/DailyTimetable/Station/${sid}/${date}?$top=500`);
-      }
+      await sleep(400);
+      const data = await tdxGet(token, base, `/GeneralStationTimetable/Station/${sid}?$top=500`);
       const list = Array.isArray(data)
         ? data
-        : data.TrainTimetables || data.StationTimetables || data.DailyTrainTimetables || [];
+        : data.StationTimetables || data.GeneralStationTimetables || data.TrainTimetables || [];
       for (const row of list) {
-        const info = row.DailyTrainInfo || row.TrainInfo || {};
-        const stops = row.StopTimes || row.StopTime || [];
-        let dep = row.DepartureTime || row.ArriveTime || null;
-        let dest = zhName(info.EndingStationName) || zhName(row.EndingStationName);
-        if (Array.isArray(stops) && stops.length) {
-          const stop = stops.find((x) => String(x.StationID) === String(sid)) || stops[0];
-          dep = stop.DepartureTime || stop.ArrivalTime || dep;
+        const tables = row.Timetables || row.StationTimetables || null;
+        if (Array.isArray(tables)) {
+          for (const t of tables) {
+            stations[sid].trains.push({
+              trainNo: t.TrainNo || row.TrainNo || null,
+              trainType: zhName(t.TrainTypeName) || t.TrainType || null,
+              direction: t.Direction != null ? Number(t.Direction) : null,
+              departureTime: t.DepartureTime || t.ArrivalTime || null,
+              destinationName: zhName(t.DestinationStationName) || zhName(t.EndingStationName),
+              startingStationName: null,
+            });
+          }
+        } else {
+          stations[sid].trains.push({
+            trainNo: row.TrainNo || null,
+            trainType: zhName(row.TrainTypeName) || row.TrainType || null,
+            direction: row.Direction != null ? Number(row.Direction) : null,
+            departureTime: row.DepartureTime || row.ArrivalTime || null,
+            destinationName: zhName(row.DestinationStationName) || zhName(row.EndingStationName),
+            startingStationName: null,
+          });
         }
-        trains.push({
+      }
+      console.log("TRA GeneralStation", sid, stations[sid].trains.length);
+    } catch (e) {
+      console.warn("TRA General", sid, e.message);
+    }
+  }
+
+  const odPairs = [
+    ["3340", "3300"], ["3340", "3360"], ["3300", "3340"],
+    ["4340", "4400"], ["4400", "4340"], ["4340", "4220"],
+    ["1000", "1080"], ["4220", "4400"],
+  ];
+  for (const [origin, dest] of odPairs) {
+    if (!idSet.has(origin)) continue;
+    if (stations[origin].trains.length > 5) continue;
+    try {
+      await sleep(400);
+      const data = await tdxGet(
+        token,
+        base,
+        `/DailyTrainTimetable/OD/${origin}/to/${dest}/${date}?$top=300`
+      );
+      const list = Array.isArray(data) ? data : data.TrainTimetables || [];
+      for (const row of list) {
+        const info = row.DailyTrainInfo || {};
+        const stops = row.StopTimes || [];
+        const originStop = stops.find((x) => String(x.StationID) === origin) || stops[0];
+        const dep = originStop && (originStop.DepartureTime || originStop.ArrivalTime);
+        if (!dep) continue;
+        stations[origin].trains.push({
           trainNo: info.TrainNo || row.TrainNo || null,
-          trainType: zhName(info.TrainTypeName) || info.TrainType || null,
+          trainType: zhName(info.TrainTypeName) || null,
           direction: info.Direction != null ? Number(info.Direction) : null,
           departureTime: dep,
-          destinationName: dest,
+          destinationName: zhName(info.EndingStationName),
           startingStationName: zhName(info.StartingStationName),
         });
       }
+      console.log("TRA OD", origin, "->", dest, stations[origin].trains.length);
     } catch (e) {
-      console.warn("TRA", sid, e.message);
+      console.warn("TRA OD", origin, dest, e.message);
     }
+  }
+
+  for (const sid of ids) {
     const seen = new Set();
-    trains = trains
+    stations[sid].trains = stations[sid].trains
       .filter((t) => {
         const k = `${t.trainNo}|${t.departureTime}`;
         if (!t.departureTime || seen.has(k)) return false;
@@ -242,9 +318,10 @@ async function refreshTra(token, date) {
         return true;
       })
       .sort((a, b) => String(a.departureTime).localeCompare(String(b.departureTime)));
-    stations[sid] = { count: trains.length, trains };
-    console.log("TRA", sid, trains.length);
+    stations[sid].count = stations[sid].trains.length;
+    console.log("TRA", sid, stations[sid].count);
   }
+
   writeJson("api/_data/tra-timetable.json", {
     updatedAt: new Date().toISOString(),
     date,
