@@ -101,87 +101,106 @@ function extractRows(data) {
 async function refreshThsr(token, date) {
   const base = "https://tdx.transportdata.tw/api/basic/v2/Rail/THSR";
   const must = ["0990","1000","1010","1020","1030","1040","1050","1060","1070","1080","1090","1100"];
-  // 南段站 Today 的 StopTimes 常被截掉，且與 KRTC/TRA 搶額度會 429 → 先單獨拉南三段
-  const priority = ["1080", "1090", "1100"];
   const stations = {};
 
-  async function fillStation(sid) {
-    for (let attempt = 0; attempt < 4; attempt++) {
-      try {
-        await sleep(1500 + attempt * 1500);
-        const data = await tdxGet(token, base, `/DailyTimetable/Station/${sid}/${date}?$top=500`);
-        const rows = extractRows(data);
-        for (const row of rows) {
-          const info = row.DailyTrainInfo || {};
-          if (row.DepartureTime || row.ArrivalTime) {
-            pushTrain(stations, sid, {
-              trainNo: row.TrainNo || info.TrainNo || null,
-              direction: row.Direction != null ? Number(row.Direction) : info.Direction != null ? Number(info.Direction) : null,
-              departureTime: row.DepartureTime || row.ArrivalTime || null,
-              arrivalTime: row.ArrivalTime || null,
-              endingStationName: zhName(row.EndingStationName) || zhName(info.EndingStationName),
-              startingStationName: zhName(row.StartingStationName) || zhName(info.StartingStationName),
-            });
-            continue;
-          }
-          const stops = row.StopTimes || [];
-          const stop = stops.find((x) => String(x.StationID || x.StationId || "") === String(sid));
-          if (!stop) continue;
-          pushTrain(stations, sid, {
-            trainNo: info.TrainNo || row.TrainNo || null,
-            direction: info.Direction != null ? Number(info.Direction) : null,
-            departureTime: stop.DepartureTime || stop.ArrivalTime || null,
-            arrivalTime: stop.ArrivalTime || null,
-            endingStationName: zhName(info.EndingStationName),
-            startingStationName: zhName(info.StartingStationName),
-          });
-        }
-        const n = stations[sid] ? stations[sid].trains.length : 0;
-        console.log("THSR station", sid, "rows", rows.length, "trains", n, "attempt", attempt + 1);
-        if (n > 0 || rows.length === 0) return n;
-      } catch (e) {
-        console.warn("THSR station", sid, "attempt", attempt + 1, e.message);
-        if (e.status === 429) await sleep(5000 * (attempt + 1));
-      }
-    }
-    if (!stations[sid]) stations[sid] = { count: 0, trains: [] };
-    return stations[sid].trains.length;
-  }
-
-  // 1) 優先南三段
-  for (const sid of priority) {
-    await fillStation(sid);
-  }
-
-  // 2) Today 彙總（北中段）
-  try {
-    const data = await tdxGet(token, base, "/DailyTimetable/Today?$top=3000");
-    const todayRows = extractRows(data);
-    console.log("THSR Today rows", todayRows.length);
-    for (const row of todayRows) {
+  function ingestRows(rows) {
+    for (const row of rows) {
       const info = row.DailyTrainInfo || {};
       const stops = row.StopTimes || [];
+      if ((row.DepartureTime || row.ArrivalTime) && (row.StationID || row.stationId)) {
+        const sid = String(row.StationID || row.stationId);
+        pushTrain(stations, sid, {
+          trainNo: row.TrainNo || info.TrainNo || null,
+          direction: row.Direction != null ? Number(row.Direction) : info.Direction != null ? Number(info.Direction) : null,
+          departureTime: row.DepartureTime || row.ArrivalTime || null,
+          arrivalTime: row.ArrivalTime || null,
+          endingStationName: zhName(row.EndingStationName) || zhName(info.EndingStationName),
+          startingStationName: zhName(row.StartingStationName) || zhName(info.StartingStationName),
+        });
+      }
       for (const stop of stops) {
         const sid = String(stop.StationID || stop.StationId || "");
         pushTrain(stations, sid, {
           trainNo: info.TrainNo || row.TrainNo || null,
-          direction: info.Direction != null ? Number(info.Direction) : null,
+          direction: info.Direction != null ? Number(info.Direction) : row.Direction != null ? Number(row.Direction) : null,
           departureTime: stop.DepartureTime || stop.ArrivalTime || null,
           arrivalTime: stop.ArrivalTime || null,
-          endingStationName: zhName(info.EndingStationName),
-          startingStationName: zhName(info.StartingStationName),
+          endingStationName: zhName(info.EndingStationName) || zhName(row.EndingStationName),
+          startingStationName: zhName(info.StartingStationName) || zhName(row.StartingStationName),
         });
       }
     }
+  }
+
+  // 1) OD 全線對開：StopTimes 通常完整（含嘉義／台南／左營）
+  const odPairs = [
+    ["1000", "1100"],
+    ["1100", "1000"],
+    ["0990", "1100"],
+    ["1100", "0990"],
+    ["1050", "1100"],
+    ["1100", "1050"],
+    ["1080", "1000"],
+    ["1000", "1080"],
+  ];
+  for (const [o, d] of odPairs) {
+    try {
+      await sleep(800);
+      const data = await tdxGet(
+        token,
+        base,
+        `/DailyTimetable/OD/${o}/to/${d}/${date}?$top=500`
+      );
+      const rows = extractRows(data);
+      ingestRows(rows);
+      console.log("THSR OD", o, "->", d, "rows", rows.length, "stations", Object.keys(stations).length);
+    } catch (e) {
+      console.warn("THSR OD", o, d, e.message);
+      if (e.status === 429) await sleep(8000);
+    }
+  }
+
+  // 2) Today 再補北中段
+  try {
+    await sleep(600);
+    const data = await tdxGet(token, base, "/DailyTimetable/Today?$top=3000");
+    const todayRows = extractRows(data);
+    console.log("THSR Today rows", todayRows.length);
+    ingestRows(todayRows);
   } catch (e) {
     console.warn("THSR Today", e.message);
   }
 
-  // 3) 其餘官方站不足再補
+  // 3) 仍缺的站用 Station 端點
   for (const sid of must) {
     const have = stations[sid] && stations[sid].trains ? stations[sid].trains.length : 0;
-    if (have > 20) continue;
-    await fillStation(sid);
+    if (have > 15) continue;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await sleep(1200 + attempt * 2000);
+        const data = await tdxGet(token, base, `/DailyTimetable/Station/${sid}/${date}?$top=500`);
+        const rows = extractRows(data);
+        ingestRows(rows);
+        for (const row of rows) {
+          if (row.DepartureTime || row.ArrivalTime) {
+            pushTrain(stations, sid, {
+              trainNo: row.TrainNo || (row.DailyTrainInfo && row.DailyTrainInfo.TrainNo) || null,
+              direction: row.Direction != null ? Number(row.Direction) : null,
+              departureTime: row.DepartureTime || row.ArrivalTime || null,
+              arrivalTime: row.ArrivalTime || null,
+              endingStationName: zhName(row.EndingStationName),
+              startingStationName: zhName(row.StartingStationName),
+            });
+          }
+        }
+        const n = stations[sid] ? stations[sid].trains.length : 0;
+        console.log("THSR Station", sid, "rows", rows.length, "trains", n, "attempt", attempt + 1);
+        if (n > 0 || rows.length === 0) break;
+      } catch (e) {
+        console.warn("THSR Station", sid, e.message);
+        if (e.status === 429) await sleep(6000 * (attempt + 1));
+      }
+    }
   }
 
   for (const sid of must) {
