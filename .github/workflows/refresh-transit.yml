@@ -3,37 +3,33 @@ name: refresh-transit
 on:
   workflow_dispatch:
   schedule:
-    # 台北時間約 05:10、11:10、17:10（UTC 21:10 / 03:10 / 09:10）
     - cron: "10 21 * * *"
     - cron: "10 3 * * *"
     - cron: "10 9 * * *"
 
 jobs:
-  refresh-thsr:
+  refresh:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-
-      - name: Fetch THSR timetable from TDX
+      - name: Refresh THSR + KRTC + TRA daily timetables
         env:
           TDX_CLIENT_ID: ${{ secrets.TDX_CLIENT_ID }}
           TDX_CLIENT_SECRET: ${{ secrets.TDX_CLIENT_SECRET }}
-        run: node scripts/refresh-thsr-cache.js
-
-      - name: Commit cache if changed
+        run: node scripts/refresh-transit-cache.js
+      - name: Commit caches
         run: |
           git config user.name "mapsky-bot"
           git config user.email "mapsky-bot@users.noreply.github.com"
-          git add api/_data/thsr-timetable.json
+          git add api/_data/thsr-timetable.json api/_data/krtc-timetable.json api/_data/tra-timetable.json
           if git diff --staged --quiet; then
             echo "no changes"
           else
-            git commit -m "chore(transit): refresh THSR timetable cache $(date -u +%Y-%m-%dT%H:%MZ)"
+            git commit -m "chore(transit): refresh daily timetable cache $(date -u +%Y-%m-%dT%H:%MZ)"
             git push
           fi
