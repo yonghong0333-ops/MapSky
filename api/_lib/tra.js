@@ -1,6 +1,6 @@
 /**
  * 臺鐵（TRA）— 與高鐵相同：一次回傳當日剩餘完整班表
- * 日快取為主；LiveBoard 只補誤點狀態
+ * 日快取為主；LiveBoard 只補誤點（失敗不影響班表）
  */
 const fs = require("fs");
 const os = require("os");
@@ -10,7 +10,7 @@ const tdxShared = require("./tdx-shared");
 const API_BASE = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA";
 const CACHE_TTL_STATIC_MS = 6 * 60 * 60 * 1000;
 const CACHE_TTL_LIVE_MS = 45 * 1000;
-const FULL_LIMIT = 80;
+const FULL_LIMIT = 120;
 
 function loadBundledTraCache() {
   try {
@@ -213,7 +213,7 @@ async function listLines() {
   return { ok: true, cached: false, lines };
 }
 
-/** 以完整日班表為主，即時看板只補誤點 */
+/** 以完整日班表為主；即時看板只補誤點，失敗不回 429 */
 async function stationLiveBoard({ stationId } = {}) {
   if (!stationId) {
     return { ok: false, reason: "missing-stationId", hint: "請帶 stationId，例如 4400（高雄）" };
@@ -222,28 +222,22 @@ async function stationLiveBoard({ stationId } = {}) {
 
   const full = upcomingFromBundle(sid, FULL_LIMIT);
 
-  // 非阻塞：抓即時誤點對照表
+  // 非阻塞：抓即時誤點（失敗忽略）
   let delayByNo = new Map();
-  try {
-    let res = await tdxGet(`/StationLiveBoard/Station/${encodeURIComponent(sid)}`, "$format=JSON&$top=50");
-    if (!res.ok && res.reason !== "tdx-rate-limit") {
-      res = await tdxGet(
-        "/StationLiveBoard",
-        `$format=JSON&$top=300&$filter=StationID eq '${sid.replace(/'/g, "")}'`
-      );
-    }
-    if (res.ok) {
-      const raw = res.data;
-      const list = Array.isArray(raw)
-        ? raw
-        : raw.StationLiveBoards || raw.StationLiveBoard || raw.TrainLiveBoards || [];
-      for (const row of list.map(mapLiveBoard)) {
-        if (row.trainNo != null) delayByNo.set(String(row.trainNo), row.delayMinutes || 0);
-      }
-    }
-  } catch (_) {}
-
   if (full && full.count) {
+    try {
+      let res = await tdxGet(`/StationLiveBoard/Station/${encodeURIComponent(sid)}`, "$format=JSON&$top=50");
+      if (res.ok) {
+        const raw = res.data;
+        const list = Array.isArray(raw)
+          ? raw
+          : raw.StationLiveBoards || raw.StationLiveBoard || raw.TrainLiveBoards || [];
+        for (const row of list.map(mapLiveBoard)) {
+          if (row.trainNo != null) delayByNo.set(String(row.trainNo), row.delayMinutes || 0);
+        }
+      }
+    } catch (_) {}
+
     const items = full.items.map((it) => {
       const d = delayByNo.get(String(it.trainNo));
       if (d == null) return it;
@@ -267,33 +261,17 @@ async function stationLiveBoard({ stationId } = {}) {
     };
   }
 
-  // 無日快取時退回即時看板（可能只有少數班）
-  let res = await tdxGet(`/StationLiveBoard/Station/${encodeURIComponent(sid)}`, "$format=JSON&$top=50");
-  if (!res.ok && res.reason !== "tdx-rate-limit") {
-    res = await tdxGet(
-      "/StationLiveBoard",
-      `$format=JSON&$top=300&$filter=StationID eq '${sid.replace(/'/g, "")}'`
-    );
-  }
-  if (!res.ok) return res;
-  const raw = res.data;
-  const list = Array.isArray(raw)
-    ? raw
-    : raw.StationLiveBoards || raw.StationLiveBoard || raw.TrainLiveBoards || [];
-  const items = list.map(mapLiveBoard).sort((a, b) => {
-    const ta = a.departureTime || "";
-    const tb = b.departureTime || "";
-    return String(ta).localeCompare(String(tb));
-  });
+  // 無日快取：不再打 TDX，避免 429 與只顯示 1–2 班
   return {
     ok: true,
-    cached: false,
+    cached: true,
+    source: "github-cache-miss",
     stationId: sid,
-    count: items.length,
-    items,
-    trains: items,
+    count: 0,
+    items: [],
+    trains: [],
     updatedAt: new Date().toISOString(),
-    note: items.length ? "僅即時看板（日快取未含此站）" : "目前沒有接下來的班次",
+    note: "台鐵日班表快取尚未就緒，請稍後再試（系統每日自動更新）",
   };
 }
 
