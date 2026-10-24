@@ -1,6 +1,6 @@
 /**
  * GitHub Actions：高鐵／捷運／台鐵當日時刻表
- * 台鐵不再限白名單，當日班表停靠站全部入快取
+ * 高鐵優先 DailyTimetable/TrainDate（全班次完整 StopTimes）
  * env: TDX_CLIENT_ID, TDX_CLIENT_SECRET
  */
 const fs = require("fs");
@@ -57,7 +57,10 @@ async function tdxGet(token, base, apiPath) {
     e.status = 429;
     throw e;
   }
-  if (!resp.ok) throw new Error(`${apiPath} HTTP ${resp.status}`);
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`${apiPath} HTTP ${resp.status} ${text.slice(0, 120)}`);
+  }
   return resp.json();
 }
 
@@ -69,6 +72,7 @@ function writeJson(rel, obj) {
 }
 
 function pushTrain(stations, sid, train) {
+  sid = sid == null ? "" : String(sid).trim();
   if (!sid || !train.departureTime) return;
   if (!stations[sid]) stations[sid] = { count: 0, trains: [] };
   stations[sid].trains.push(train);
@@ -92,23 +96,19 @@ function finalize(stations) {
 function extractRows(data) {
   if (Array.isArray(data)) return data;
   if (!data || typeof data !== "object") return [];
-  for (const k of ["TrainTimetables", "DailyTrainTimetables", "StationTimetables", "Timetables"]) {
+  for (const k of ["TrainTimetables", "DailyTrainTimetables", "StationTimetables", "Timetables", "TrainDateTimetables"]) {
     if (Array.isArray(data[k])) return data[k];
   }
   return [];
 }
 
-async function refreshThsr(token, date) {
-  const base = "https://tdx.transportdata.tw/api/basic/v2/Rail/THSR";
-  const must = ["0990","1000","1010","1020","1030","1040","1050","1060","1070","1080","1090","1100"];
-  const stations = {};
-
-  function ingestRows(rows) {
-    for (const row of rows) {
-      const info = row.DailyTrainInfo || {};
-      const stops = row.StopTimes || [];
-      if ((row.DepartureTime || row.ArrivalTime) && (row.StationID || row.stationId)) {
-        const sid = String(row.StationID || row.stationId);
+function ingestRows(stations, rows) {
+  for (const row of rows) {
+    const info = row.DailyTrainInfo || row.TrainInfo || {};
+    const stops = row.StopTimes || row.StopTime || [];
+    if (!Array.isArray(stops) || !stops.length) {
+      if (row.DepartureTime || row.ArrivalTime) {
+        const sid = String(row.StationID || row.StationId || "");
         pushTrain(stations, sid, {
           trainNo: row.TrainNo || info.TrainNo || null,
           direction: row.Direction != null ? Number(row.Direction) : info.Direction != null ? Number(info.Direction) : null,
@@ -118,87 +118,69 @@ async function refreshThsr(token, date) {
           startingStationName: zhName(row.StartingStationName) || zhName(info.StartingStationName),
         });
       }
-      for (const stop of stops) {
-        const sid = String(stop.StationID || stop.StationId || "");
-        pushTrain(stations, sid, {
-          trainNo: info.TrainNo || row.TrainNo || null,
-          direction: info.Direction != null ? Number(info.Direction) : row.Direction != null ? Number(row.Direction) : null,
-          departureTime: stop.DepartureTime || stop.ArrivalTime || null,
-          arrivalTime: stop.ArrivalTime || null,
-          endingStationName: zhName(info.EndingStationName) || zhName(row.EndingStationName),
-          startingStationName: zhName(info.StartingStationName) || zhName(row.StartingStationName),
-        });
-      }
+      continue;
+    }
+    for (const stop of stops) {
+      const sid = String(stop.StationID || stop.StationId || "");
+      pushTrain(stations, sid, {
+        trainNo: info.TrainNo || row.TrainNo || null,
+        direction: info.Direction != null ? Number(info.Direction) : row.Direction != null ? Number(row.Direction) : null,
+        departureTime: stop.DepartureTime || stop.ArrivalTime || null,
+        arrivalTime: stop.ArrivalTime || null,
+        endingStationName: zhName(info.EndingStationName) || zhName(row.EndingStationName),
+        startingStationName: zhName(info.StartingStationName) || zhName(row.StartingStationName),
+      });
     }
   }
+}
 
-  // 1) OD 全線對開：StopTimes 通常完整（含嘉義／台南／左營）
-  const odPairs = [
-    ["1000", "1100"],
-    ["1100", "1000"],
-    ["0990", "1100"],
-    ["1100", "0990"],
-    ["1050", "1100"],
-    ["1100", "1050"],
-    ["1080", "1000"],
-    ["1000", "1080"],
-  ];
-  for (const [o, d] of odPairs) {
-    try {
-      await sleep(800);
-      const data = await tdxGet(
-        token,
-        base,
-        `/DailyTimetable/OD/${o}/to/${d}/${date}?$top=500`
-      );
-      const rows = extractRows(data);
-      ingestRows(rows);
-      console.log("THSR OD", o, "->", d, "rows", rows.length, "stations", Object.keys(stations).length);
-    } catch (e) {
-      console.warn("THSR OD", o, d, e.message);
-      if (e.status === 429) await sleep(8000);
-    }
-  }
+async function refreshThsr(token, date) {
+  const base = "https://tdx.transportdata.tw/api/basic/v2/Rail/THSR";
+  const must = ["0990","1000","1010","1020","1030","1040","1050","1060","1070","1080","1090","1100"];
+  const stations = {};
 
-  // 2) Today 再補北中段
   try {
-    await sleep(600);
-    const data = await tdxGet(token, base, "/DailyTimetable/Today?$top=3000");
-    const todayRows = extractRows(data);
-    console.log("THSR Today rows", todayRows.length);
-    ingestRows(todayRows);
+    const data = await tdxGet(token, base, `/DailyTimetable/TrainDate/${date}?$top=3000`);
+    const rows = extractRows(data);
+    console.log("THSR TrainDate rows", rows.length, rows[0] ? Object.keys(rows[0]).slice(0, 8).join(",") : "");
+    if (rows[0] && rows[0].StopTimes && rows[0].StopTimes[0]) {
+      console.log("THSR sample stop stations", rows[0].StopTimes.map((s) => s.StationID).join(","));
+    }
+    ingestRows(stations, rows);
   } catch (e) {
-    console.warn("THSR Today", e.message);
+    console.warn("THSR TrainDate", e.message);
   }
 
-  // 3) 仍缺的站用 Station 端點
-  for (const sid of must) {
-    const have = stations[sid] && stations[sid].trains ? stations[sid].trains.length : 0;
-    if (have > 15) continue;
-    for (let attempt = 0; attempt < 3; attempt++) {
+  if (Object.keys(stations).length < 8) {
+    try {
+      await sleep(1000);
+      const data = await tdxGet(token, base, "/DailyTimetable/Today?$top=3000");
+      const rows = extractRows(data);
+      console.log("THSR Today rows", rows.length);
+      ingestRows(stations, rows);
+    } catch (e) {
+      console.warn("THSR Today", e.message);
+    }
+  }
+
+  const needSouth = ["1080", "1090", "1100"].some((s) => !(stations[s] && stations[s].trains && stations[s].trains.length > 10));
+  if (needSouth) {
+    const odPairs = [
+      ["1000", "1100"],
+      ["1100", "1000"],
+      ["0990", "1100"],
+      ["1100", "0990"],
+    ];
+    for (const [o, d] of odPairs) {
       try {
-        await sleep(1200 + attempt * 2000);
-        const data = await tdxGet(token, base, `/DailyTimetable/Station/${sid}/${date}?$top=500`);
+        await sleep(1000);
+        const data = await tdxGet(token, base, `/DailyTimetable/OD/${o}/to/${d}/${date}?$top=500`);
         const rows = extractRows(data);
-        ingestRows(rows);
-        for (const row of rows) {
-          if (row.DepartureTime || row.ArrivalTime) {
-            pushTrain(stations, sid, {
-              trainNo: row.TrainNo || (row.DailyTrainInfo && row.DailyTrainInfo.TrainNo) || null,
-              direction: row.Direction != null ? Number(row.Direction) : null,
-              departureTime: row.DepartureTime || row.ArrivalTime || null,
-              arrivalTime: row.ArrivalTime || null,
-              endingStationName: zhName(row.EndingStationName),
-              startingStationName: zhName(row.StartingStationName),
-            });
-          }
-        }
-        const n = stations[sid] ? stations[sid].trains.length : 0;
-        console.log("THSR Station", sid, "rows", rows.length, "trains", n, "attempt", attempt + 1);
-        if (n > 0 || rows.length === 0) break;
+        console.log("THSR OD", o, "->", d, "rows", rows.length);
+        ingestRows(stations, rows);
       } catch (e) {
-        console.warn("THSR Station", sid, e.message);
-        if (e.status === 429) await sleep(6000 * (attempt + 1));
+        console.warn("THSR OD", o, d, e.message);
+        if (e.status === 429) await sleep(10000);
       }
     }
   }
@@ -207,7 +189,6 @@ async function refreshThsr(token, date) {
     if (!stations[sid]) stations[sid] = { count: 0, trains: [] };
   }
   finalize(stations);
-  console.log("THSR stations", Object.keys(stations).length, Object.keys(stations).sort().join(","));
   for (const sid of must) console.log("THSR", sid, stations[sid].count);
   const missing = must.filter((s) => !stations[s] || stations[s].count === 0);
   if (missing.length) console.warn("THSR still empty:", missing.join(","));
