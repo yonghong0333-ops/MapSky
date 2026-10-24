@@ -1,6 +1,7 @@
 /**
  * 臺灣高鐵（THSR）— TDX v2
  * 優先讀 api/_data/thsr-timetable.json（GitHub Actions 統一刷新）
+ * 已過發車時刻的班次不會回傳
  */
 const fs = require("fs");
 const os = require("os");
@@ -393,11 +394,15 @@ async function upcomingFromStation({ stationId, date, limit } = {}) {
         departureTime: dep,
         destinationName: t.endingStationName || null,
         direction: t.direction,
-        estimateMinutes: mins != null ? Math.max(0, mins - nowMin) : null,
+        _delta: mins != null ? mins - nowMin : null,
         headsign: t.endingStationName ? "往" + t.endingStationName : null,
       };
     })
-    .filter((t) => t.estimateMinutes == null || t.estimateMinutes >= 0)
+    .filter((t) => t._delta == null || t._delta >= 0)
+    .map((t) => {
+      const { _delta, ...rest } = t;
+      return { ...rest, estimateMinutes: _delta != null ? _delta : null };
+    })
     .sort((a, b) => String(a.departureTime || "").localeCompare(String(b.departureTime || "")))
     .slice(0, Math.min(40, Number(limit) || 12));
   const enriched = items.map((t) => {
