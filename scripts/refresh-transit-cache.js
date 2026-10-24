@@ -1,6 +1,6 @@
 /**
  * GitHub Actions：高鐵／捷運／台鐵當日時刻表
- * 高鐵：終點站只有 ArrivalTime 也要入快取；OD 要讀 OriginStopTime/DestinationStopTime
+ * 高鐵 OD 最先（避免台鐵报光後 429）
  * env: TDX_CLIENT_ID, TDX_CLIENT_SECRET
  */
 const fs = require("fs");
@@ -73,7 +73,6 @@ function writeJson(rel, obj) {
 
 function pushTrain(stations, sid, train) {
   sid = sid == null ? "" : String(sid).trim();
-  // 終點站常只有到站時間
   if (!train.departureTime && train.arrivalTime) train.departureTime = train.arrivalTime;
   if (!sid || !train.departureTime) return;
   if (!stations[sid]) stations[sid] = { count: 0, trains: [] };
@@ -119,7 +118,6 @@ function ingestRows(stations, rows) {
     const meta = trainMeta(row);
     const stops = row.StopTimes || row.StopTime || [];
 
-    // OD 常見：OriginStopTime / DestinationStopTime
     for (const key of ["OriginStopTime", "DestinationStopTime", "OriginStop", "DestinationStop"]) {
       const st = row[key];
       if (!st) continue;
@@ -159,19 +157,7 @@ async function refreshThsr(token, date) {
   const must = ["0990","1000","1010","1020","1030","1040","1050","1060","1070","1080","1090","1100"];
   const stations = {};
 
-  try {
-    const data = await tdxGet(token, base, `/DailyTimetable/TrainDate/${date}?$top=3000`);
-    const rows = extractRows(data);
-    console.log("THSR TrainDate rows", rows.length, rows[0] ? Object.keys(rows[0]).slice(0, 10).join(",") : "");
-    if (rows[0] && rows[0].StopTimes && rows[0].StopTimes[0]) {
-      console.log("THSR sample stops", rows[0].StopTimes.map((s) => `${s.StationID}:${s.DepartureTime || s.ArrivalTime}`).join(" "));
-    }
-    ingestRows(stations, rows);
-  } catch (e) {
-    console.warn("THSR TrainDate", e.message);
-  }
-
-  // 南段必拉 OD（包含終點只有到站時間的左營）
+  // 1) OD 最先：左營／台南／嘉義靠這段
   const odPairs = [
     ["1000", "1100"],
     ["1100", "1000"],
@@ -179,23 +165,42 @@ async function refreshThsr(token, date) {
     ["1100", "0990"],
     ["1050", "1100"],
     ["1100", "1050"],
-    ["1080", "1000"],
-    ["1000", "1080"],
-    ["1090", "1000"],
     ["1000", "1090"],
+    ["1090", "1000"],
+    ["1000", "1080"],
+    ["1080", "1000"],
   ];
   for (const [o, d] of odPairs) {
-    try {
-      await sleep(900);
-      const data = await tdxGet(token, base, `/DailyTimetable/OD/${o}/to/${d}/${date}?$top=500`);
-      const rows = extractRows(data);
-      console.log("THSR OD", o, "->", d, "rows", rows.length);
-      if (rows[0]) console.log("THSR OD keys", Object.keys(rows[0]).join(","));
-      ingestRows(stations, rows);
-    } catch (e) {
-      console.warn("THSR OD", o, d, e.message);
-      if (e.status === 429) await sleep(12000);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await sleep(1200 + attempt * 2000);
+        const data = await tdxGet(token, base, `/DailyTimetable/OD/${o}/to/${d}/${date}?$top=500`);
+        const rows = extractRows(data);
+        console.log("THSR OD", o, "->", d, "rows", rows.length, "attempt", attempt + 1);
+        if (rows[0]) {
+          console.log("THSR OD sample keys", Object.keys(rows[0]).join(","));
+          const ost = rows[0].OriginStopTime || rows[0].DestinationStopTime;
+          if (ost) console.log("THSR OD stop sample", JSON.stringify(ost).slice(0, 200));
+          if (rows[0].StopTimes) console.log("THSR OD stops", rows[0].StopTimes.map((s) => s.StationID).join(","));
+        }
+        ingestRows(stations, rows);
+        if (rows.length) break;
+      } catch (e) {
+        console.warn("THSR OD", o, d, e.message);
+        if (e.status === 429) await sleep(15000 * (attempt + 1));
+      }
     }
+  }
+
+  // 2) TrainDate 補北中段
+  try {
+    await sleep(1500);
+    const data = await tdxGet(token, base, `/DailyTimetable/TrainDate/${date}?$top=3000`);
+    const rows = extractRows(data);
+    console.log("THSR TrainDate rows", rows.length);
+    ingestRows(stations, rows);
+  } catch (e) {
+    console.warn("THSR TrainDate", e.message);
   }
 
   for (const sid of must) {
@@ -204,8 +209,9 @@ async function refreshThsr(token, date) {
   finalize(stations);
   for (const sid of must) console.log("THSR", sid, stations[sid].count);
   const good = must.filter((s) => stations[s] && stations[s].count > 0).length;
+  console.log("THSR stations with data", good);
   if (good < 3) {
-    console.warn("THSR skip write: too few stations with data", good);
+    console.warn("THSR skip write: too few");
     return;
   }
   writeJson("api/_data/thsr-timetable.json", {
@@ -354,9 +360,10 @@ async function main() {
   const date = todayYmd();
   const token = await getToken();
   console.log("refresh date (Taipei today only)", date);
-  await refreshTra(token, date);
-  await sleep(4000);
+  // 高鐵 OD 最先，再台鐵／捷運
   await refreshThsr(token, date);
+  await sleep(5000);
+  await refreshTra(token, date);
   await sleep(3000);
   await refreshKrtc(token, date);
   console.log("done");
