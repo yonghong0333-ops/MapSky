@@ -1,6 +1,6 @@
 /**
  * 臺灣高鐵（THSR）— TDX v2
- * type= stations | lines | timetable | station-timetable | upcoming | seats | fare
+ * type= stations | lines | live | upcoming | timetable | station-timetable | seats | fare
  */
 const fs = require("fs");
 const os = require("os");
@@ -10,6 +10,7 @@ const tdxShared = require("./tdx-shared");
 const API_BASE = "https://tdx.transportdata.tw/api/basic/v2/Rail/THSR";
 const CACHE_TTL_STATIC_MS = 12 * 60 * 60 * 1000;
 const CACHE_TTL_LIVE_MS = 5 * 60 * 1000;
+const CACHE_TTL_STATION_MS = 45 * 60 * 1000; // 當日站表變少，拉長快取減 TDX 429
 
 const STATIONS = [
   { stationId: "0990", nameZh: "南港", nameEn: "Nangang" },
@@ -220,8 +221,14 @@ async function stationTimetable({ stationId, date } = {}) {
   if (!sid) return { ok: false, reason: "missing-stationId", hint: "請帶 stationId（如 1100 左營）" };
   const trainDate = date || todayYmd();
   const cacheKey = `stt-${sid}-${trainDate}`;
-  const cached = readCache(cacheKey, CACHE_TTL_LIVE_MS);
+  const cached = readCache(cacheKey, CACHE_TTL_STATION_MS);
   if (cached && cached.trains && cached.trains.length) return { ok: true, cached: true, ...cached };
+  try {
+    const shared = tdxShared.readCache("thsr", cacheKey, 0, { allowStaleMs: 12 * 60 * 60 * 1000 });
+    if (shared && shared.data && shared.data.trains && shared.data.trains.length) {
+      return { ok: true, cached: true, stale: true, ...shared.data, note: "使用快取班表" };
+    }
+  } catch (_) {}
 
   let list = [];
   let source = "station";
@@ -340,15 +347,28 @@ async function upcomingFromStation({ stationId, date, limit } = {}) {
     .filter((t) => t.estimateMinutes == null || t.estimateMinutes >= 0)
     .sort((a, b) => String(a.departureTime || "").localeCompare(String(b.departureTime || "")))
     .slice(0, Math.min(40, Number(limit) || 12));
+  const enriched = items.map((t) => {
+    const em = t.estimateMinutes;
+    const label = em == null ? null : em <= 0 ? "即將發車" : `${em} 分鐘`;
+    return {
+      ...t,
+      statusLabel: label,
+      waitText: label,
+    };
+  });
   return {
     ok: true,
+    type: "live",
     stationId: st.stationId || stationId,
     stationName: st.stationName,
     date: st.date,
     now,
-    count: items.length,
-    items,
+    count: enriched.length,
+    items: enriched,
+    trains: enriched,
     source: st.source,
+    cached: st.cached || false,
+    note: st.note || (enriched.length ? null : "目前沒有接下來的班次（可能已收班或資料暫缺）"),
   };
 }
 
@@ -394,22 +414,37 @@ async function handleThsrQuery(query) {
   const type = String(q.type || q.action || "summary").toLowerCase();
   if (type === "stations" || type === "list") return listStationsLive();
   if (type === "lines" || type === "shape" || type === "sequence") return listShape();
-  if (type === "timetable" || type === "od" || type === "schedule") {
-    return odTimetable({
-      origin: q.origin || q.from || q.originStationId,
-      destination: q.destination || q.to || q.destinationStationId,
-      date: q.date || q.trainDate,
-    });
-  }
-  if (type === "station-timetable" || type === "station") {
-    return stationTimetable({ stationId: q.stationId || q.station, date: q.date || q.trainDate });
-  }
-  if (type === "upcoming" || type === "next" || type === "departures") {
+
+  if (
+    type === "live" ||
+    type === "liveboard" ||
+    type === "board" ||
+    type === "upcoming" ||
+    type === "next" ||
+    type === "departures"
+  ) {
     return upcomingFromStation({
       stationId: q.stationId || q.station || q.origin,
       date: q.date || q.trainDate,
       limit: q.limit,
     });
+  }
+
+  if (type === "timetable" || type === "od" || type === "schedule") {
+    const origin = q.origin || q.from || q.originStationId;
+    const destination = q.destination || q.to || q.destinationStationId;
+    const sid = q.stationId || q.station;
+    if ((!origin || !destination) && sid) {
+      return stationTimetable({ stationId: sid, date: q.date || q.trainDate });
+    }
+    return odTimetable({
+      origin,
+      destination,
+      date: q.date || q.trainDate,
+    });
+  }
+  if (type === "station-timetable" || type === "station") {
+    return stationTimetable({ stationId: q.stationId || q.station, date: q.date || q.trainDate });
   }
   if (type === "seats" || type === "available" || type === "available-seats") {
     return availableSeats({ origin: q.origin || q.from, destination: q.destination || q.to, date: q.date });
@@ -427,7 +462,9 @@ async function handleThsrQuery(query) {
     usage: {
       stations: "?type=stations",
       lines: "?type=lines",
+      live: "?type=live&stationId=1100",
       upcoming: "?type=upcoming&stationId=1100",
+      stationTimetable: "?type=timetable&stationId=1100",
       timetable: "?type=timetable&origin=1000&destination=1100",
     },
   };
