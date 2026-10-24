@@ -1,9 +1,7 @@
 /**
- * krtc loader
- * - live / timetable：優先 GitHub 當日站表快取 api/_data/krtc-timetable.json
- * - 再退回 TDX LiveBoard / StationTimeTable
+ * 高雄捷運／輕軌
+ * 線形由 App 本機繪製。這裡只讀 api/_data/krtc-timetable.json，不打 TDX。
  */
-const https = require("https");
 const fs = require("fs");
 const path = require("path");
 
@@ -31,8 +29,7 @@ function krtcUpcomingFromBundle(stationId, limit) {
     hour12: false,
   });
   const parts = Object.fromEntries(fmt.formatToParts(new Date()).map((p) => [p.type, p.value]));
-  const now = `${parts.hour}:${parts.minute}`;
-  const nm = now.match(/^(\d{1,2}):(\d{2})/);
+  const nm = `${parts.hour}:${parts.minute}`.match(/^(\d{1,2}):(\d{2})/);
   const nowMin = nm ? Number(nm[1]) * 60 + Number(nm[2]) : 0;
   const items = block.items
     .map((t) => {
@@ -40,15 +37,14 @@ function krtcUpcomingFromBundle(stationId, limit) {
       const mins = m ? Number(m[1]) * 60 + Number(m[2]) : null;
       const estimateMinutes = mins != null ? Math.max(0, mins - nowMin) : null;
       const dest = t.destinationName || null;
+      const label = estimateMinutes == null ? null : estimateMinutes <= 0 ? "進站中" : `${estimateMinutes} 分鐘`;
       return {
         ...t,
         destinationName: dest,
         headsign: dest ? "往" + dest : null,
         estimateMinutes,
-        statusLabel:
-          estimateMinutes == null ? null : estimateMinutes <= 0 ? "進站中" : `${estimateMinutes} 分鐘`,
-        waitText:
-          estimateMinutes == null ? null : estimateMinutes <= 0 ? "進站中" : `${estimateMinutes} 分鐘`,
+        statusLabel: label,
+        waitText: label,
       };
     })
     .filter((t) => t.estimateMinutes == null || t.estimateMinutes >= 0)
@@ -66,160 +62,35 @@ function krtcUpcomingFromBundle(stationId, limit) {
   };
 }
 
-let cached = null;
-let loading = null;
-
-function loadRemote() {
-  if (cached) return Promise.resolve(cached);
-  if (loading) return loading;
-  loading = new Promise((resolve, reject) => {
-    const url =
-      "https://raw.githubusercontent.com/yonghong0333-ops/MapSky/fa4291f49d0e4e87d75ebee997e80cac8ecab86d/api/_lib/krtc.js";
-    https
-      .get(url, (res) => {
-        let data = "";
-        res.on("data", (c) => (data += c));
-        res.on("end", () => {
-          try {
-            const m = { exports: {} };
-            const vm = require("vm");
-            const sandbox = {
-              module: m,
-              exports: m.exports,
-              require,
-              console,
-              process,
-              Buffer,
-              setTimeout,
-              clearTimeout,
-              fetch,
-              URL,
-              URLSearchParams,
-              TextEncoder,
-              TextDecoder,
-            };
-            vm.runInNewContext(data, sandbox, { filename: "krtc-remote.js" });
-            cached = sandbox.module.exports;
-            resolve(cached);
-          } catch (e) {
-            reject(e);
-          }
-        });
-      })
-      .on("error", reject);
-  });
-  return loading;
-}
-
-function normalizeEstimateMinutes(it) {
-  const raw = it.estimateTime != null ? Number(it.estimateTime) : null;
-  if (raw != null && Number.isFinite(raw)) {
-    if (raw > 90) return Math.max(0, Math.round(raw / 60));
-    return Math.max(0, Math.round(raw));
-  }
-  if (it.estimateMinutes != null && Number.isFinite(Number(it.estimateMinutes))) {
-    return Math.max(0, Math.round(Number(it.estimateMinutes)));
-  }
-  return null;
-}
-
-function statusLabel(mins) {
-  if (mins == null) return null;
-  if (mins <= 0) return "進站中";
-  return `${mins} 分鐘`;
-}
-
-function enrichLiveItems(items) {
-  return (items || []).map((it) => {
-    const name = (it.destinationName || it.tripHeadSign || "").trim() || null;
-    const estimateMinutes = normalizeEstimateMinutes(it);
-    const label = statusLabel(estimateMinutes);
-    return {
-      ...it,
-      destinationName: name,
-      headsign: name ? "往" + name : null,
-      estimateMinutes,
-      statusLabel: label,
-      waitText: label,
-    };
-  });
-}
-
-function simplifySequenceForMap(seq) {
-  if (!seq || !seq.ok) return seq;
-  const sequences = Array.isArray(seq.sequences) ? seq.sequences : [];
-  let primary = null;
-  for (const s of sequences) {
-    const n = (s.stops && s.stops.length) || s.stopCount || 0;
-    const pn = primary ? (primary.stops && primary.stops.length) || primary.stopCount || 0 : -1;
-    if (!primary || n > pn || (n === pn && s.direction === 0)) primary = s;
-  }
-  let stationIds = Array.isArray(seq.stationIds) ? seq.stationIds.slice() : [];
-  let orderedStops = Array.isArray(seq.orderedStops) ? seq.orderedStops.slice() : [];
-  if (primary && Array.isArray(primary.stops) && primary.stops.length) {
-    const sorted = primary.stops.slice().sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
-    stationIds = sorted.map((s) => s.stationId);
-    if (!orderedStops.length) {
-      orderedStops = sorted.map((s) => ({
-        sequence: s.sequence,
-        stationId: s.stationId,
-        nameZh: s.nameZh || null,
-        lat: s.lat != null ? s.lat : null,
-        lon: s.lon != null ? s.lon : null,
-      }));
-    }
-  }
-  const directions = sequences.map((s) => ({
-    direction: s.direction,
-    lineId: s.lineId || null,
-    stopCount: (s.stops && s.stops.length) || s.stopCount || 0,
-    label: s.direction === 0 ? "順行" : s.direction === 1 ? "逆行" : "方向" + s.direction,
-  }));
+function emptyBoard(stationId) {
   return {
     ok: true,
-    line: seq.line || null,
-    mapPolyline: {
-      stationIds,
-      orderedStops,
-      closed: seq.line && seq.line.lineKey === "C",
-    },
-    stationIds,
-    orderedStops,
-    directions,
-    directionCount: directions.length,
-    note:
-      seq.line && seq.line.lineKey === "C"
-        ? "環狀輕軌順行／逆行共軌，地圖請只畫 mapPolyline 一條。"
-        : "順行／逆行共軌，地圖請只畫 mapPolyline 一條。",
+    type: "live",
+    source: "github-cache-miss",
+    stationId: stationId || null,
+    count: 0,
+    items: [],
+    updatedAt: new Date().toISOString(),
+    note: "捷運時刻表快取尚未就緒，每天 05:10 自動更新",
   };
 }
 
-async function buildUpcoming(mod, query) {
-  const q = query || {};
-  const line = q.line || q.lineId || null;
-  const stationId = q.stationId || q.station || null;
-  if (typeof mod.upcomingDepartures === "function") {
-    const up = await mod.upcomingDepartures({ line, stationId });
-    if (up && up.ok) return up;
-  }
-  if (typeof mod.timetableSummary === "function") {
-    return mod.timetableSummary({ line, stationId });
-  }
-  return { ok: false, reason: "timetable-unavailable" };
-}
-
-async function listLinesWithShape(mod) {
-  const base = typeof mod.listLines === "function" ? await mod.listLines() : { ok: true, lines: [] };
+function localShape() {
   return {
-    ...base,
-    note: "geometry 為 TDX Shape WKT。無 geometry 時請用 mapPolyline。",
+    ok: true,
+    source: "device",
+    lines: [],
+    stations: [],
+    sequences: [],
+    stationIds: [],
+    note: "線形由 App 本機繪製，後台只提供時刻表",
   };
 }
 
 async function handleKrtcQuery(query) {
-  const mod = await loadRemote();
   const q = query || {};
   const type = String(q.type || q.action || "summary").toLowerCase();
+  const sid = q.stationId || q.station || null;
 
   if (
     type === "timetable" ||
@@ -229,90 +100,39 @@ async function handleKrtcQuery(query) {
     type === "departures" ||
     type === "station-timetable" ||
     type === "station_timetable" ||
-    type === "stt"
+    type === "stt" ||
+    type === "live" ||
+    type === "liveboard" ||
+    type === "board"
   ) {
-    const sid = q.stationId || q.station || null;
-    if (sid) {
-      const bundled = krtcUpcomingFromBundle(sid, q.limit);
-      if (bundled && bundled.count) return bundled;
-    }
-    return buildUpcoming(mod, q);
+    if (!sid) return emptyBoard(null);
+    return krtcUpcomingFromBundle(sid, q.limit) || emptyBoard(sid);
   }
 
-  if (type === "lines" || type === "line") {
-    return listLinesWithShape(mod);
+  if (
+    type === "lines" ||
+    type === "line" ||
+    type === "sequence" ||
+    type === "station-of-line" ||
+    type === "stations" ||
+    type === "list" ||
+    type === "shape"
+  ) {
+    return localShape();
   }
 
-  if (type === "sequence" || type === "station-of-line") {
-    const seq = await mod.stationSequence({ line: q.line || q.lineId || null });
-    return simplifySequenceForMap(seq);
-  }
-
-  if (type === "live" || type === "liveboard" || type === "board") {
-    const sid = q.stationId || q.station || null;
-    let r = null;
-    try {
-      r = await mod.liveBoard({
-        line: q.line || q.lineId || null,
-        stationId: sid,
-      });
-      if (r && r.ok && Array.isArray(r.items)) {
-        r.items = enrichLiveItems(r.items);
-      }
-    } catch (_) {
-      r = null;
-    }
-    if (!r || !r.ok || !r.items || !r.items.length) {
-      const bundled = sid ? krtcUpcomingFromBundle(sid, q.limit) : null;
-      if (bundled && bundled.count) return bundled;
-    }
-    if (r && r.ok) {
-      r.type = "live";
-      r.usage = {
-        all: "?type=live",
-        byLine: "?type=live&line=R",
-        byStation: "?type=live&stationId=R7",
-      };
-    }
-    return r;
-  }
-
-  const result = await mod.handleKrtcQuery(query);
-  return result;
+  const bundle = loadBundledKrtcCache();
+  return {
+    ok: true,
+    system: "KRTC",
+    systemName: "高雄捷運／輕軌",
+    source: "github-cache",
+    timetableDate: bundle && bundle.date,
+    note: "線形由 App 本機繪製。班表：?type=timetable&stationId=R7",
+  };
 }
 
 module.exports = {
   handleKrtcQuery,
-  listLines: async (...a) => listLinesWithShape(await loadRemote()),
-  listLinesWithShape: async () => listLinesWithShape(await loadRemote()),
-  listStations: async (...a) => (await loadRemote()).listStations(...a),
-  stationSequence: async (opts) => {
-    const mod = await loadRemote();
-    const seq = await mod.stationSequence(opts || {});
-    return simplifySequenceForMap(seq);
-  },
-  liveBoard: async (...a) => {
-    const mod = await loadRemote();
-    const r = await mod.liveBoard(...a);
-    if (r && r.ok && Array.isArray(r.items)) r.items = enrichLiveItems(r.items);
-    return r;
-  },
-  firstLastTrain: async (...a) => (await loadRemote()).firstLastTrain(...a),
-  frequency: async (...a) => (await loadRemote()).frequency(...a),
-  stationTimetable: async (...a) => (await loadRemote()).stationTimetable(...a),
-  timetableSummary: async (opts) => buildUpcoming(await loadRemote(), opts || {}),
-  upcomingDepartures: async (opts) => buildUpcoming(await loadRemote(), opts || {}),
-  getCredentials: () => {
-    const clientId = process.env.TDX_CLIENT_ID || "";
-    const clientSecret = process.env.TDX_CLIENT_SECRET || "";
-    return { clientId, clientSecret, configured: Boolean(clientId && clientSecret) };
-  },
-  normalizeLineKey: (raw) => {
-    if (raw == null || raw === "") return null;
-    const s = String(raw).trim().toUpperCase();
-    if (s === "R" || s === "RED" || s.includes("紅")) return "R";
-    if (s === "O" || s === "ORANGE" || s.includes("橘") || s.includes("橙")) return "O";
-    if (s === "C" || s === "CIRCLE" || s.includes("環") || s.includes("輕軌")) return "C";
-    return s.length === 1 ? s : null;
-  },
+  getCredentials: () => ({ configured: false, clientId: "", clientSecret: "" }),
 };
