@@ -2,18 +2,10 @@
  * 高雄捷運／輕軌
  * 線形由 App 本機繪製。這裡只讀 api/_data/krtc-timetable.json，不打 TDX。
  */
-const fs = require("fs");
-const path = require("path");
+const timetableStore = require("./timetable-store");
 
 function loadBundledKrtcCache() {
-  try {
-    const p = path.join(__dirname, "..", "_data", "krtc-timetable.json");
-    const raw = JSON.parse(fs.readFileSync(p, "utf-8"));
-    if (!raw || !raw.stations) return null;
-    return raw;
-  } catch {
-    return null;
-  }
+  return timetableStore.load("krtc");
 }
 
 function krtcUpcomingFromBundle(stationId, limit) {

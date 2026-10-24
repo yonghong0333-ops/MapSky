@@ -15,6 +15,10 @@
       "destination": "/api/weather/wind?type=suspension"
     },
     {
+      "source": "/api/transit/timetable",
+      "destination": "/api/weather/wind?transit=timetable"
+    },
+    {
       "source": "/api/transit/thsr",
       "destination": "/api/weather/wind?transit=thsr"
     },

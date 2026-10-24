@@ -6,16 +6,10 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const tdxShared = require("./tdx-shared");
+const timetableStore = require("./timetable-store");
 
 function loadBundledThsrCache() {
-  try {
-    const p = path.join(__dirname, "..", "_data", "thsr-timetable.json");
-    const raw = JSON.parse(fs.readFileSync(p, "utf-8"));
-    if (!raw || !raw.stations) return null;
-    return raw;
-  } catch {
-    return null;
-  }
+  return timetableStore.load("thsr");
 }
 
 function trainsFromBundle(sid, date) {

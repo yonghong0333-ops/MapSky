@@ -4,6 +4,7 @@ const { handleKrtcQuery } = require("../_lib/krtc");
 const { handleTraQuery } = require("../_lib/tra");
 const { handleThsrQuery } = require("../_lib/thsr");
 const { handleYoubikeQuery } = require("../_lib/youbike");
+const { handleTimetableQuery } = require("../_lib/transit-timetable");
 const { handleSuspensionQuery } = require("../_lib/school-closure");
 const { handleClosuresRequest } = require("../_lib/closures");
 const { requireSession } = require("../_lib/require-session");
@@ -42,6 +43,7 @@ module.exports = async function handler(req, res) {
 
     // 大眾運輸：公開（班次／即時為公開資訊）
     const isTransit =
+      transit === "timetable" ||
       transit === "krtc" ||
       transit === "tra" ||
       transit === "thsr" ||
@@ -51,6 +53,16 @@ module.exports = async function handler(req, res) {
       );
 
     if (!isTransit && !requireSession(req, res)) return;
+
+    // 統一班表入口：?system=thsr|tra|krtc&stationId=…（不帶 system 回各系統班表日期與是否過期）
+    if (transit === "timetable") {
+      const query = { ...q };
+      delete query.transit;
+      const result = await handleTimetableQuery(query);
+      const status = result.ok ? 200 : result.reason === "bad-system" || result.reason === "missing-stationId" ? 400 : 502;
+      res.setHeader("Cache-Control", "public, max-age=15, s-maxage=15");
+      return res.status(status).json(result);
+    }
 
     if (
       transit === "krtc" ||

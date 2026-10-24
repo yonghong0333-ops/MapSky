@@ -6,9 +6,15 @@ on:
     # 台北 05:10，一天只打一次 TDX，抓當日時刻表
     - cron: "10 21 * * *"
 
+# 一天只在這個時間點抓一次今天的班表（高鐵、臺鐵、高雄捷運），寫進 api/_data，App／後台之後都只讀這份
+concurrency:
+  group: refresh-transit
+  cancel-in-progress: false
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: write
     steps:
@@ -17,11 +23,14 @@ jobs:
         with:
           node-version: "20"
       - name: Refresh THSR + KRTC + TRA daily timetables
+        id: refresh
+        continue-on-error: true   # 某個系統失敗時，其他成功的仍要 commit；最後一步再讓整個 run 變紅
         env:
           TDX_CLIENT_ID: ${{ secrets.TDX_CLIENT_ID }}
           TDX_CLIENT_SECRET: ${{ secrets.TDX_CLIENT_SECRET }}
         run: node scripts/refresh-transit-cache.js
       - name: Commit caches
+        if: ${{ !cancelled() }}
         run: |
           git config user.name "mapsky-bot"
           git config user.email "mapsky-bot@users.noreply.github.com"
@@ -37,4 +46,9 @@ jobs:
             git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
             echo "push retry $i"; sleep $((i * 5))
           done
+          exit 1
+      - name: Fail if any timetable was not refreshed
+        if: ${{ steps.refresh.outcome == 'failure' }}
+        run: |
+          echo "有班表沒更新成功，看上面 Refresh 步驟的日誌（常見原因：TDX 限流，稍後再手動跑一次）"
           exit 1

@@ -47,22 +47,34 @@ async function getToken() {
   return (await resp.json()).access_token;
 }
 
+// 被 TDX 限流（429）時照 Retry-After 或 10／30／60 秒等一下再試，不要直接放棄整個系統
+const BACKOFF_MS = [10_000, 30_000, 60_000];
+
 async function tdxGet(token, base, apiPath) {
   const join = apiPath.includes("?") ? "&" : "?";
   const url = `${base}${apiPath}${join}$format=JSON`;
-  const resp = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-  });
-  if (resp.status === 429) {
-    const e = new Error("tdx-rate-limit");
-    e.status = 429;
-    throw e;
+  for (let attempt = 0; ; attempt++) {
+    const resp = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+    if (resp.status === 429) {
+      if (attempt >= BACKOFF_MS.length) {
+        const e = new Error("tdx-rate-limit");
+        e.status = 429;
+        throw e;
+      }
+      const ra = Number(resp.headers.get("retry-after"));
+      const wait = ra > 0 ? Math.min(ra * 1000, 90_000) : BACKOFF_MS[attempt];
+      console.warn(`429 ${apiPath}，${Math.round(wait / 1000)} 秒後重試（第 ${attempt + 1} 次）`);
+      await sleep(wait);
+      continue;
+    }
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`${apiPath} HTTP ${resp.status} ${text.slice(0, 120)}`);
+    }
+    return resp.json();
   }
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`${apiPath} HTTP ${resp.status} ${text.slice(0, 120)}`);
-  }
-  return resp.json();
 }
 
 function writeJson(rel, obj) {
@@ -208,7 +220,7 @@ async function refreshThsr(token, date) {
   console.log("THSR stations with data", good);
   if (good < 3) {
     console.warn("THSR skip write: too few");
-    return;
+    return false;
   }
   writeJson("api/_data/thsr-timetable.json", {
     updatedAt: new Date().toISOString(),
@@ -216,6 +228,7 @@ async function refreshThsr(token, date) {
     source: "github-actions",
     stations,
   });
+  return true;
 }
 
 async function refreshKrtc(token) {
@@ -274,7 +287,7 @@ async function refreshKrtc(token) {
   }
   if (Object.keys(stations).length < 5) {
     console.warn("KRTC skip write: empty");
-    return;
+    return false;
   }
   writeJson("api/_data/krtc-timetable.json", {
     updatedAt: new Date().toISOString(),
@@ -282,6 +295,7 @@ async function refreshKrtc(token) {
     source: "github-actions",
     stations,
   });
+  return true;
 }
 
 async function refreshTra(token, date) {
@@ -341,7 +355,7 @@ async function refreshTra(token, date) {
 
   if (nonempty < 50) {
     console.warn("TRA skip write: too few stations", nonempty);
-    return;
+    return false;
   }
   writeJson("api/_data/tra-timetable.json", {
     updatedAt: new Date().toISOString(),
@@ -349,17 +363,31 @@ async function refreshTra(token, date) {
     source: "github-actions",
     stations,
   });
+  return true;
 }
 
 async function main() {
   const date = todayYmd();
   const token = await getToken();
   console.log("refresh date (Taipei today only, once a day)", date);
-  await refreshThsr(token, date);
-  await sleep(2000);
-  await refreshTra(token, date);
-  await sleep(1500);
-  await refreshKrtc(token);
+  // 三個系統各自獨立：一個失敗不影響其他的（成功的照樣寫檔，失敗的保留舊檔）
+  const results = {};
+  for (const [name, fn] of [["THSR", refreshThsr], ["TRA", refreshTra], ["KRTC", refreshKrtc]]) {
+    try {
+      results[name] = (await fn(token, date)) === true;
+    } catch (e) {
+      console.error(name, "failed:", e.message);
+      results[name] = false;
+    }
+    await sleep(1500);
+  }
+  console.log("結果", JSON.stringify(results));
+  const failed = Object.keys(results).filter((k) => !results[k]);
+  if (failed.length) {
+    // 讓 workflow 變紅：以前「略過寫入」也算成功，資料其實沒更新卻沒人發現
+    console.error("沒有更新成功：", failed.join("、"), "（保留舊檔，班表可能不是今天的）");
+    process.exitCode = 1;
+  }
   console.log("done");
 }
 

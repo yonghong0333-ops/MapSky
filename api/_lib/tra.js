@@ -2,21 +2,13 @@
  * 臺鐵（TRA）— 後台只提供當日班表（讀 GitHub 每日快取，不即時打 TDX）。
  * 路線、車站、座標全部由 App 本機內建並繪製，這裡不再回傳。
  */
-const fs = require("fs");
-const path = require("path");
 const tdxShared = require("./tdx-shared");
+const timetableStore = require("./timetable-store");
 
 const FULL_LIMIT = 120;
 
 function loadBundledTraCache() {
-  try {
-    const p = path.join(__dirname, "..", "_data", "tra-timetable.json");
-    const raw = JSON.parse(fs.readFileSync(p, "utf-8"));
-    if (!raw || !raw.stations) return null;
-    return raw;
-  } catch {
-    return null;
-  }
+  return timetableStore.load("tra");
 }
 
 /** 路線與車站由 App 本機繪製；舊版 App 若還在問，回空清單（不是錯誤） */
