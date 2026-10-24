@@ -1,6 +1,5 @@
 /**
  * GitHub Actions：高鐵／捷運／台鐵當日時刻表
- * 台鐵改為 DailyTrainTimetable/Today 再依站篩選（與高鐵相同）
  * env: TDX_CLIENT_ID, TDX_CLIENT_SECRET
  */
 const fs = require("fs");
@@ -94,25 +93,6 @@ async function refreshThsr(token, date) {
         startingStationName: zhName(info.StartingStationName),
       });
     }
-    if (!trains.length) {
-      try {
-        await sleep(300);
-        const data = await tdxGet(token, base, `/DailyTimetable/Station/${sid}/${date}?$top=500`);
-        for (const row of Array.isArray(data) ? data : []) {
-          const info = row.DailyTrainInfo || {};
-          trains.push({
-            trainNo: row.TrainNo || info.TrainNo || null,
-            direction: row.Direction != null ? Number(row.Direction) : null,
-            departureTime: row.DepartureTime || row.ArrivalTime || null,
-            arrivalTime: row.ArrivalTime || null,
-            endingStationName: zhName(row.EndingStationName) || zhName(info.EndingStationName),
-            startingStationName: zhName(row.StartingStationName) || zhName(info.StartingStationName),
-          });
-        }
-      } catch (e) {
-        console.warn("THSR", sid, e.message);
-      }
-    }
     const seen = new Set();
     const uniq = trains.filter((t) => {
       const k = `${t.trainNo}|${t.departureTime}`;
@@ -195,6 +175,7 @@ async function refreshKrtc(token, date) {
 }
 
 async function refreshTra(token, date) {
+  const slashDate = String(date).replace(/-/g, "/");
   const base = "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA";
   const ids = ["1000","1080","1100","3300","3340","3360","4220","4270","4272","4340","4400","4110","4080"];
   const idSet = new Set(ids);
@@ -208,7 +189,7 @@ async function refreshTra(token, date) {
     else if (data && Array.isArray(data.TrainTimetables)) todayRows = data.TrainTimetables;
     else if (data && Array.isArray(data.StationTimetables)) todayRows = data.StationTimetables;
     else if (data && Array.isArray(data.DailyTrainTimetables)) todayRows = data.DailyTrainTimetables;
-    console.log("TRA Today rows", todayRows.length);
+    console.log("TRA Today rows", todayRows.length, todayRows[0] ? Object.keys(todayRows[0]).slice(0, 8) : "");
   } catch (e) {
     console.warn("TRA Today", e.message);
   }
@@ -238,11 +219,19 @@ async function refreshTra(token, date) {
     try {
       await sleep(400);
       const data = await tdxGet(token, base, `/GeneralStationTimetable/Station/${sid}?$top=500`);
-      const list = Array.isArray(data)
-        ? data
-        : data.StationTimetables || data.GeneralStationTimetables || data.TrainTimetables || [];
+      console.log(
+        "TRA GeneralStation keys",
+        sid,
+        data && !Array.isArray(data) ? Object.keys(data).slice(0, 12) : "array"
+      );
+      let list = [];
+      if (Array.isArray(data)) list = data;
+      else if (data && Array.isArray(data.StationTimetables)) list = data.StationTimetables;
+      else if (data && Array.isArray(data.GeneralStationTimetables)) list = data.GeneralStationTimetables;
+      else if (data && (data.Timetables || data.Timetable)) list = [data];
+      else if (data && Array.isArray(data.TrainTimetables)) list = data.TrainTimetables;
       for (const row of list) {
-        const tables = row.Timetables || row.StationTimetables || null;
+        const tables = row.Timetables || row.Timetable || row.StationTimetables || null;
         if (Array.isArray(tables)) {
           for (const t of tables) {
             stations[sid].trains.push({
@@ -272,9 +261,14 @@ async function refreshTra(token, date) {
   }
 
   const odPairs = [
-    ["3340", "3300"], ["3340", "3360"], ["3300", "3340"],
-    ["4340", "4400"], ["4400", "4340"], ["4340", "4220"],
-    ["1000", "1080"], ["4220", "4400"],
+    ["3340", "3300"],
+    ["3340", "3360"],
+    ["3300", "3340"],
+    ["4340", "4400"],
+    ["4400", "4340"],
+    ["4340", "4220"],
+    ["1000", "1080"],
+    ["4220", "4400"],
   ];
   for (const [origin, dest] of odPairs) {
     if (!idSet.has(origin)) continue;
@@ -284,7 +278,7 @@ async function refreshTra(token, date) {
       const data = await tdxGet(
         token,
         base,
-        `/DailyTrainTimetable/OD/${origin}/to/${dest}/${date}?$top=300`
+        `/DailyTrainTimetable/OD/${origin}/to/${dest}/${slashDate}?$top=300`
       );
       const list = Array.isArray(data) ? data : data.TrainTimetables || [];
       for (const row of list) {
