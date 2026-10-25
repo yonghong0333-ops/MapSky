@@ -168,20 +168,21 @@ function ingestRows(stations, rows) {
 
 async function refreshThsr(token, date) {
   const base = "https://tdx.transportdata.tw/api/basic/v2/Rail/THSR";
-  const must = ["0990","1000","1010","1020","1030","1040","1050","1060","1070","1080","1090","1100"];
+  // TDX 高鐵站碼：苗栗 1035、彰化 1043、雲林 1047（不是連號）
+  const must = ["0990","1000","1010","1020","1030","1035","1040","1043","1047","1050","1060","1070"];
   const stations = {};
 
   const odPairs = [
-    ["1000", "1100"],
-    ["1100", "1000"],
-    ["0990", "1100"],
-    ["1100", "0990"],
-    ["1050", "1100"],
-    ["1100", "1050"],
-    ["1000", "1090"],
-    ["1090", "1000"],
-    ["1000", "1080"],
-    ["1080", "1000"],
+    ["1000", "1070"],
+    ["1070", "1000"],
+    ["0990", "1070"],
+    ["1070", "0990"],
+    ["1040", "1070"],
+    ["1070", "1040"],
+    ["1000", "1060"],
+    ["1060", "1000"],
+    ["1000", "1050"],
+    ["1050", "1000"],
   ];
   for (const [o, d] of odPairs) {
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -209,8 +210,8 @@ async function refreshThsr(token, date) {
     console.warn("THSR TrainDate", e.message);
   }
 
-  const thsrNames = { "0990": "南港", "1000": "台北", "1010": "板橋", "1020": "桃園", "1030": "新竹", "1040": "苗栗",
-    "1050": "台中", "1060": "彰化", "1070": "雲林", "1080": "嘉義", "1090": "台南", "1100": "左營" };
+  const thsrNames = { "0990": "南港", "1000": "台北", "1010": "板橋", "1020": "桃園", "1030": "新竹", "1035": "苗栗",
+    "1040": "台中", "1043": "彰化", "1047": "雲林", "1050": "嘉義", "1060": "台南", "1070": "左營" };
   for (const sid of must) {
     if (!stations[sid]) stations[sid] = { name: thsrNames[sid], count: 0, trains: [] };
     else if (!stations[sid].name) stations[sid].name = thsrNames[sid];
@@ -218,6 +219,8 @@ async function refreshThsr(token, date) {
   finalize(stations);
   const good = must.filter((s) => stations[s] && stations[s].count > 0).length;
   console.log("THSR stations with data", good);
+  const noData = must.filter((s) => !(stations[s] && stations[s].count > 0));
+  if (noData.length) console.warn("THSR 這些站碼沒有班次（站碼可能不對）：", noData.join(","));
   if (good < 3) {
     console.warn("THSR skip write: too few");
     return false;

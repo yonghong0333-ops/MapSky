@@ -27,7 +27,7 @@ async function handleTimetableQuery(query) {
   }
   const stationId = q.stationId || q.station || null;
   if (!stationId) {
-    return { ok: false, reason: "missing-stationId", hint: "請帶 stationId，例如高鐵 1100、臺鐵 4400、捷運 R10" };
+    return { ok: false, reason: "missing-stationId", hint: "請帶 stationId，例如高鐵 1070、臺鐵 4400、捷運 R10" };
   }
   const sub = { type: "timetable", stationId, limit: q.limit, date: q.date };
   const handler = system === "thsr" ? handleThsrQuery : system === "tra" ? handleTraQuery : handleKrtcQuery;

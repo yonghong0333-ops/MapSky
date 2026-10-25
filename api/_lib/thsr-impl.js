@@ -31,19 +31,21 @@ const CACHE_TTL_STATIC_MS = 12 * 60 * 60 * 1000;
 const CACHE_TTL_LIVE_MS = 5 * 60 * 1000;
 const CACHE_TTL_STATION_MS = 45 * 60 * 1000;
 
+// TDX 的高鐵站碼（和 api/_data/thsr-timetable.json 裡的一致）。
+// 注意：苗栗是 1035、彰化 1043、雲林 1047，不是連號；嘉義 1050、台南 1060、左營 1070。
 const STATIONS = [
   { stationId: "0990", nameZh: "南港", nameEn: "Nangang" },
   { stationId: "1000", nameZh: "台北", nameEn: "Taipei" },
   { stationId: "1010", nameZh: "板橋", nameEn: "Banqiao" },
   { stationId: "1020", nameZh: "桃園", nameEn: "Taoyuan" },
   { stationId: "1030", nameZh: "新竹", nameEn: "Hsinchu" },
-  { stationId: "1040", nameZh: "苗栗", nameEn: "Miaoli" },
-  { stationId: "1050", nameZh: "台中", nameEn: "Taichung" },
-  { stationId: "1060", nameZh: "彰化", nameEn: "Changhua" },
-  { stationId: "1070", nameZh: "雲林", nameEn: "Yunlin" },
-  { stationId: "1080", nameZh: "嘉義", nameEn: "Chiayi" },
-  { stationId: "1090", nameZh: "台南", nameEn: "Tainan" },
-  { stationId: "1100", nameZh: "左營", nameEn: "Zuoying" },
+  { stationId: "1035", nameZh: "苗栗", nameEn: "Miaoli" },
+  { stationId: "1040", nameZh: "台中", nameEn: "Taichung" },
+  { stationId: "1043", nameZh: "彰化", nameEn: "Changhua" },
+  { stationId: "1047", nameZh: "雲林", nameEn: "Yunlin" },
+  { stationId: "1050", nameZh: "嘉義", nameEn: "Chiayi" },
+  { stationId: "1060", nameZh: "台南", nameEn: "Tainan" },
+  { stationId: "1070", nameZh: "左營", nameEn: "Zuoying" },
 ];
 
 const NAME_TO_ID = {};
@@ -53,15 +55,19 @@ for (const s of STATIONS) {
   NAME_TO_ID[s.stationId] = s.stationId;
 }
 NAME_TO_ID["臺北"] = "1000";
-NAME_TO_ID["高雄"] = "1100";
-NAME_TO_ID["左營站"] = "1100";
-NAME_TO_ID["高鐵左營"] = "1100";
-NAME_TO_ID["新左營"] = "1100";
-NAME_TO_ID["臺中"] = "1050";
-NAME_TO_ID["臺南"] = "1090";
+NAME_TO_ID["高雄"] = "1070";
+NAME_TO_ID["左營站"] = "1070";
+NAME_TO_ID["高鐵左營"] = "1070";
+NAME_TO_ID["新左營"] = "1070";
+NAME_TO_ID["臺中"] = "1040";
+NAME_TO_ID["臺南"] = "1060";
+
+// 舊版 App／後台用過的錯誤站碼（1080 嘉義、1090 台南、1100 左營）：這三個在真實站碼裡不存在，可以安全轉過去，
+// 讓還沒更新的 App 查嘉義以南也有班次。1040～1070 舊版是別的站，無法判斷，維持新的意思。
+const LEGACY_ID = { "1080": "1050", "1090": "1060", "1100": "1070" };
 
 function tmpPath(name) {
-  return path.join(os.tmpdir(), `nexora-thsr-${name}.json`);
+  return path.join(os.tmpdir(), `nexora-thsr-v2-${name}.json`);
 }
 function readCache(name, ttlMs) {
   try {
@@ -91,6 +97,7 @@ function resolveStationId(raw) {
   const s = String(raw).trim();
   if (NAME_TO_ID[s]) return NAME_TO_ID[s];
   if (NAME_TO_ID[s.toLowerCase()]) return NAME_TO_ID[s.toLowerCase()];
+  if (LEGACY_ID[s]) return LEGACY_ID[s];
   if (/^\d{4}$/.test(s)) return s;
   const stripped = s.replace(/^高鐵/, "").replace(/站$/, "");
   if (NAME_TO_ID[stripped]) return NAME_TO_ID[stripped];
@@ -128,7 +135,7 @@ async function listShape() {
 /** live：只用 GitHub 日快取，不打 TDX */
 async function stationTimetable({ stationId, date } = {}) {
   const sid = resolveStationId(stationId);
-  if (!sid) return { ok: false, reason: "missing-stationId", hint: "請帶 stationId（如 1100 左營）" };
+  if (!sid) return { ok: false, reason: "missing-stationId", hint: "請帶 stationId（如 1070 左營）" };
   const trainDate = date || todayYmd();
   const cacheKey = `stt-${sid}-${trainDate}`;
   const cached = readCache(cacheKey, CACHE_TTL_STATION_MS);
@@ -241,8 +248,8 @@ async function handleThsrQuery(query) {
     systemName: "臺灣高鐵",
     note: "路線與車站由 App 本機繪製，後台只提供班表",
     usage: {
-      live: "?type=live&stationId=1100",
-      timetable: "?type=timetable&stationId=1100",
+      live: "?type=live&stationId=1070",
+      timetable: "?type=timetable&stationId=1070",
     },
   };
 }
