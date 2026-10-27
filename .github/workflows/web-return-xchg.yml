@@ -1,0 +1,100 @@
+name: web-return-xchg
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/web-return-xchg.yml
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch callback.js for mapskyweb return
+        run: |
+          set -e
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path("api/auth/callback.js")
+          t = p.read_text(encoding="utf-8")
+          if "官網 return_to：發 xchg" in t:
+              print("already patched")
+              raise SystemExit(0)
+
+          old_clear = '''      serializeCookie("oauth_pkce", "", { maxAge: 0 }),
+      serializeCookie("oauth_desktop", "", { maxAge: 0 }),
+    ];'''
+          new_clear = '''      serializeCookie("oauth_pkce", "", { maxAge: 0 }),
+      serializeCookie("oauth_desktop", "", { maxAge: 0 }),
+      serializeCookie("oauth_return", "", { maxAge: 0 }),
+    ];'''
+          if old_clear not in t:
+              raise SystemExit("clearFlowCookies block missing")
+          t = t.replace(old_clear, new_clear, 1)
+
+          old_success = '''    res.setHeader("Set-Cookie", [
+      serializeCookie("nexora_session", token, { maxAge: 60 * 60 * 24 * 7 }),
+      ...clearFlowCookies,
+    ]);
+    res.writeHead(302, { Location: "/?login=success" });
+    res.end();
+  } catch (e) {
+    res.status(502).send(`登入失敗：${e.message}`);
+  }
+};'''
+
+          new_success = '''    // 官網 return_to：發 xchg 導回官網，由官網代理寫入自己的 session Cookie
+    const retRaw = String(parseCookies(req).oauth_return || "").trim();
+    let webReturn = "";
+    if (retRaw) {
+      try {
+        const u = new URL(retRaw);
+        const allowed = (
+          u.hostname === "mapskyweb.vercel.app" ||
+          u.hostname.endsWith(".mapskyweb.vercel.app") ||
+          u.hostname === "localhost" ||
+          u.hostname === "127.0.0.1"
+        );
+        if (allowed) webReturn = u.origin + u.pathname + (u.search || "");
+      } catch (_) {}
+    }
+    if (webReturn) {
+      try {
+        const xchg = await storeExchangeCode(token);
+        const join = webReturn.includes("?") ? "&" : "?";
+        const loc = `${webReturn}${join}xchg=${encodeURIComponent(xchg)}&login=success`;
+        res.setHeader("Set-Cookie", clearFlowCookies);
+        res.writeHead(302, { Location: loc });
+        res.end();
+        return;
+      } catch (e) {
+        console.error("web return xchg failed", e.message);
+      }
+    }
+
+    res.setHeader("Set-Cookie", [
+      serializeCookie("nexora_session", token, { maxAge: 60 * 60 * 24 * 7 }),
+      ...clearFlowCookies,
+    ]);
+    res.writeHead(302, { Location: "/?login=success" });
+    res.end();
+  } catch (e) {
+    res.status(502).send(`登入失敗：${e.message}`);
+  }
+};'''
+
+          if old_success not in t:
+              raise SystemExit("success block missing")
+          t = t.replace(old_success, new_success, 1)
+          p.write_text(t, encoding="utf-8")
+          print("patched callback", p.stat().st_size)
+          PY
+      - name: Commit and push
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add api/auth/callback.js
+          git diff --cached --quiet && echo "no changes" && exit 0
+          git commit -m "feat(auth): OAuth return_to sends xchg back to mapskyweb"
+          git push
