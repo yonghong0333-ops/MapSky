@@ -1,0 +1,62 @@
+name: open-web-login
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/open-web-login.yml
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Open web login gates in web-shim.js
+        run: |
+          set -e
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path("public/web-shim.js")
+          t = p.read_text(encoding="utf-8")
+          if "Web 登入全面開放" in t and "不強制加入主畫面" in t:
+              print("already patched")
+              raise SystemExit(0)
+
+          start = t.find("function guardDesktopAppRequired()")
+          end = t.find("const blockedByDesktopGate = guardDesktopAppRequired();")
+          if start < 0 or end < 0:
+              raise SystemExit("desktop gate markers missing")
+          new_fn = '''function guardDesktopAppRequired() {\n    // Web 登入全面開放：不再因寬度攔截瀏覽器並隱藏登入門。\n    return false;\n  }\n\n  '''
+          t = t[:start] + new_fn + t[end:]
+
+          start = t.find("(function guardBrowserGate()")
+          if start < 0:
+              raise SystemExit("browser gate missing")
+          i = t.find("{", start)
+          depth = 0
+          end = None
+          for j in range(i, len(t)):
+              if t[j] == "{":
+                  depth += 1
+              elif t[j] == "}":
+                  depth -= 1
+                  if depth == 0:
+                      end = j + 1
+                      if t[end:end+4] == ")();":
+                          end = end + 4
+                      break
+          if end is None:
+              raise SystemExit("browser gate end not found")
+          replacement = '''(function guardBrowserGate() {\n    // Web 登入開放：不強制加入主畫面即可使用網頁版。\n    return;\n  })();'''
+          t = t[:start] + replacement + t[end:]
+          p.write_text(t, encoding="utf-8")
+          print("patched", p.stat().st_size)
+          PY
+      - name: Commit and push
+        run: |
+          git config user.name "mapsky-bot"
+          git config user.email "bot@mapsky.local"
+          git add public/web-shim.js
+          git diff --cached --quiet && echo "no changes" && exit 0
+          git commit -m "feat(web): allow browser login (disable desktop/PWA gates)"
+          git push
