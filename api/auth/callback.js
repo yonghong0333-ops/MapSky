@@ -472,6 +472,7 @@ module.exports = async function handler(req, res) {
       serializeCookie("oauth_provider", "", { maxAge: 0 }),
       serializeCookie("oauth_pkce", "", { maxAge: 0 }),
       serializeCookie("oauth_desktop", "", { maxAge: 0 }),
+      serializeCookie("oauth_return", "", { maxAge: 0 }),
     ];
 
     if (isDesktop) {
@@ -482,6 +483,35 @@ module.exports = async function handler(req, res) {
       res.writeHead(302, { Location: `mapsky://login-complete?xchg=${encodeURIComponent(xchg)}` });
       res.end();
       return;
+    }
+
+    // 官網 return_to：發 xchg 導回官網
+    const retRaw = String(parseCookies(req).oauth_return || "").trim();
+    let webReturn = "";
+    if (retRaw) {
+      try {
+        const u = new URL(retRaw);
+        const allowed = (
+          u.hostname === "mapskyweb.vercel.app" ||
+          u.hostname.endsWith(".mapskyweb.vercel.app") ||
+          u.hostname === "localhost" ||
+          u.hostname === "127.0.0.1"
+        );
+        if (allowed) webReturn = u.origin + u.pathname + (u.search || "");
+      } catch (_) {}
+    }
+    if (webReturn) {
+      try {
+        const xchg = await storeExchangeCode(token);
+        const join = webReturn.includes("?") ? "&" : "?";
+        const loc = webReturn + join + "xchg=" + encodeURIComponent(xchg) + "&login=success";
+        res.setHeader("Set-Cookie", clearFlowCookies);
+        res.writeHead(302, { Location: loc });
+        res.end();
+        return;
+      } catch (e) {
+        console.error("web return xchg failed", e.message);
+      }
     }
 
     res.setHeader("Set-Cookie", [
