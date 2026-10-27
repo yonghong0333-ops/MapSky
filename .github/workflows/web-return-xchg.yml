@@ -11,40 +11,37 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Patch callback.js for mapskyweb return
+      - name: Patch callback.js
         run: |
           set -e
-          python3 <<'PY'
+          python3 << 'PY'
           from pathlib import Path
           p = Path("api/auth/callback.js")
           t = p.read_text(encoding="utf-8")
-          if "官網 return_to：發 xchg" in t:
+          if "webReturn" in t and "oauth_return" in t and "官網 return_to" in t:
               print("already patched")
               raise SystemExit(0)
 
-          old_clear = '''      serializeCookie("oauth_pkce", "", { maxAge: 0 }),
-      serializeCookie("oauth_desktop", "", { maxAge: 0 }),
-    ];'''
-          new_clear = '''      serializeCookie("oauth_pkce", "", { maxAge: 0 }),
-      serializeCookie("oauth_desktop", "", { maxAge: 0 }),
-      serializeCookie("oauth_return", "", { maxAge: 0 }),
-    ];'''
-          if old_clear not in t:
-              raise SystemExit("clearFlowCookies block missing")
-          t = t.replace(old_clear, new_clear, 1)
+          if 'serializeCookie("oauth_return"' not in t:
+              needle = 'serializeCookie("oauth_desktop", "", { maxAge: 0 }),\n    ];'
+              insert = 'serializeCookie("oauth_desktop", "", { maxAge: 0 }),\n      serializeCookie("oauth_return", "", { maxAge: 0 }),\n    ];'
+              if needle not in t:
+                  raise SystemExit("clear cookies needle missing")
+              t = t.replace(needle, insert, 1)
+              print("cleared oauth_return")
 
-          old_success = '''    res.setHeader("Set-Cookie", [
+          marker = 'res.writeHead(302, { Location: "/?login=success" });'
+          # Only patch the OAuth success one after nexora_session token set (not magic-link webUrl)
+          key = '''    res.setHeader("Set-Cookie", [
       serializeCookie("nexora_session", token, { maxAge: 60 * 60 * 24 * 7 }),
       ...clearFlowCookies,
     ]);
     res.writeHead(302, { Location: "/?login=success" });
-    res.end();
-  } catch (e) {
-    res.status(502).send(`登入失敗：${e.message}`);
-  }
-};'''
+    res.end();'''
+          if key not in t:
+              raise SystemExit("oauth success key missing")
 
-          new_success = '''    // 官網 return_to：發 xchg 導回官網，由官網代理寫入自己的 session Cookie
+          block = '''    // 官網 return_to：發 xchg 導回官網
     const retRaw = String(parseCookies(req).oauth_return || "").trim();
     let webReturn = "";
     if (retRaw) {
@@ -63,7 +60,7 @@ jobs:
       try {
         const xchg = await storeExchangeCode(token);
         const join = webReturn.includes("?") ? "&" : "?";
-        const loc = `${webReturn}${join}xchg=${encodeURIComponent(xchg)}&login=success`;
+        const loc = webReturn + join + "xchg=" + encodeURIComponent(xchg) + "&login=success";
         res.setHeader("Set-Cookie", clearFlowCookies);
         res.writeHead(302, { Location: loc });
         res.end();
@@ -78,23 +75,16 @@ jobs:
       ...clearFlowCookies,
     ]);
     res.writeHead(302, { Location: "/?login=success" });
-    res.end();
-  } catch (e) {
-    res.status(502).send(`登入失敗：${e.message}`);
-  }
-};'''
-
-          if old_success not in t:
-              raise SystemExit("success block missing")
-          t = t.replace(old_success, new_success, 1)
+    res.end();'''
+          t = t.replace(key, block, 1)
           p.write_text(t, encoding="utf-8")
-          print("patched callback", p.stat().st_size)
+          print("patched", p.stat().st_size)
           PY
-      - name: Commit and push
+      - name: Commit
         run: |
-          git config user.name "mapsky-bot"
-          git config user.email "bot@mapsky.local"
+          git config user.name mapsky-bot
+          git config user.email bot@mapsky.local
           git add api/auth/callback.js
-          git diff --cached --quiet && echo "no changes" && exit 0
-          git commit -m "feat(auth): OAuth return_to sends xchg back to mapskyweb"
+          git diff --cached --quiet && echo nochange && exit 0
+          git commit -m "feat(auth): OAuth return_to xchg back to mapskyweb"
           git push
