@@ -8,7 +8,7 @@ function loadBundledKrtcCache() {
   return timetableStore.load("krtc");
 }
 
-function krtcUpcomingFromBundle(stationId, limit) {
+function krtcUpcomingFromBundle(stationId, limit, all) {
   const bundle = loadBundledKrtcCache();
   if (!bundle) return null;
   const sid = String(stationId || "").trim().toUpperCase();
@@ -23,11 +23,11 @@ function krtcUpcomingFromBundle(stationId, limit) {
   const parts = Object.fromEntries(fmt.formatToParts(new Date()).map((p) => [p.type, p.value]));
   const nm = `${parts.hour}:${parts.minute}`.match(/^(\d{1,2}):(\d{2})/);
   const nowMin = nm ? Number(nm[1]) * 60 + Number(nm[2]) : 0;
-  const items = block.items
+  const allItems = block.items
     .map((t) => {
       const m = t.departureTime && String(t.departureTime).match(/^(\d{1,2}):(\d{2})/);
       const mins = m ? Number(m[1]) * 60 + Number(m[2]) : null;
-      const estimateMinutes = mins != null ? Math.max(0, mins - nowMin) : null;
+      const estimateMinutes = mins != null ? mins - nowMin : null; // 負數 = 已經開走，下面會濾掉
       const dest = t.destinationName || null;
       const label = estimateMinutes == null ? null : estimateMinutes <= 0 ? "進站中" : `${estimateMinutes} 分鐘`;
       return {
@@ -39,8 +39,9 @@ function krtcUpcomingFromBundle(stationId, limit) {
         waitText: label,
       };
     })
-    .filter((t) => t.estimateMinutes == null || t.estimateMinutes >= 0)
-    .slice(0, Math.min(40, Number(limit) || 12));
+    .filter((t) => all || t.estimateMinutes == null || t.estimateMinutes >= 0);
+  // all=1：回傳全日班次（含已開走的，estimateMinutes 為負數）；否則只回之後的班次
+  const items = all ? allItems : allItems.slice(0, Math.min(40, Number(limit) || 12));
   return {
     ok: true,
     type: "live",
@@ -98,7 +99,7 @@ async function handleKrtcQuery(query) {
     type === "board"
   ) {
     if (!sid) return emptyBoard(null);
-    return krtcUpcomingFromBundle(sid, q.limit) || emptyBoard(sid);
+    return krtcUpcomingFromBundle(sid, q.limit, q.all === "1" || q.all === "true") || emptyBoard(sid);
   }
 
   if (
