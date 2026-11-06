@@ -24,7 +24,6 @@ const { getCity, getAlerts, getLightning, getRadarComposite, CWA_CITIES } = requ
 const { buildMapskyBridge } = require("../_lib/mapsky-bridge");
 
 module.exports = async function handler(req, res) {
-  // Store / gacha routes (extracted to keep this file under size limits)
   if (await tryHandleStore(req, res)) return;
 
   if (req.query.action === "ai-chats" || req.query.action === "ai-chat-get" ||
@@ -127,13 +126,15 @@ module.exports = async function handler(req, res) {
     }
 
     const GEMINI_MODELS = [
-      "gemini-2.5-flash",
-      "gemini-2.0-flash",
+      "gemini-3.8-flash",
+      "gemini-3.5-flash-lite",
       "gemini-2.5-flash-lite",
+      "gemini-2.5-flash",
     ];
     const GROQ_MODELS = [
       "llama-3.3-70b-versatile",
       "llama-3.1-8b-instant",
+      "openai/gpt-oss-120b",
     ];
     const GROQ_VISION_MODELS = [
       "meta-llama/llama-4-scout-17b-16e-instruct",
@@ -144,12 +145,12 @@ module.exports = async function handler(req, res) {
       "deepseek-reasoner",
     ];
 
-    const ALLOWED = GEMINI_MODELS.concat(GROQ_MODELS).concat(DEEPSEEK_MODELS);
-    const envDefault = process.env.AI_DEFAULT_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const ALLOWED = GEMINI_MODELS.concat(GROQ_MODELS).concat(DEEPSEEK_MODELS).concat(GROQ_VISION_MODELS);
+    const envDefault = process.env.AI_DEFAULT_MODEL || process.env.GEMINI_MODEL || "gemini-3.8-flash";
     const clientModel = typeof body.model === "string" ? body.model.trim() : "";
     let preferred =
       clientModel && ALLOWED.indexOf(clientModel) !== -1 ? clientModel : envDefault;
-    if (ALLOWED.indexOf(preferred) === -1) preferred = "gemini-2.5-flash";
+    if (ALLOWED.indexOf(preferred) === -1) preferred = "gemini-3.8-flash";
 
     const isDeepSeekModel = (m) =>
       DEEPSEEK_MODELS.indexOf(m) !== -1 ||
@@ -213,15 +214,6 @@ module.exports = async function handler(req, res) {
     function looksLikeNeedSearch(text) {
       if (!text) return false;
       return /最新|今天|昨天|明天|現在|目前|新聞|股價|天氣|幾點|誰贏|比賽|結果|202[4-9]|搜尋|查一下|網路上|即時|匯率|金價|比特幣|選舉|地震|颱風/.test(text);
-    }
-
-    function looksLikeWeather(text) {
-      if (!text) return false;
-      if (/天氣|氣溫|氣象|天氣預報|氣象局|中央氣象|雨量|紫外線|體感溫度|風速|颱風|雷雨|寒流|空品|AQI|PM2\.5/.test(text)) return true;
-      if (/會不會下雨|下不下雨|有沒有雨|帶傘|要不要帶傘|穿什麼.*(冷|熱|雨)|會不會熱|會不會冷|幾度|幾℃/.test(text)) return true;
-      if (/(今|明|後)天.*(雨|熱|冷|溫)|外出.*(天氣|雨)/.test(text)) return true;
-      if (/(天氣|氣象).{0,8}(預報|高溫|濕度)|(預報|高溫|濕度).{0,8}(天氣|氣象|氣溫)/.test(text)) return true;
-      return false;
     }
 
     async function callGroq(model) {
@@ -316,9 +308,6 @@ module.exports = async function handler(req, res) {
         userParts.push({ inlineData: { mimeType: imageMime || "image/jpeg", data: imageData } });
       }
       let gemText = message || (hasImage ? "請描述這張圖片的內容，並用繁體中文回答。" : "");
-      if (!hasImage) {
-        // weather context injection would go here if city provided
-      }
       userParts.push({ text: gemText });
       contents.push({ role: "user", parts: userParts });
 
@@ -370,20 +359,20 @@ module.exports = async function handler(req, res) {
     if (hasImage) {
       if (process.env.GEMINI_API_KEY) {
         if (!isGroqModel(preferred) && !isDeepSeekModel(preferred)) pushUnique(preferred);
-        take(GEMINI_MODELS, 2);
+        take(GEMINI_MODELS, 3);
       }
     } else {
       pushUnique(preferred);
       if (isDeepSeekModel(preferred)) {
         take(DEEPSEEK_MODELS, 2);
-        if (process.env.GEMINI_API_KEY) take(GEMINI_MODELS, 1);
+        if (process.env.GEMINI_API_KEY) take(GEMINI_MODELS, 2);
         if (process.env.GROQ_API_KEY) take(GROQ_MODELS, 1);
       } else if (isGroqModel(preferred)) {
         take(GROQ_MODELS, 2);
-        if (process.env.GEMINI_API_KEY) take(GEMINI_MODELS, 1);
+        if (process.env.GEMINI_API_KEY) take(GEMINI_MODELS, 2);
         if (process.env.DEEPSEEK_API_KEY) take(DEEPSEEK_MODELS, 1);
       } else {
-        take(GEMINI_MODELS, 2);
+        take(GEMINI_MODELS, 3);
         if (process.env.DEEPSEEK_API_KEY) take(DEEPSEEK_MODELS, 1);
         if (process.env.GROQ_API_KEY) take(GROQ_MODELS, 1);
       }
@@ -422,7 +411,7 @@ module.exports = async function handler(req, res) {
       zh = "目前 AI 服務額度已滿或較忙碌，請稍後再試。";
     } else if (/api.?key|not set|invalid.*key|permission|401|403/i.test(lastError)) {
       zh = "AI 金鑰無效或權限不足，請檢查 Vercel 環境變數。";
-    } else if (/not found|do not have access|decommissioned|invalid model/i.test(lastError)) {
+    } else if (/not found|do not have access|decommissioned|invalid model|does not exist/i.test(lastError)) {
       zh = "所選模型目前不可用，請改選其他模型。";
     } else if (lastError && lastError !== "AI request failed") {
       zh = "AI 回應失敗：" + lastError.slice(0, 120);
