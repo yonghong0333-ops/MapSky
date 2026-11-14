@@ -3,6 +3,14 @@
   "cleanUrls": true,
   "rewrites": [
     {
+      "source": "/api/news",
+      "destination": "/api/auth/session?action=list-news"
+    },
+    {
+      "source": "/api/events",
+      "destination": "/api/auth/session?action=list-events"
+    },
+    {
       "source": "/api/weather/closures",
       "destination": "/api/weather/wind?type=closures"
     },

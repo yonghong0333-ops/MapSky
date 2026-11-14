@@ -3,12 +3,49 @@ const { parseCookies } = require("./cookies");
 const { verify } = require("./jwt");
 const { isAdminSession } = require("./admin");
 const { tryHandleGacha } = require("./session-gacha-actions");
+const {
+  listAnnouncements,
+  listEvents,
+  ensureSeedNews,
+} = require("./announcements");
 
 /** @returns {Promise<boolean>} true if handled */
 async function tryHandleStore(req, res) {
   if (await tryHandleGacha(req, res)) return true;
 
   const action = req.query && req.query.action;
+
+  // 公開：最新消息／活動（不必登入）— 給 iOS 日曆頁與官網用
+  if (action === "list-news" || action === "list-events") {
+    try {
+      await ensureSeedNews();
+      const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 30));
+      if (action === "list-events") {
+        const events = await listEvents(limit);
+        res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=120");
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.status(200).json({ ok: true, events, items: [] });
+        return true;
+      }
+      const [items, events] = await Promise.all([
+        listAnnouncements(limit),
+        listEvents(limit),
+      ]);
+      res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=120");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.status(200).json({ ok: true, items, events });
+      return true;
+    } catch (e) {
+      res.status(500).json({
+        ok: false,
+        error: String((e && e.message) || e).slice(0, 200),
+        items: [],
+        events: [],
+      });
+      return true;
+    }
+  }
+
   if (!action || !String(action).startsWith("store-")) return false;
 
   const cookiesS = parseCookies(req);
