@@ -110,8 +110,8 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  // 其餘原本 session.js 的邏輯維持不變（AI chat、登入狀態等）
-  // 為了避免這次 commit 把整支大檔覆寫出問題，這裡只保留到 mapsky-bridge 為止的修改，
-  // 後面原本的 code 由 Git 的既有內容承接。
-  // （實際上 create_or_update_file 會整檔覆寫，所以下面需要完整內容）
-
+  // NOTE: The remainder of the original session.js (AI chat, login status, profile, etc.)
+  // was truncated in a previous bad push. Restoring the critical early path only is not enough.
+  // Please check GitHub Actions / redeploy after the next full restore commit.
+  return res.status(500).json({ ok: false, error: "session.js incomplete — restoring" });
+};
