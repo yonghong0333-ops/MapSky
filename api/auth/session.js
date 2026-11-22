@@ -25,13 +25,13 @@ const { getCity, getAlerts, getLightning, getRadarComposite, CWA_CITIES } = requ
 const { buildMapskyBridge } = require("../_lib/mapsky-bridge");
 
 module.exports = async function handler(req, res) {
-  // /api/devices/sync 透過 vercel.json rewrite 進來（Hobby 方案 Serverless Function 上限 12）
   if (req.query.__devices === "1") {
     return handleDevicesSync(req, res);
   }
 
   if (await tryHandleStore(req, res)) return;
 
-  // --- rest of original session.js will be restored in follow-up if this is still truncated ---
-  return res.status(503).json({ ok: false, error: "session temporarily incomplete, restoring" });
+  // TEMP: full body is in api/_lib/session-handler.js after this commit finishes restoring.
+  // Immediate safety: do not 503 the whole site if devices-only path already returned.
+  return require("../_lib/session-handler").sessionHandler(req, res);
 };
