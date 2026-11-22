@@ -24,14 +24,19 @@ const {
 const { getCity, getAlerts, getLightning, getRadarComposite, CWA_CITIES } = require("../_lib/cwa");
 const { buildMapskyBridge } = require("../_lib/mapsky-bridge");
 
+function isDevicesRequest(req) {
+  if (req.query && req.query.__devices === "1") return true;
+  const a = req.query && req.query.action;
+  // App 專用 action，不會和其他 session action 撞名
+  return a === "list" || a === "heartbeat" || a === "remove";
+}
+
 module.exports = async function handler(req, res) {
-  if (req.query.__devices === "1") {
+  if (isDevicesRequest(req)) {
     return handleDevicesSync(req, res);
   }
 
   if (await tryHandleStore(req, res)) return;
 
-  // TEMP: full body is in api/_lib/session-handler.js after this commit finishes restoring.
-  // Immediate safety: do not 503 the whole site if devices-only path already returned.
   return require("../_lib/session-handler").sessionHandler(req, res);
 };
