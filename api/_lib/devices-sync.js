@@ -25,6 +25,18 @@ function devicesKey(uid) {
   return `devices:${uid}`;
 }
 
+function parseBody(req) {
+  let body = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      body = {};
+    }
+  }
+  return body || {};
+}
+
 async function handleDevicesSync(req, res) {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Content-Type", "application/json");
@@ -38,16 +50,24 @@ async function handleDevicesSync(req, res) {
   }
 
   const key = devicesKey(uid);
-  const action = (req.query && req.query.action) || "";
+  // 若 rewrite 弄丟 query，用 method / body 推斷 action
+  let action = (req.query && req.query.action) || "";
+  if (!action) {
+    if (req.method === "GET") action = "list";
+    else if (req.method === "POST") {
+      const b = parseBody(req);
+      action = b.deviceId && (b.battery != null || b.name != null || b.model != null) ? "heartbeat" : "remove";
+    }
+  }
 
   let client;
   try {
     client = await getRedisClient();
   } catch (e) {
-    return res.status(500).json({ ok: false, reason: "server_error" });
+    return res.status(500).json({ ok: false, reason: "server_error", detail: "redis_connect" });
   }
   if (!client) {
-    return res.status(500).json({ ok: false, reason: "server_error" });
+    return res.status(500).json({ ok: false, reason: "server_error", detail: "redis_missing" });
   }
 
   try {
@@ -57,16 +77,7 @@ async function handleDevicesSync(req, res) {
         return res.status(405).json({ ok: false, reason: "bad_action" });
       }
 
-      let body = req.body;
-      if (typeof body === "string") {
-        try {
-          body = JSON.parse(body);
-        } catch {
-          body = {};
-        }
-      }
-      body = body || {};
-
+      const body = parseBody(req);
       const deviceId = str(body.deviceId, 64);
       if (!deviceId) {
         return res.status(400).json({ ok: false, reason: "bad_device" });
@@ -79,7 +90,7 @@ async function handleDevicesSync(req, res) {
           const prev = JSON.parse(prevRaw);
           const nowSec = Math.floor(Date.now() / 1000);
           if (typeof prev.lastSeen === "number" && nowSec - prev.lastSeen < HEARTBEAT_THROTTLE_SEC) {
-            return res.status(200).json({ ok: true });
+            return res.status(200).json({ ok: true, throttled: true });
           }
         } catch (_) {
           /* 壞資料就繼續寫 */
@@ -141,7 +152,9 @@ async function handleDevicesSync(req, res) {
         }
       }
 
-      return res.status(200).json({ ok: true, now, devices });
+      // uidHint 方便確認兩台是否落到同一個帳號 key（不含敏感內容）
+      const uidHint = uid.split(":").map((p, i) => (i === 0 ? p : p.slice(0, 6))).join(":");
+      return res.status(200).json({ ok: true, now, devices, uidHint, count: devices.length });
     }
 
     // ---------- remove ----------
@@ -150,16 +163,7 @@ async function handleDevicesSync(req, res) {
         return res.status(405).json({ ok: false, reason: "bad_action" });
       }
 
-      let body = req.body;
-      if (typeof body === "string") {
-        try {
-          body = JSON.parse(body);
-        } catch {
-          body = {};
-        }
-      }
-      body = body || {};
-
+      const body = parseBody(req);
       const deviceId = str(body.deviceId, 64);
       if (!deviceId) {
         return res.status(400).json({ ok: false, reason: "bad_device" });
@@ -169,9 +173,9 @@ async function handleDevicesSync(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    return res.status(400).json({ ok: false, reason: "bad_action" });
+    return res.status(400).json({ ok: false, reason: "bad_action", got: action || "(empty)", method: req.method });
   } catch (e) {
-    return res.status(500).json({ ok: false, reason: "server_error" });
+    return res.status(500).json({ ok: false, reason: "server_error", detail: "exception" });
   }
 }
 
