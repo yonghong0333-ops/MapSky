@@ -12,37 +12,50 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Restore session.js if broken
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Force restore session.js when truncated
         run: |
           set -e
           sz=$(wc -c < api/auth/session.js || echo 0)
-          head=$(head -c 40 api/auth/session.js || true)
-          echo "size=$sz head=$head"
-          if [ "$sz" -lt 20000 ] || echo "$head" | grep -q PLACEHOLDER || echo "$head" | grep -q incomplete; then
-            echo "BROKEN - restoring from 7b039df"
+          echo "session.js size=$sz"
+          if [ "$sz" -lt 20000 ]; then
+            echo "TRUNCATED - restoring full file from 7b039df"
             git show 7b039df27d1aa096c33d98d5b07878d1f8e6f4e9:api/auth/session.js > api/auth/session.js
-            python3 - <<'PY'
+            python3 << 'PY'
 from pathlib import Path
 p = Path("api/auth/session.js")
 s = p.read_text()
+# inject devices-sync import
 if "handleDevicesSync" not in s:
     s = s.replace(
         'const { tryHandleStore } = require("../_lib/session-store-actions");\n\nconst { parseCookies',
         'const { tryHandleStore } = require("../_lib/session-store-actions");\nconst { handleDevicesSync } = require("../_lib/devices-sync");\n\nconst { parseCookies',
         1,
     )
-    s = s.replace(
-        'module.exports = async function handler(req, res) {\n  if (await tryHandleStore(req, res)) return;',
-        'module.exports = async function handler(req, res) {\n  if (req.query.__devices === "1") {\n    return handleDevicesSync(req, res);\n  }\n\n  if (await tryHandleStore(req, res)) return;',
-        1,
-    )
-    p.write_text(s)
+# inject early devices routing (by __devices or action)
+old = "module.exports = async function handler(req, res) {\n  if (await tryHandleStore(req, res)) return;"
+new = '''function isDevicesRequest(req) {
+  if (req.query && req.query.__devices === "1") return true;
+  const a = req.query && req.query.action;
+  return a === "list" || a === "heartbeat" || a === "remove";
+}
+
+module.exports = async function handler(req, res) {
+  if (isDevicesRequest(req)) {
+    return handleDevicesSync(req, res);
+  }
+
+  if (await tryHandleStore(req, res)) return;'''
+if old in s:
+    s = s.replace(old, new, 1)
     print("patched devices route")
 else:
-    print("already has devices route")
+    print("handler pattern not found, size", len(s))
+p.write_text(s)
 print("final size", p.stat().st_size)
 PY
-            python3 - <<'PY'
+            # vercel rewrite
+            python3 << 'PY'
 import json
 from pathlib import Path
 v = json.loads(Path("vercel.json").read_text())
@@ -51,22 +64,22 @@ if not any(r.get("source") == "/api/devices/sync" for r in rewrites):
     rewrites.insert(0, {"source": "/api/devices/sync", "destination": "/api/auth/session?__devices=1"})
     v["rewrites"] = rewrites
     Path("vercel.json").write_text(json.dumps(v, indent=2, ensure_ascii=False) + "\n")
-    print("added vercel rewrite")
+    print("added rewrite")
 else:
-    print("rewrite already present")
+    print("rewrite ok")
 PY
             rm -f api/devices/sync.js
             rmdir api/devices 2>/dev/null || true
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git config user.name "github-actions[bot]"
-            git add api/auth/session.js vercel.json
-            git add -u api/devices || true
+            git add -A api/auth/session.js vercel.json
+            git add -u api/devices 2>/dev/null || true
             if git diff --cached --quiet; then
-              echo "nothing to commit"
+              echo "no changes"
             else
-              git commit -m "auto-restore: session.js + devices route under Hobby 12-fn limit"
-              git push
+              git commit -m "auto-restore: full session.js + devices (Hobby 12-fn)"
+              git push origin HEAD:main
             fi
           else
-            echo "session.js looks healthy, skip"
+            echo "session.js healthy ($sz bytes), skip"
           fi
