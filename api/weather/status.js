@@ -10,7 +10,7 @@ const {
 } = require("../_lib/admin");
 const { resolveMemberId } = require("../_lib/member-id");
 const { PROVIDERS, isConfigured } = require("../_lib/providers");
-const { getNicknameCooldownDays, setNicknameCooldownDays, isMaintenanceMode, setMaintenanceMode, getAdventureDailyLimitMinutes, setAdventureDailyLimitMinutes, getAdventureDailyLimitSchedule } = require("../_lib/app-settings");
+const { getNicknameCooldownDays, setNicknameCooldownDays, isMaintenanceMode, setMaintenanceMode, getAdventureDailyLimitMinutes, setAdventureDailyLimitMinutes, setAdventureSchedule, removeAdventureSchedule, getAdventureDailyLimitSchedules, getAdventureDailyLimitSchedule } = require("../_lib/app-settings");
 const { getAllSubscriptions, removeSubscription } = require("../_lib/push-store");
 const { addAnnouncement, getAnnouncementsSince } = require("../_lib/announcements");
 const { sendPush, ensureConfigured } = require("../_lib/web-push");
@@ -59,18 +59,56 @@ module.exports = async function handler(req, res) {
       try {
         const result = await setAdventureDailyLimitMinutes(body.minutes, {
           schedule: body.schedule || null,
+          date: body.date || null,
         });
         if (result && result.scheduled) {
           return res.status(200).json({
             ok: true,
             scheduled: true,
             adventureDailyLimitMinutes: result.minutes,
-            effectiveAt: result.effectiveAt,
+            date: result.date || null,
+            effectiveAt: result.effectiveAt || null,
             schedule: result.schedule,
+            adventureDailyLimitSchedules: result.schedules || null,
           });
         }
         const minutes = typeof result === "object" ? result.minutes : result;
         return res.status(200).json({ ok: true, adventureDailyLimitMinutes: minutes, scheduled: false });
+      } catch (e) {
+        return res.status(400).json({ ok: false, reason: e.message });
+      }
+    }
+
+    // 多日排程：指定某一冒險日（YYYY-MM-DD）的上限，例如 12/1 開放 8 小時
+    if (action === "set-adventure-schedule") {
+      if (!(await isAdminSession(payload))) {
+        return res.status(403).json({ ok: false, reason: "not-admin" });
+      }
+      try {
+        const result = await setAdventureSchedule(body.date, body.minutes);
+        return res.status(200).json({
+          ok: true,
+          scheduled: true,
+          date: result.date,
+          minutes: result.minutes,
+          adventureDailyLimitSchedules: result.schedules,
+        });
+      } catch (e) {
+        return res.status(400).json({ ok: false, reason: e.message });
+      }
+    }
+
+    if (action === "remove-adventure-schedule") {
+      if (!(await isAdminSession(payload))) {
+        return res.status(403).json({ ok: false, reason: "not-admin" });
+      }
+      try {
+        const result = await removeAdventureSchedule(body.date);
+        return res.status(200).json({
+          ok: true,
+          date: result.date,
+          adventureDailyLimitSchedules: result.schedules,
+        });
       } catch (e) {
         return res.status(400).json({ ok: false, reason: e.message });
       }
@@ -359,12 +397,14 @@ module.exports = async function handler(req, res) {
     configured: isConfigured(id),
   }));
 
-  const [amSuperAdmin, dynamicAdmins, nicknameCooldownDays, adventureDailyLimitMinutes, adventureDailyLimitSchedule, maintenanceMode, betaTesters, adventureSkipList] = await Promise.all([
+  const [amSuperAdmin, dynamicAdmins, nicknameCooldownDays, adventureDailyLimitMinutes, adventureDailyLimitSchedule,
+    adventureDailyLimitSchedules, maintenanceMode, betaTesters, adventureSkipList] = await Promise.all([
     isSuperAdminSession(payload),
     getDynamicAdmins(),
     getNicknameCooldownDays(),
     getAdventureDailyLimitMinutes(),
     getAdventureDailyLimitSchedule(),
+    getAdventureDailyLimitSchedules(),
     isMaintenanceMode(),
     getBetaTesters(),
     getAdventureSkipList(),
@@ -382,6 +422,7 @@ module.exports = async function handler(req, res) {
     nicknameCooldownDays,
     adventureDailyLimitMinutes,
     adventureDailyLimitSchedule,
+    adventureDailyLimitSchedules,
     maintenanceMode,
     // 管理員名單：只有超級管理員看得到，也只有超級管理員能在前端指派/踢除。
     // 超級管理員名單只列出「provider:id」（沒有真名，因為那份資料只在環境
