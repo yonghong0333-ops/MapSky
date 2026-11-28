@@ -176,8 +176,7 @@ async function sessionHandler(req, res) {
   try { memberId = await getOrCreateMemberId(payload); } catch (_) {}
   let profileExtra = null;
   try { profileExtra = await getUserProfile(payload.provider, payload.profile && payload.profile.id); } catch (_) {}
-  const adventureUnlimited = Boolean(adventureSkipListed); // 管理員也受每日上限約束
-  const adventureDailyLimitMinutes = adventureUnlimited ? 1440 : await getAdventureDailyLimitMinutes();
+  const adventureDailyLimitMinutes = await getAdventureDailyLimitMinutes();
   let adventureUsedMinutes = 0;
   try {
     const usage = await getUsage(payload, adventureDailyLimitMinutes);
@@ -195,8 +194,7 @@ async function sessionHandler(req, res) {
     isSuperAdmin,
     memberId,
     betaTester,
-    adventureSkip: adventureUnlimited,
-    adventureUnlimited,
+    adventureSkip: adventureSkipListed,
     adventureDailyLimitMinutes,
     adventureUsedMinutes,
     maintenanceMode: await isMaintenanceMode(),
