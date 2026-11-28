@@ -24,7 +24,6 @@ const { buildMapskyBridge } = require("./mapsky-bridge");
 async function sessionHandler(req, res) {
   if (await tryHandleStore(req, res)) return;
 
-  // AI chats cloud storage
   if (req.query.action === "ai-chats" || req.query.action === "ai-chat-get" ||
       req.query.action === "ai-chat-save" || req.query.action === "ai-chat-delete") {
     const cookies = parseCookies(req);
@@ -169,7 +168,6 @@ async function sessionHandler(req, res) {
     });
   }
 
-  // Default: logged-in session profile
   const isSuperAdmin = isSuperAdminSession(payload);
   const isAdmin = isAdminSession(payload) || isSuperAdmin;
   const betaTester = await isBetaTester(payload);
@@ -178,7 +176,7 @@ async function sessionHandler(req, res) {
   try { memberId = await getOrCreateMemberId(payload); } catch (_) {}
   let profileExtra = null;
   try { profileExtra = await getUserProfile(payload.provider, payload.profile && payload.profile.id); } catch (_) {}
-  const adventureUnlimited = Boolean(isSuperAdmin || adventureSkipListed);
+  const adventureUnlimited = Boolean(adventureSkipListed); // 管理員也受每日上限約束
   const adventureDailyLimitMinutes = adventureUnlimited ? 1440 : await getAdventureDailyLimitMinutes();
   let adventureUsedMinutes = 0;
   try {
